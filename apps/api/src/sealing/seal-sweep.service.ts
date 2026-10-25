@@ -49,6 +49,19 @@ export abstract class SealSweepRepository {
    * (or a worker that just claimed the row) gets `false`.
    */
   abstract requeue(candidate: SealSweepCandidate, runningStartedBefore: Date): Promise<boolean>;
+
+  /**
+   * `audit_only` jobs (declined / expired envelopes) still `running` since
+   * before `runningStartedBefore`: their worker died (on the Edge runtime,
+   * a step killed at the CPU or memory limit). With attempts left the job
+   * goes back to `pending`; without, it is marked `failed` so it does not
+   * sit in `running` for ever. `findCandidates` only covers fully signed
+   * envelopes, so nothing else reclaims these.
+   */
+  abstract reclaimStaleAuditJobs(
+    runningStartedBefore: Date,
+    limit: number,
+  ): Promise<ReadonlyArray<{ readonly envelopeId: string; readonly requeued: boolean }>>;
 }
 
 export interface SealSweepResult {
@@ -59,6 +72,10 @@ export interface SealSweepResult {
   readonly skipped: number;
   /** Envelopes older than 6 h that are still stuck; logged and left alone. */
   readonly poison: number;
+  /** Stale `audit_only` jobs put back to `pending`. */
+  readonly audit_requeued: number;
+  /** Stale `audit_only` jobs with no attempts left, marked `failed`. */
+  readonly audit_failed: number;
 }
 
 /**
@@ -167,12 +184,20 @@ export class SealSweepService implements OnModuleInit, OnModuleDestroy {
       );
     }
 
+    const audit = await this.repo.reclaimStaleAuditJobs(runningStartedBefore, BATCH_LIMIT);
+    for (const a of audit) {
+      const what = a.requeued ? 're-queued' : 'out of attempts, marked failed';
+      this.logger.warn(`seal sweep: stale audit_only job for envelope ${a.envelopeId} ${what}`);
+    }
+
     return {
       scanned: candidates.length,
       requeued: requeuedIds.length,
       requeued_envelope_ids: requeuedIds,
       skipped,
       poison: poisoned.length,
+      audit_requeued: audit.filter((a) => a.requeued).length,
+      audit_failed: audit.filter((a) => !a.requeued).length,
     };
   }
 }

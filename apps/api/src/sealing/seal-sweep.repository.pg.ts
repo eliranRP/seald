@@ -69,6 +69,37 @@ export class SealSweepPgRepository extends SealSweepRepository {
     }));
   }
 
+  async reclaimStaleAuditJobs(
+    runningStartedBefore: Date,
+    limit: number,
+  ): Promise<ReadonlyArray<{ readonly envelopeId: string; readonly requeued: boolean }>> {
+    const staleBefore = runningStartedBefore.toISOString();
+    const result = await sql<{ envelope_id: string; status: string }>`
+      with stale as (
+        select id from envelope_jobs
+        where kind = 'audit_only'
+          and status = 'running'
+          and started_at < ${staleBefore}::timestamptz
+        order by started_at
+        limit ${limit}
+        for update skip locked
+      )
+      update envelope_jobs j
+      set status = case when j.attempts < j.max_attempts then 'pending' else 'failed' end::job_status,
+          scheduled_for = now(),
+          started_at = null,
+          finished_at = case when j.attempts < j.max_attempts then null else now() end,
+          last_error = 'reclaimed stale running audit_only job (seal sweep)'
+      from stale
+      where j.id = stale.id
+      returning j.envelope_id, j.status
+    `.execute(this.db);
+    return result.rows.map((r) => ({
+      envelopeId: r.envelope_id,
+      requeued: r.status === 'pending',
+    }));
+  }
+
   async requeue(candidate: SealSweepCandidate, runningStartedBefore: Date): Promise<boolean> {
     const staleBefore = runningStartedBefore.toISOString();
     return this.db.transaction().execute(async (trx) => {

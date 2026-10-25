@@ -76,14 +76,12 @@ function makeFakeTsa(over: Partial<TsaClient> = {}): TsaClient {
   const tokenDer = syntheticTstDer();
   return {
     configured: true,
-    timestamp: jest.fn(
-      async (): Promise<TimestampResult> => ({
-        tokenDer,
-        genTime: '2026-04-29T12:00:00Z',
-        tsaUrl: 'https://tsa.example/tsr',
-        messageImprintSha256Hex: 'deadbeef',
-      }),
-    ),
+    timestamp: jest.fn(async (): Promise<TimestampResult> => ({
+      tokenDer,
+      genTime: '2026-04-29T12:00:00Z',
+      tsaUrl: 'https://tsa.example/tsr',
+      messageImprintSha256Hex: 'deadbeef',
+    })),
     ...(over as object),
   } as unknown as TsaClient;
 }

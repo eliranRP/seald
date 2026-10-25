@@ -2250,10 +2250,7 @@ function humanRoleLabel(
   role: 'proposer' | 'signatory' | 'validator' | 'witness',
 ): 'Proposer' | 'Signatory' | 'Validator' | 'Witness' {
   return (role.charAt(0).toUpperCase() + role.slice(1)) as
-    | 'Proposer'
-    | 'Signatory'
-    | 'Validator'
-    | 'Witness';
+    'Proposer' | 'Signatory' | 'Validator' | 'Witness';
 }
 
 function humanSignatureFormat(f: 'typed' | 'drawn' | 'upload' | null | undefined): string {

@@ -59,7 +59,10 @@ export function appendDssIncrementalUpdate(input: IncrementalUpdateInput): Buffe
     return originalPdf;
   }
 
-  const trailer = parseTrailer(originalPdf);
+  // Decode once: on the Edge runtime every whole-file latin1 decode costs
+  // tens of milliseconds of the 2 s CPU budget.
+  const text = originalPdf.toString('latin1');
+  const trailer = parseTrailer(text);
   const startxref = findStartxref(originalPdf);
 
   // Each appended stream object gets a fresh object number after the
@@ -104,7 +107,7 @@ export function appendDssIncrementalUpdate(input: IncrementalUpdateInput): Buffe
   // verbatim and tack on `/DSS <ref>`. The catalog keeps its original
   // object number + generation so any other indirect ref into it
   // (e.g. /AcroForm) stays valid.
-  const priorCatalog = readObject(originalPdf, trailer.rootRef);
+  const priorCatalog = readObject(text, trailer.rootRef);
   const newCatalogBody = appendDssEntryToCatalog(
     trailer.rootRef.objNum,
     trailer.rootRef.objGen,
@@ -190,8 +193,7 @@ const ROOT_RE = /\/Root\s+(\d+)\s+(\d+)\s+R/;
 const INFO_RE = /\/Info\s+(\d+)\s+(\d+)\s+R/;
 const ID_RE = /\/ID\s*(\[[^\]]+\])/;
 
-function parseTrailer(pdf: Buffer): ParsedTrailer {
-  const text = pdf.toString('latin1');
+function parseTrailer(text: string): ParsedTrailer {
   // Take the LAST trailer in the file — if the PDF already had
   // incremental updates, we extend the latest revision.
   let lastMatch: RegExpExecArray | null = null;
@@ -246,8 +248,7 @@ function findStartxref(pdf: Buffer): number {
  * Used to extract the prior catalog dictionary so we can copy it +
  * append a new /DSS entry to it.
  */
-function readObject(pdf: Buffer, ref: ObjectRef): string {
-  const text = pdf.toString('latin1');
+function readObject(text: string, ref: ObjectRef): string {
   // Naive but adequate: search for the LAST occurrence of "<n> <g> obj"
   // (last so we follow incremental-update revisions). Robustness note:
   // this is good enough for our seal pipeline output (single-revision

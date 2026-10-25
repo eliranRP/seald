@@ -129,8 +129,7 @@ function extractOcspUrls(cert: forge.pki.Certificate): string[] {
   // is keyed under. Cast through `unknown` so the call is permitted under
   // strict typings without contaminating callers.
   const ext = cert.getExtension({ id: OID_AIA } as unknown as { id: number }) as
-    | { value: string; id: string }
-    | undefined;
+    { value: string; id: string } | undefined;
   if (!ext) return urls;
   try {
     const aia = asn1.fromDer(ext.value);

@@ -77,9 +77,12 @@ export async function appendArchiveTimestamp(input: ArchiveTimestampInput): Prom
   }
 
   // ---- 1. Parse the latest trailer of the input.
-  const trailer = parseLastTrailer(pdfWithDss);
+  // Decode once: on the Edge runtime every whole-file latin1 decode costs
+  // tens of milliseconds of the 2 s CPU budget.
+  const pdfText = pdfWithDss.toString('latin1');
+  const trailer = parseLastTrailer(pdfText);
   const startxref = findStartxref(pdfWithDss);
-  const priorCatalogBody = readObjectBody(pdfWithDss, trailer.rootRef);
+  const priorCatalogBody = readObjectBody(pdfText, trailer.rootRef);
 
   // ---- 2. Allocate object numbers for the new revision.
   let nextObjNum = trailer.size;
@@ -127,7 +130,7 @@ export async function appendArchiveTimestamp(input: ArchiveTimestampInput): Prom
   // field, or readers that take the new /AcroForm no longer list the
   // B-T signature at all. So: prior /Fields first, then the doc
   // timestamp widget.
-  const priorFields = readPriorAcroFormFields(pdfWithDss, priorCatalogBody);
+  const priorFields = readPriorAcroFormFields(pdfText, priorCatalogBody);
   const fields = [...priorFields, `${sigWidgetObjNum} 0 R`].join(' ');
   const acroFormBody = '<<\n' + `/Fields [${fields}]\n` + '/SigFlags 3\n' + '>>';
   const acroFormObj = serializeIndirectObject(acroFormObjNum, 0, acroFormBody);
@@ -289,8 +292,7 @@ const INFO_RE = /\/Info\s+(\d+)\s+(\d+)\s+R/;
 const ID_RE = /\/ID\s*(\[[^\]]+\])/;
 const STARTXREF_RE = /startxref\s+(\d+)\s+%%EOF\s*$/;
 
-function parseLastTrailer(pdf: Buffer): ParsedTrailer {
-  const text = pdf.toString('latin1');
+function parseLastTrailer(text: string): ParsedTrailer {
   let lastMatch: RegExpExecArray | null = null;
   let m: RegExpExecArray | null;
   TRAILER_RE.lastIndex = 0;
@@ -331,8 +333,7 @@ function findStartxref(pdf: Buffer): number {
   return parseInt(match[1], 10);
 }
 
-function readObjectBody(pdf: Buffer, ref: ObjectRef): string {
-  const text = pdf.toString('latin1');
+function readObjectBody(text: string, ref: ObjectRef): string {
   const marker = `${ref.objNum} ${ref.objGen} obj`;
   // The marker must start a token: a plain lastIndexOf('2 0 obj') also
   // hits '12 0 obj', and a DSS with a few certs and OCSP responses easily
@@ -365,7 +366,7 @@ const ACROFORM_REF_RE = /\/AcroForm\s+(\d+)\s+(\d+)\s+R/;
  * dict is not something our pipeline writes, so it throws; the caller
  * (DssInjector) then keeps the B-LT bytes.
  */
-function readPriorAcroFormFields(pdf: Buffer, catalogBody: string): string[] {
+function readPriorAcroFormFields(text: string, catalogBody: string): string[] {
   const ref = ACROFORM_REF_RE.exec(catalogBody);
   if (!ref) {
     if (/\/AcroForm\s*<</.test(catalogBody)) {
@@ -373,7 +374,7 @@ function readPriorAcroFormFields(pdf: Buffer, catalogBody: string): string[] {
     }
     return [];
   }
-  const formBody = readObjectBody(pdf, {
+  const formBody = readObjectBody(text, {
     objNum: parseInt(ref[1]!, 10),
     objGen: parseInt(ref[2]!, 10),
   });
