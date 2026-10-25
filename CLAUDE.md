@@ -115,6 +115,16 @@ SHA-256(canonical-JSON of prior row)`; `GET /verify/:envelopeId`
   There is one `audit.pdf` that lists every document's original and sealed
   hash, and one event chain (S.6). A single-document envelope, or one with
   no document rows, seals exactly as before.
+- **S.9** Step-wise sealing (docs/supabase-native-architecture.md).
+  `SealingService.processSealStep` / `processAuditOnlyStep` run one step
+  (certificate, one document, or audit.pdf + completion) and return a
+  plain-JSON `SealProgress`; `processSealJob` loops them in memory (Docker
+  worker, tests). The `seal-worker` Edge Function runs one step per
+  invocation via `runOneSealStep` and stores progress on
+  `envelope_jobs.progress` (migration 0048). Every step must stay
+  idempotent and well under 1 s of CPU. `P12TsaSigner` signs with native
+  digests and `crypto.sign` (never `privateEncrypt`: wrong on the edge
+  runtime); output is byte-identical to forge's.
 
 ### Google Drive integration env vars
 
@@ -279,6 +289,7 @@ Parity-plan migrations (each has a paired down in `down/`; `0038` is unused):
 - `0036` MCP OAuth: OAuth 2.1 grant tables (WP-27).
 - `0037` automation auto-disable: disable record on the recipe after 20 consecutive failures (WP-34).
 - `0039` MCP "Later" list: `signer_corrected` and `expiry_changed` events, `signer_corrected` mail kind (WP-26).
+- `0048` envelope job progress: `envelope_jobs.progress`, the step state of a multi-step seal on the `seal-worker` Edge Function (S.9).
 - `0044` scan sessions: `scan_sessions`, the 10 minute phone-to-computer hand-off for "Scan with phone" (redesign v2 WS-J; only the code's hash is stored). The phone page `/scan/:code` needs `camera=(self)` in the Permissions-Policy of `apps/landing/_worker.js` and `public/_headers`.
 
 ### i18n

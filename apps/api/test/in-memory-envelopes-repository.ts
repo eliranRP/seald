@@ -962,6 +962,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     max_attempts: number;
     last_error: string | null;
     scheduled_for: string;
+    progress?: unknown;
   }> = [];
 
   async enqueueJob(envelope_id: string, kind: 'seal' | 'audit_only'): Promise<string> {
@@ -974,6 +975,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       existing.attempts = 0;
       existing.last_error = null;
       existing.scheduled_for = now;
+      existing.progress = null;
       return existing.id;
     }
     const id = randomUUID();
@@ -1008,7 +1010,17 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       kind: candidate.kind,
       attempts: candidate.attempts,
       max_attempts: candidate.max_attempts,
+      progress: candidate.progress ?? null,
     };
+  }
+
+  override async yieldJob(job_id: string, progress: unknown): Promise<void> {
+    const j = this.jobs.find((x) => x.id === job_id);
+    if (!j || j.status !== 'running') return;
+    j.status = 'pending';
+    j.attempts = Math.max(j.attempts - 1, 0);
+    j.scheduled_for = new Date().toISOString();
+    j.progress = JSON.parse(JSON.stringify(progress)) as unknown;
   }
 
   async finishJob(job_id: string): Promise<void> {

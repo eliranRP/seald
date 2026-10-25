@@ -303,6 +303,9 @@ export function createPgMemDb(): PgMemHandle {
   mem.public.none(
     readFileSync(resolve(__dirname, '../db/migrations/0042_templates_soft_delete.sql'), 'utf8'),
   );
+  // 0048 — multi-step seal progress on envelope_jobs. pg-mem rejects the
+  // `comment on column` in the file, so only the column is added here.
+  mem.public.none('alter table envelope_jobs add column progress jsonb');
 
   const { Pool } = mem.adapters.createPg();
   const pool = new Pool();

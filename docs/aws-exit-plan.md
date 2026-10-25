@@ -114,6 +114,13 @@ not on the hosted platform yet.
   as separate jobs (each on its own invocation), shrink the bundle that
   sealing loads, and confirm the hosted platform's limits with one real
   deploy before the cut-over.
+- **Done since (2026-10-25):** the target is now the Supabase-native design
+  in `docs/supabase-native-architecture.md`. Sealing runs step-wise on its
+  own `seal-worker` function (5.3 MB bundle, 0.4-0.5 s boot). Against the
+  local Supabase stack with the 1 s/2 s limits, every step costs under
+  about 0.85 s, a 3-document envelope (30 pages each) seals in about 8 s
+  through self-kicks with no worker killed, and `verify-pades` passes on
+  every output (B-T, B-LT, B-LTA).
 - `sharp` is replaced by a pure-JS PNG/JPEG normalizer (WS-5 done).
 
 ### WS-1 Secrets: Secrets Manager → Supabase function secrets

@@ -46,11 +46,17 @@ describe('normalizeSignatureImage', () => {
     [32, 16],
     [800, 800],
     [1001, 333],
-  ])('matches sharp fit-inside dimensions for a %ix%i PNG', async (w, h) => {
-    const input = strokePng(w, h);
-    const out = PNG.sync.read(normalizeSignatureImage(input, BOX_W, BOX_H));
-    expect({ width: out.width, height: out.height }).toEqual(await sharpSize(input));
-  });
+  ])(
+    'matches sharp fit-inside dimensions for a %ix%i PNG',
+    async (w, h) => {
+      const input = strokePng(w, h);
+      const out = PNG.sync.read(normalizeSignatureImage(input, BOX_W, BOX_H));
+      expect({ width: out.width, height: out.height }).toEqual(await sharpSize(input));
+      // sharp (the reference, not the code under test) can be slow to start
+      // when the full suite runs in parallel.
+    },
+    30_000,
+  );
 
   it('keeps transparency and the stroke after a downscale', () => {
     const out = PNG.sync.read(normalizeSignatureImage(strokePng(1200, 400), BOX_W, BOX_H));

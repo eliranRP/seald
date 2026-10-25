@@ -456,13 +456,7 @@ export interface ContactsTable {
 }
 
 export type EnvelopeStatusDb =
-  | 'draft'
-  | 'awaiting_others'
-  | 'sealing'
-  | 'completed'
-  | 'declined'
-  | 'expired'
-  | 'canceled';
+  'draft' | 'awaiting_others' | 'sealing' | 'completed' | 'declined' | 'expired' | 'canceled';
 export type DeliveryModeDb = 'parallel' | 'sequential';
 export type SignerRoleDb = 'proposer' | 'signatory' | 'validator' | 'witness';
 export type FieldKindDb =
@@ -748,6 +742,8 @@ export interface EnvelopeJobsTable {
   started_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   finished_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   created_at: ColumnType<Date, string | undefined, never>;
+  /** Migration 0048: multi-step seal progress (SealProgress JSON). */
+  progress: ColumnType<unknown | null, string | null | undefined, string | null | undefined>;
 }
 
 export type EmailKindDb =
