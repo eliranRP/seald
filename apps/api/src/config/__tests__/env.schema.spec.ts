@@ -25,23 +25,32 @@ describe('parseEnv', () => {
     AUTOMATION_SECRETS_KEY,
   };
 
+  describe('SEALD_SERVICE_ROLE_KEY alias', () => {
+    it('prefers SEALD_SERVICE_ROLE_KEY over the platform-injected key', () => {
+      const env = parseEnv({
+        ...valid,
+        SUPABASE_SERVICE_ROLE_KEY: 'legacy-jwt',
+        SEALD_SERVICE_ROLE_KEY: 'sb_secret_fake',
+      });
+      expect(env.SUPABASE_SERVICE_ROLE_KEY).toBe('sb_secret_fake');
+    });
+
+    it('keeps SUPABASE_SERVICE_ROLE_KEY when the alias is unset or empty', () => {
+      expect(parseEnv({ ...valid, SUPABASE_SERVICE_ROLE_KEY: 'k' }).SUPABASE_SERVICE_ROLE_KEY).toBe(
+        'k',
+      );
+      expect(
+        parseEnv({ ...valid, SUPABASE_SERVICE_ROLE_KEY: 'k', SEALD_SERVICE_ROLE_KEY: '' })
+          .SUPABASE_SERVICE_ROLE_KEY,
+      ).toBe('k');
+    });
+  });
+
   it('parses a valid env', () => {
     const env = parseEnv(valid);
     expect(env.PORT).toBe(3000);
     expect(env.SUPABASE_URL).toBe('https://example.supabase.co');
     expect(env.SUPABASE_JWT_AUDIENCE).toBe('authenticated');
-  });
-
-  it('takes the service key from SEALD_SERVICE_ROLE_KEY over the platform one (Edge Functions)', () => {
-    const env = parseEnv({
-      ...valid,
-      SUPABASE_SERVICE_ROLE_KEY: 'legacy-jwt-injected-by-the-platform',
-      SEALD_SERVICE_ROLE_KEY: 'sb_secret_example',
-    });
-    expect(env.SUPABASE_SERVICE_ROLE_KEY).toBe('sb_secret_example');
-    expect(parseEnv({ ...valid, SUPABASE_SERVICE_ROLE_KEY: 'k' }).SUPABASE_SERVICE_ROLE_KEY).toBe(
-      'k',
-    );
   });
 
   it('defaults SUPABASE_JWT_AUDIENCE to "authenticated"', () => {

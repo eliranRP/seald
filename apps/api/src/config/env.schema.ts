@@ -472,14 +472,23 @@ const envSchema = z
 
 export type AppEnv = z.infer<typeof envSchema>;
 
+/**
+ * Supabase Edge Functions inject SUPABASE_SERVICE_ROLE_KEY as the legacy JWT
+ * and refuse custom secrets named SUPABASE_*, so the sb_secret_ key is set as
+ * SEALD_SERVICE_ROLE_KEY. When present (non-empty) it wins.
+ */
+function withServiceRoleKeyAlias(
+  raw: NodeJS.ProcessEnv | Record<string, string | undefined>,
+): Record<string, string | undefined> {
+  const alias = raw.SEALD_SERVICE_ROLE_KEY;
+  if (typeof alias === 'string' && alias.trim().length > 0) {
+    return { ...raw, SUPABASE_SERVICE_ROLE_KEY: alias };
+  }
+  return raw;
+}
+
 export function parseEnv(raw: NodeJS.ProcessEnv | Record<string, string | undefined>): AppEnv {
-  // Supabase Edge Functions refuse secrets named SUPABASE_* and inject the
-  // legacy service_role JWT under that name, which does not work once a
-  // project's legacy keys are disabled. SEALD_SERVICE_ROLE_KEY carries the
-  // project's secret key (sb_secret_...) there and wins when set.
-  const override = raw['SEALD_SERVICE_ROLE_KEY'];
-  const source = override ? { ...raw, SUPABASE_SERVICE_ROLE_KEY: override } : raw;
-  const result = envSchema.safeParse(source);
+  const result = envSchema.safeParse(withServiceRoleKeyAlias(raw));
   if (!result.success) {
     const issues = result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
     throw new Error(`Invalid environment: ${issues}`);
