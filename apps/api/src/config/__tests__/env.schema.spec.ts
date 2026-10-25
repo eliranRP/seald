@@ -32,6 +32,18 @@ describe('parseEnv', () => {
     expect(env.SUPABASE_JWT_AUDIENCE).toBe('authenticated');
   });
 
+  it('takes the service key from SEALD_SERVICE_ROLE_KEY over the platform one (Edge Functions)', () => {
+    const env = parseEnv({
+      ...valid,
+      SUPABASE_SERVICE_ROLE_KEY: 'legacy-jwt-injected-by-the-platform',
+      SEALD_SERVICE_ROLE_KEY: 'sb_secret_example',
+    });
+    expect(env.SUPABASE_SERVICE_ROLE_KEY).toBe('sb_secret_example');
+    expect(parseEnv({ ...valid, SUPABASE_SERVICE_ROLE_KEY: 'k' }).SUPABASE_SERVICE_ROLE_KEY).toBe(
+      'k',
+    );
+  });
+
   it('defaults SUPABASE_JWT_AUDIENCE to "authenticated"', () => {
     const { SUPABASE_JWT_AUDIENCE: _, ...rest } = valid;
     const env = parseEnv(rest);
