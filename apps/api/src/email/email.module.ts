@@ -4,11 +4,10 @@ import type { AppEnv } from '../config/env.schema';
 import { EnvelopesModule } from '../envelopes/envelopes.module';
 import { EmailDispatcherService } from './email-dispatcher.service';
 import { EmailSender } from './email-sender';
+import { selectEmailSender } from './email-sender-factory';
 import { EmailWorkerService } from './email-worker.service';
-import { LoggingEmailSender } from './logging-email-sender';
 import { OutboundEmailsRepository } from './outbound-emails.repository';
 import { OutboundEmailsPgRepository } from './outbound-emails.repository.pg';
-import { ResendEmailSender } from './resend-email-sender';
 import { ResendWebhookController } from './webhooks/resend-webhook.controller';
 import { ResendWebhookService } from './webhooks/resend-webhook.service';
 import { TemplateService } from './template.service';
@@ -35,18 +34,7 @@ import { TemplateService } from './template.service';
     {
       provide: EmailSender,
       inject: [APP_ENV],
-      useFactory: (env: AppEnv): EmailSender => {
-        if (env.EMAIL_PROVIDER === 'logging') return new LoggingEmailSender();
-        if (env.EMAIL_PROVIDER === 'resend') return new ResendEmailSender(env);
-        if (env.EMAIL_PROVIDER === 'smtp') {
-          throw new Error(
-            'EMAIL_PROVIDER=smtp is not wired yet — use logging or resend. See email.module.ts.',
-          );
-        }
-        // Exhaustiveness guard — if the enum grows, TS tells us.
-        const _exhaustive: never = env.EMAIL_PROVIDER;
-        throw new Error(`EMAIL_PROVIDER unsupported: ${String(_exhaustive)}`);
-      },
+      useFactory: (env: AppEnv): EmailSender => selectEmailSender(env),
     },
   ],
   exports: [EmailSender, TemplateService, OutboundEmailsRepository, EmailDispatcherService],

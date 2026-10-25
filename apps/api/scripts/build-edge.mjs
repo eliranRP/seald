@@ -5,6 +5,7 @@
 //   seald        the whole Nest app: the bridge that serves every route not
 //                yet moved to its own function (entry src/edge-main.ts)
 //   seal-worker  one seal step per invocation, no Nest app (src/edge/seal-worker.ts)
+//   email-worker one outbox batch per invocation, no Nest app (src/edge/email-worker.ts)
 //
 // Run after `pnpm --filter api build`. Bundling the tsc output, not src/,
 // keeps the decorator metadata tsc emits, which Nest DI needs and which the
@@ -35,6 +36,7 @@ const repoRoot = resolve(apiRoot, '..', '..');
 const FUNCTIONS = {
   seald: { entry: './dist/src/edge-main.js', exports: ['bootstrapEdge'] },
   'seal-worker': { entry: './dist/src/edge/seal-worker.js', exports: ['createSealWorker'] },
+  'email-worker': { entry: './dist/src/edge/email-worker.js', exports: ['createEmailWorker'] },
 };
 
 // Packages the bundle must not inline: native addons, and optional modules
