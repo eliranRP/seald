@@ -4,11 +4,11 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleHelp,
-  Minus,
-  Plus,
   Redo2,
   Target,
   Undo2,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 import type { PageToolbarProps } from './PageToolbar.types';
 import { Divider, IconButton, PageIndicator, Root, ZoomPercent } from './PageToolbar.styles';
@@ -70,7 +70,7 @@ export const PageToolbar = forwardRef<HTMLDivElement, PageToolbarProps>((props, 
           disabled={zoomOutDisabled ?? !onZoomOut}
           onClick={onZoomOut}
         >
-          <Minus size={14} aria-hidden />
+          <ZoomOut size={14} aria-hidden />
         </IconButton>
         <ZoomPercent
           type="button"
@@ -86,7 +86,7 @@ export const PageToolbar = forwardRef<HTMLDivElement, PageToolbarProps>((props, 
           disabled={zoomInDisabled ?? !onZoomIn}
           onClick={onZoomIn}
         >
-          <Plus size={14} aria-hidden />
+          <ZoomIn size={14} aria-hidden />
         </IconButton>
       </>
     );
@@ -96,6 +96,7 @@ export const PageToolbar = forwardRef<HTMLDivElement, PageToolbarProps>((props, 
   if (onUndo || onRedo) {
     historyGroup = (
       <>
+        <Divider aria-hidden />
         {onUndo ? (
           <IconButton type="button" aria-label="Undo" disabled={undoDisabled} onClick={onUndo}>
             <Undo2 size={14} aria-hidden />
@@ -106,7 +107,6 @@ export const PageToolbar = forwardRef<HTMLDivElement, PageToolbarProps>((props, 
             <Redo2 size={14} aria-hidden />
           </IconButton>
         ) : null}
-        <Divider aria-hidden />
       </>
     );
   }
@@ -128,7 +128,6 @@ export const PageToolbar = forwardRef<HTMLDivElement, PageToolbarProps>((props, 
 
   return (
     <Root ref={ref} {...rest} role="toolbar" aria-label="Page navigation">
-      {historyGroup}
       {jumpGroup}
       <IconButton
         type="button"
@@ -145,6 +144,7 @@ export const PageToolbar = forwardRef<HTMLDivElement, PageToolbarProps>((props, 
         <ChevronRight size={14} aria-hidden />
       </IconButton>
       {zoomGroup}
+      {historyGroup}
       {shortcutsButton}
     </Root>
   );

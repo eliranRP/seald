@@ -100,7 +100,8 @@ import {
   BannerSlot,
   MobileBar,
   PageStack,
-  PanelSection,
+  FieldsSection,
+  SignersSection,
   PreparePanel,
   RailSlot,
   ReminderSlot,
@@ -121,7 +122,7 @@ import {
   TemplateSummaryEyebrow,
   TemplateSummaryIcon,
   TemplateSummaryText,
-  ThumbsSlot,
+  ThumbsColumn,
   ToolbarDock,
   Workspace,
 } from './DocumentPage.styles';
@@ -144,6 +145,25 @@ interface ReadinessIssue {
   readonly label: string;
   /** One-click fix; absent when the person has to act in the panel. */
   readonly signerId?: string | undefined;
+}
+
+/** Paper width on the desktop Prepare board (canvas `.paper`). */
+const BOARD_PAPER_WIDTH = 640;
+/** Prepare panel (320) + thumbs column (104) + canvas padding (2 × 32). */
+const DESKTOP_CHROME_WIDTH = 320 + 104 + 64;
+
+/**
+ * Scale applied on top of the person's zoom. Phones fit the page to the
+ * screen width. The desktop Prepare editor shows the page at the board's
+ * 640px when the window has room; field coordinates stay in the 560px
+ * base, since every canvas handler divides by the view zoom.
+ */
+function paperFitZoom(isMobile: boolean, desktopPrepare: boolean, paperWidth: number): number {
+  if (paperWidth <= 0 || typeof window === 'undefined') return 1;
+  if (isMobile) return Math.min(1, (window.innerWidth - 32) / paperWidth);
+  if (!desktopPrepare) return 1;
+  const room = window.innerWidth - DESKTOP_CHROME_WIDTH;
+  return Math.max(1, Math.min(BOARD_PAPER_WIDTH, room) / paperWidth);
 }
 
 function firstName(name: string): string {
@@ -238,10 +258,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
   const { zoom, zoomIn, zoomOut, resetZoom, zoomInDisabled, zoomOutDisabled } = useCanvasZoom();
   // On phones the page is scaled down to fit the screen width; the zoom the
   // person picks multiplies that fit.
-  const fitZoom =
-    isMobile && paperSize.width > 0 && typeof window !== 'undefined'
-      ? Math.min(1, (window.innerWidth - 32) / paperSize.width)
-      : 1;
+  const fitZoom = paperFitZoom(isMobile, !isMobile && !legacy, paperSize.width);
   const viewZoom = zoom * fitZoom;
 
   const clearSignerPopover = useCallback(() => setSignerPopoverFor(null), []);
@@ -602,7 +619,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
 
   const preparePanel = (
     <PreparePanel aria-label="Signers and fields" $hidden={isMobile && mobileTab !== 'signers'}>
-      <PanelSection>
+      <SignersSection>
         <SignersPanel
           signers={panelSigners}
           {...(youId !== undefined ? { youId } : {})}
@@ -611,6 +628,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
         />
         {signingOrder && onSigningOrderChange ? (
           <SigningOrderEditor
+            compact
             signers={signers}
             value={signingOrder}
             onChange={onSigningOrderChange}
@@ -623,12 +641,12 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
           onAddContacts={handleAddContacts}
           onCreate={handleCreateSigner}
         />
-      </PanelSection>
+      </SignersSection>
       {documentsPanel ?? null}
-      <PanelSection>
+      <FieldsSection>
         <Eyebrow>Fields</Eyebrow>
         {palette}
-      </PanelSection>
+      </FieldsSection>
       {settingsField !== undefined && hasSettingsPanel(settingsField.type) ? (
         <FieldPropertiesPanel
           key={settingsField.id}
@@ -970,17 +988,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                     fieldCountByPage={fieldCountByPage}
                   />
                 </RailSlot>
-              ) : (
-                <ThumbsSlot>
-                  <PageThumbRail
-                    totalPages={totalPages}
-                    currentPage={currentPage}
-                    onSelectPage={scrollToPage}
-                    fieldCountByPage={fieldCountByPage}
-                    signerDotsByPage={signerDotsByPage}
-                  />
-                </ThumbsSlot>
-              )}
+              ) : null}
             </CanvasScroll>
             {legacy ? null : (
               <>
@@ -993,6 +1001,19 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
               </>
             )}
           </Center>
+
+          {legacy ? null : (
+            <ThumbsColumn>
+              <PageThumbRail
+                variant="column"
+                totalPages={totalPages}
+                currentPage={currentPage}
+                onSelectPage={scrollToPage}
+                fieldCountByPage={fieldCountByPage}
+                signerDotsByPage={signerDotsByPage}
+              />
+            </ThumbsColumn>
+          )}
 
           {legacy ? (
             <CollapsibleRail

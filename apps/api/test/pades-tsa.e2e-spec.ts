@@ -219,7 +219,8 @@ function startFakeTsa(): Promise<{ url: string; server: Server; hits: number[] }
         const mi = (top[1]!.value as forge.asn1.Asn1[])[1]!;
         const imprintBytes = Buffer.from(mi.value as unknown as string, 'binary');
         const resp = buildFakeTsaResponse(imprintBytes);
-        res.writeHead(200, { 'Content-Type': 'application/timestamp-reply' });
+        // No keep-alive: see startFakeTsa in pades-e2e-harness.ts.
+        res.writeHead(200, { 'Content-Type': 'application/timestamp-reply', Connection: 'close' });
         res.end(resp);
       } catch {
         // Closes CodeQL js/stack-trace-exposure: the previous handler
@@ -228,7 +229,7 @@ function startFakeTsa(): Promise<{ url: string; server: Server; hits: number[] }
         // localhost in jest, returning a static reason keeps the alert
         // from re-tripping and matches what a real TSA would expose
         // via RFC 3161 status codes.
-        res.writeHead(400, { 'Content-Type': 'text/plain' });
+        res.writeHead(400, { 'Content-Type': 'text/plain', Connection: 'close' });
         res.end('bad_tsa_request');
       }
     });

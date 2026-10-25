@@ -115,6 +115,13 @@ function buildFakeTsaResponse(messageImprint: Buffer): Buffer {
   return Buffer.from(asn1.toDer(resp).getBytes(), 'binary');
 }
 
+/**
+ * In-process RFC 3161 TSA. Every reply closes its connection: the suites
+ * run `verify-pades` through `spawnSync`, which blocks the event loop for
+ * seconds. Past the server's 5 s keep-alive, the next `fetch` reused the
+ * pooled socket while the server was closing it, and the POST failed with
+ * ECONNRESET (`tsa_all_failed: ... fetch failed`).
+ */
 export function startFakeTsa(): Promise<{ url: string; server: Server; hits: number[] }> {
   const hits: number[] = [];
   const server = createServer((req, res) => {
@@ -126,10 +133,13 @@ export function startFakeTsa(): Promise<{ url: string; server: Server; hits: num
         const tsq = forge.asn1.fromDer(Buffer.concat(chunks).toString('binary'));
         const mi = ((tsq.value as forge.asn1.Asn1[])[1]!.value as forge.asn1.Asn1[])[1]!;
         const imprint = Buffer.from(mi.value as unknown as string, 'binary');
-        res.writeHead(200, { 'Content-Type': 'application/timestamp-reply' });
+        res.writeHead(200, {
+          'Content-Type': 'application/timestamp-reply',
+          Connection: 'close',
+        });
         res.end(buildFakeTsaResponse(imprint));
       } catch {
-        res.writeHead(400, { 'Content-Type': 'text/plain' });
+        res.writeHead(400, { 'Content-Type': 'text/plain', Connection: 'close' });
         res.end('bad_tsa_request');
       }
     });

@@ -12,10 +12,10 @@ export const Root = styled.div`
 export const Trigger = styled.button<{ $open: boolean; $empty: boolean }>`
   display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.space[3]};
+  gap: 10px;
   width: 100%;
   min-width: 0;
-  height: 48px;
+  height: 44px;
   padding: 0 ${({ theme }) => theme.space[3]};
   border: 1px ${({ $empty }) => ($empty ? 'dashed' : 'solid')}
     ${({ theme, $open }) => ($open ? theme.color.indigo[600] : theme.color.border[1])};
@@ -39,9 +39,6 @@ export const Trigger = styled.button<{ $open: boolean; $empty: boolean }>`
     outline: 0;
     border-color: ${({ theme }) => theme.color.indigo[600]};
     box-shadow: ${({ theme }) => theme.shadow.focus};
-  }
-  ${MOBILE} {
-    height: 52px;
   }
 `;
 

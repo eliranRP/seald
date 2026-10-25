@@ -11,6 +11,7 @@ export const Title = styled.h2`
   font-family: ${({ theme }) => theme.font.serif};
   font-size: ${({ theme }) => theme.font.size.x2l};
   font-weight: ${({ theme }) => theme.font.weight.medium};
+  line-height: ${({ theme }) => theme.font.lineHeight.snug};
   color: ${({ theme }) => theme.color.fg[1]};
 `;
 

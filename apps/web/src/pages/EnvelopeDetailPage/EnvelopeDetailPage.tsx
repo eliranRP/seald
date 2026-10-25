@@ -4,6 +4,7 @@ import {
   Ban,
   Bell,
   CheckCircle,
+  ChevronLeft,
   Clock,
   Link2,
   MoreHorizontal,
@@ -58,6 +59,7 @@ import { useSaveEnvelopeToGdrive } from '@/features/gdriveExport';
 import { SigningOrderSteps } from '@/features/signers/signingOrder';
 import { useReminderToggle } from '@/hooks/useReminderToggle';
 import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
+import { FocusedShell } from '@/layout/shellChrome';
 import { formatShortDate, formatShortDateOrDash } from '@/lib/dateFormat';
 import { ActivityCard } from './ActivityCard';
 import { DownloadSplitButton } from './DownloadSplitButton';
@@ -73,6 +75,7 @@ import {
   Card,
   Center,
   ChipsRow,
+  DesktopOnly,
   HeadActions,
   HeadCode,
   HeadMeta,
@@ -80,9 +83,12 @@ import {
   HeadText,
   Inner,
   MobileBar,
+  MobileTop,
+  MobileTopTitle,
   Muted,
   NotFoundHint,
   SheetList,
+  SkelLines,
   SkelRow,
   SkelStack,
   SummaryCard,
@@ -124,9 +130,10 @@ function badgeFor(
   }
 }
 
-function barToneFor(status: Envelope['status']): 'ok' | 'bad' | 'base' {
-  if (status === 'declined') return 'bad';
-  if (status === 'completed') return 'ok';
+/** Board: green once everyone signed (sealing, sealed), grey when withdrawn, indigo otherwise. */
+function barToneFor(status: Envelope['status']): 'ok' | 'muted' | 'base' {
+  if (status === 'completed' || status === 'sealing') return 'ok';
+  if (status === 'canceled') return 'muted';
   return 'base';
 }
 
@@ -556,37 +563,62 @@ export function EnvelopeDetailPage() {
     });
   }, [envelope, deleteEnvelope, cancelEnvelope, qc, navigate, showError, showOk]);
 
+  const mobileTop = (title: string, more: boolean) => (
+    <MobileTop>
+      <Button
+        variant="ghost"
+        iconOnly
+        iconLeft={ChevronLeft}
+        aria-label="Back to documents"
+        onClick={handleBack}
+      />
+      <MobileTopTitle>{title}</MobileTopTitle>
+      {more ? (
+        <Button
+          variant="ghost"
+          iconOnly
+          iconLeft={MoreHorizontal}
+          aria-label="More"
+          onClick={() => setMoreOpen(true)}
+        />
+      ) : null}
+    </MobileTop>
+  );
+
   if (q.isPending) {
     return (
       <Wrap>
+        {isMobile ? <FocusedShell /> : null}
+        {mobileTop('', false)}
         <Inner aria-busy="true">
-          <SkelStack>
-            <Skeleton width={320} height={36} />
-            <SkelRow>
-              <Skeleton width={90} height={24} />
-              <Skeleton width={70} height={14} />
-              <Skeleton width={90} height={14} />
-            </SkelRow>
-            <Skeleton height={72} />
-            <Card>
-              <SkelStack>
-                {[0, 1, 2].map((n) => (
-                  <SkelRow key={n}>
-                    <Skeleton variant="circle" width={36} height={36} />
+          <Skeleton width={320} height={36} />
+          <SkelRow>
+            <Skeleton width={90} height={24} />
+            <Skeleton width={70} height={14} />
+            <Skeleton width={90} height={14} />
+          </SkelRow>
+          <Skeleton height={72} />
+          <Card>
+            <SkelStack>
+              {[0, 1, 2].map((n) => (
+                <SkelRow key={n}>
+                  <Skeleton variant="circle" width={36} height={36} />
+                  <SkelLines>
                     <Skeleton width="40%" height={12} />
-                    <Skeleton width={132} height={12} />
-                  </SkelRow>
-                ))}
-              </SkelStack>
-            </Card>
-            <Card>
-              <SkelStack>
-                {[0, 1, 2].map((n) => (
-                  <Skeleton key={n} width={`${70 - n * 5}%`} height={12} />
-                ))}
-              </SkelStack>
-            </Card>
-          </SkelStack>
+                    <Skeleton width="28%" height={10} />
+                  </SkelLines>
+                  <Skeleton width={132} height={12} />
+                </SkelRow>
+              ))}
+            </SkelStack>
+          </Card>
+          <Card>
+            <SkelStack>
+              {[30, 70, 60, 66].map((w) => (
+                <Skeleton key={w} width={`${w}%`} height={12} />
+              ))}
+            </SkelStack>
+          </Card>
         </Inner>
       </Wrap>
     );
@@ -666,24 +698,28 @@ export function EnvelopeDetailPage() {
     />
   );
 
-  const remindAllButton = showRemindAll ? (
-    <Button
-      variant="secondary"
-      iconLeft={Bell}
-      loading={remindAllBusy}
-      onClick={() => {
-        void handleRemindAll();
-      }}
-    >
-      Remind all
-    </Button>
-  ) : null;
+  // Desktop: secondary in the header. Mobile: the bar's primary action.
+  const remindAllButton = (primary?: boolean) =>
+    showRemindAll ? (
+      <Button
+        variant={primary === true ? 'primary' : 'secondary'}
+        iconLeft={Bell}
+        loading={remindAllBusy}
+        onClick={() => {
+          void handleRemindAll();
+        }}
+      >
+        Remind all
+      </Button>
+    ) : null;
 
   return (
     <Wrap>
+      {isMobile ? <FocusedShell /> : null}
+      {mobileTop(envelope.title, moreEntries.length > 0)}
       <Inner>
         <BackRow>
-          <Button variant="ghost" size="sm" iconLeft={ArrowLeft} onClick={handleBack}>
+          <Button variant="ghost" size="sm" iconLeft={ChevronLeft} onClick={handleBack}>
             Documents
           </Button>
         </BackRow>
@@ -708,7 +744,7 @@ export function EnvelopeDetailPage() {
               <StatusBadge status={badge.status} {...(badge.label ? { label: badge.label } : {})} />
               <HeadCode>{envelope.short_code}</HeadCode>
               {envelope.original_pages !== null ? (
-                <span>{envelope.original_pages} pages</span>
+                <DesktopOnly>{envelope.original_pages} pages</DesktopOnly>
               ) : null}
               <span>Sent {formatShortDateOrDash(envelope.sent_at)}</span>
               <TagEditor
@@ -721,7 +757,7 @@ export function EnvelopeDetailPage() {
           <HeadActions>
             {/* A draft an agent prepared: walk its fields, then send or edit. Draft only, flag gated. */}
             <ReviewPlacement envelope={envelope} onSent={() => showOk('Sent for signature.')} />
-            {remindAllButton}
+            {remindAllButton()}
             {downloadButton()}
             {moreEntries.length > 0 ? (
               <MenuAnchor>
@@ -772,7 +808,7 @@ export function EnvelopeDetailPage() {
             <BarFill $pct={pct} $tone={barTone} />
           </Bar>
           <ChipsRow>
-            {isLive || isSealing ? (
+            {isLive || envelope.status === 'declined' ? (
               <InfoChip icon={Clock}>{`Expires ${expiresText}`}</InfoChip>
             ) : null}
             {envelope.status === 'expired' ? (
@@ -841,20 +877,10 @@ export function EnvelopeDetailPage() {
         <ActivityCard rows={rows} chainIntact={isTerminal || isLive ? chainIntact : null} />
       </Inner>
 
+      {/* Mobile: Download takes one share, the primary action (Remind all) two. */}
       <MobileBar>
-        {remindAllButton}
-        {isComplete || isSealing || !isLive ? downloadButton(true) : null}
-        {moreEntries.length > 0 ? (
-          <Anchor>
-            <Button
-              variant="secondary"
-              iconOnly
-              iconLeft={MoreHorizontal}
-              aria-label="More"
-              onClick={() => setMoreOpen(true)}
-            />
-          </Anchor>
-        ) : null}
+        <Anchor>{downloadButton(true)}</Anchor>
+        {remindAllButton(true)}
       </MobileBar>
 
       {isMobile ? (
@@ -865,6 +891,7 @@ export function EnvelopeDetailPage() {
                 <Button
                   key={entry.id}
                   variant="ghost"
+                  size="lg"
                   fullWidth
                   iconLeft={entry.icon}
                   onClick={() => {

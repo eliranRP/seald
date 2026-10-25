@@ -35,6 +35,8 @@
   "useGitignore": false,
   "allowCompoundWords": true,
   "words": [
+    "segbar",
+    "sfield",
     "eliranrp",
     "qrcode",
     "luma",

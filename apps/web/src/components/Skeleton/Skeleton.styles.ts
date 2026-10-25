@@ -27,7 +27,7 @@ export const SkeletonRoot = styled.span<RootProps>`
   background-size: 200% 100%;
   background-position: 200% 0;
   border-radius: ${({ theme, $variant }) => {
-    if ($variant === 'circle') return theme.radius.pill;
+    if ($variant === 'circle' || $variant === 'pill') return theme.radius.pill;
     return theme.radius.xs;
   }};
   width: ${({ $width, $variant }) => toCss($width) ?? ($variant === 'text' ? '100%' : '100%')};

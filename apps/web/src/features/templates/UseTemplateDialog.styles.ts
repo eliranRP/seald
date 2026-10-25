@@ -1,7 +1,5 @@
 import styled from 'styled-components';
 
-const MOBILE = '@media (max-width: 640px)';
-
 /** One row per signer slot: dot, role name, the person picker (canvas `.role-row`). */
 export const Roles = styled.div`
   display: flex;
@@ -10,25 +8,26 @@ export const Roles = styled.div`
 
 export const RoleRow = styled.div`
   display: grid;
-  grid-template-columns: 12px 88px minmax(0, 1fr);
+  /* Board .role-row: dot, 96px role name, picker, and an empty trailing
+     column whose gap keeps the picker 12px off the edge. */
+  grid-template-columns: 12px 96px minmax(0, 1fr) auto;
   align-items: start;
   gap: ${({ theme }) => theme.space[3]};
-  min-height: 56px;
-  padding: ${({ theme }) => `${theme.space[2]} 0`};
+  min-height: 52px;
+  padding: 6px 0;
   border-top: 1px solid ${({ theme }) => theme.color.ink[150]};
 
   &:first-child {
     border-top: 0;
   }
-  ${MOBILE} {
-    grid-template-columns: 12px 72px minmax(0, 1fr);
-  }
 `;
 
+/* Dot and name sit on the picker's centre line (48px picker → 30px down);
+   the row aligns to start so an open inline picker list can grow below. */
 export const RoleDot = styled.span<{ $color: string }>`
-  width: 12px;
-  height: 12px;
-  margin-top: 18px;
+  width: 8px;
+  height: 8px;
+  margin-top: 20px;
   border-radius: 50%;
   background: ${({ $color }) => $color};
 `;
@@ -44,8 +43,8 @@ export const RoleName = styled.span`
 export const FileCard = styled.div`
   display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.space[3]};
-  padding: ${({ theme }) => `${theme.space[3]} ${theme.space[4]}`};
+  gap: ${({ theme }) => theme.space[4]};
+  padding: ${({ theme }) => `${theme.space[3]} 14px`};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
   border-radius: ${({ theme }) => theme.radius.md};
   color: ${({ theme }) => theme.color.fg[2]};

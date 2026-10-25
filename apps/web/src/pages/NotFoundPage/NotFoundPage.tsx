@@ -7,11 +7,16 @@ import { Button } from '@/components/Button';
 import { StatePage } from '@/components/StatePage';
 import { TextField } from '@/components/TextField';
 
+/** `.field` search: 360px on desktop, full width on a phone (System boards). */
 const SearchForm = styled.form`
   width: 100%;
+  max-width: 360px;
   display: flex;
   flex-direction: column;
   text-align: left;
+  @media (max-width: 640px) {
+    max-width: none;
+  }
 `;
 
 export interface NotFoundPageProps {
@@ -42,7 +47,8 @@ export function NotFoundPage({ variant }: NotFoundPageProps): JSX.Element {
           <SearchForm role="search" onSubmit={onSearch}>
             <TextField
               type="search"
-              label="Find a document"
+              aria-label="Find a document"
+              placeholder="Find a document"
               iconLeft={Search}
               value={query}
               onChange={(value) => {

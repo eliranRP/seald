@@ -24,22 +24,39 @@ const sizeStyles = (t: DefaultTheme, size: ButtonSize, iconOnly: boolean) => {
     `,
   }[size];
   return css`
-    min-height: ${HEIGHT[size]};
+    height: ${HEIGHT[size]};
     ${base}
-    padding-top: ${t.space[1]};
-    padding-bottom: ${t.space[1]};
-    ${iconOnly &&
-    css`
-      width: ${HEIGHT[size]};
-      height: ${HEIGHT[size]};
-      padding: 0;
-    `}
+    ${
+      iconOnly &&
+      css`
+        width: ${HEIGHT[size]};
+        height: ${HEIGHT[size]};
+        padding: 0;
+      `
+    }
+    ${
+      iconOnly &&
+      size !== 'sm' &&
+      css`
+        @media (min-width: 641px) {
+          & > span {
+            width: 16px;
+            height: 16px;
+          }
+          & > span > svg {
+            width: 16px;
+            height: 16px;
+          }
+        }
+      `
+    }
   `;
 };
 
 const variantStyles = (t: DefaultTheme, v: ButtonVariant) =>
   ({
     primary: css`
+      border-width: 0;
       background: ${t.color.indigo[600]};
       color: ${t.color.fgOnAccent};
       border-color: ${t.color.indigo[600]};
@@ -61,6 +78,7 @@ const variantStyles = (t: DefaultTheme, v: ButtonVariant) =>
       }
     `,
     ghost: css`
+      border-width: 0;
       background: transparent;
       color: ${t.color.fg[2]};
       border-color: transparent;
@@ -69,6 +87,7 @@ const variantStyles = (t: DefaultTheme, v: ButtonVariant) =>
       }
     `,
     danger: css`
+      border-width: 0;
       background: ${t.color.danger[700]};
       color: ${t.color.fgOnAccent};
       border-color: ${t.color.danger[700]};
@@ -78,6 +97,7 @@ const variantStyles = (t: DefaultTheme, v: ButtonVariant) =>
       }
     `,
     dark: css`
+      border-width: 0;
       background: ${t.color.ink[900]};
       color: ${t.color.fgOnAccent};
       border-color: ${t.color.ink[900]};
@@ -104,6 +124,7 @@ export const ButtonRoot = styled.button<{
   line-height: 1.2;
   text-align: center;
   text-decoration: none;
+  white-space: nowrap;
   border: 1px solid transparent;
   cursor: pointer;
   width: ${({ $fullWidth }) => ($fullWidth ? '100%' : 'auto')};

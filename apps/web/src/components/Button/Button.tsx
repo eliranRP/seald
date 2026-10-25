@@ -21,7 +21,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) =>
     ...rest
   } = props;
   const isInert = disabled || loading;
-  const iconSize = iconOnly && size !== 'sm' ? 20 : 16;
+  // Canvas: `.btn-sm` icons are 14px, an icon-only 44/48px button carries a 20px glyph.
+  let iconSize = 16;
+  if (size === 'sm') iconSize = 14;
+  else if (iconOnly) iconSize = 20;
 
   let leftSlot: ReactNode = null;
   if (loading) leftSlot = <Spinner size={size === 'sm' ? 'sm' : 'md'} />;

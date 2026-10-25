@@ -13,18 +13,20 @@ export const Body = styled.div`
   color: ${({ theme }) => theme.color.fg[1]};
 `;
 
+/** Canvas `.container` (32 / 48 / 64 padding; 16px on phones). */
 export const Main = styled.main`
   display: flex;
   justify-content: center;
-  padding: ${({ theme }) => `${theme.space[8]} ${theme.space[6]}`};
+  padding: ${({ theme }) => `${theme.space[8]} ${theme.space[12]} ${theme.space[16]}`};
   ${MOBILE} {
     padding: ${({ theme }) => theme.space[4]};
   }
 `;
 
+/** The board's 880px container minus its 48px side padding. */
 export const Inner = styled.div`
   width: 100%;
-  max-width: 880px;
+  max-width: 784px;
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.space[6]};
@@ -33,10 +35,13 @@ export const Inner = styled.div`
   }
 `;
 
+/** Canvas `.h1`: serif 32px medium. */
 export const Heading = styled.h1`
   margin: 0;
-  font-size: ${({ theme }) => theme.font.size.x3l};
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  font-family: ${({ theme }) => theme.font.serif};
+  font-size: ${({ theme }) => theme.font.size.x4l};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  line-height: ${({ theme }) => theme.font.lineHeight.tight};
   letter-spacing: ${({ theme }) => theme.font.tracking.tight};
   color: ${({ theme }) => theme.color.fg[1]};
   ${MOBILE} {
@@ -58,12 +63,13 @@ export const Subtitle = styled.p`
 
 /* ----- sources ----- */
 
-export const Sources = styled.div`
+/** One row of equal tiles; phones use three columns (two when four tiles). */
+export const Sources = styled.div<{ readonly $count: number }>`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(${({ $count }) => $count}, minmax(0, 1fr));
   gap: ${({ theme }) => theme.space[4]};
   ${MOBILE} {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(${({ $count }) => ($count === 4 ? 2 : 3)}, minmax(0, 1fr));
     gap: ${({ theme }) => theme.space[2]};
   }
 `;
@@ -90,26 +96,36 @@ export const Dropzone = styled.div<{ $dragging: boolean; $error: boolean }>`
   padding: ${({ theme }) => theme.space[8]};
   text-align: center;
   border-radius: ${({ theme }) => theme.radius.xl};
-  border: 2px dashed ${({ theme, $dragging, $error }) => dropBorder(theme, $dragging, $error)};
+  border: 1.5px dashed ${({ theme, $dragging, $error }) => dropBorder(theme, $dragging, $error)};
   background: ${({ theme, $dragging, $error }) => dropBackground(theme, $dragging, $error)};
   transition:
     border-color ${({ theme }) => theme.motion.durFast},
     background ${({ theme }) => theme.motion.durFast};
   ${MOBILE} {
-    min-height: 220px;
-    padding: ${({ theme }) => theme.space[5]};
+    min-height: 0;
+    padding: ${({ theme }) => `${theme.space[6]} ${theme.space[4]}`};
   }
 `;
 
+/** 48px glyph; the phone board uses 32px for the idle upload icon. */
 export const DropIcon = styled.span<{ $error: boolean }>`
   display: inline-flex;
+  ${MOBILE} {
+    & > svg {
+      width: ${({ $error }) => ($error ? '48px' : '32px')};
+      height: ${({ $error }) => ($error ? '48px' : '32px')};
+    }
+  }
   color: ${({ theme, $error }) => ($error ? theme.color.danger[500] : theme.color.indigo[600])};
 `;
 
+/** Canvas `.h2`: serif 24px medium. */
 export const DropHeading = styled.h2`
   margin: 0;
-  font-size: ${({ theme }) => theme.font.size.xl};
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  font-family: ${({ theme }) => theme.font.serif};
+  font-size: ${({ theme }) => theme.font.size.x2l};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  line-height: ${({ theme }) => theme.font.lineHeight.snug};
   color: ${({ theme }) => theme.color.fg[1]};
 `;
 
@@ -119,17 +135,28 @@ export const DropSubheading = styled.p`
   color: ${({ theme }) => theme.color.fg[3]};
 `;
 
+/** On phones the button goes full width under the meta row (UploadMobile). */
 export const Actions = styled.div`
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: ${({ theme }) => theme.space[2]};
+  ${MOBILE} {
+    order: 1;
+    align-self: stretch;
+    & > button {
+      flex: 1;
+    }
+  }
 `;
 
 export const MetaRow = styled.div`
   display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.space[3]};
+  gap: ${({ theme }) => theme.space[2]};
+  ${MOBILE} {
+    gap: ${({ theme }) => theme.space[3]};
+  }
 `;
 
 export const IconMeta = styled.span`
@@ -344,6 +371,10 @@ export const OpensHint = styled.p`
 
 export const Eyebrow = styled.h2`
   margin: 0 0 ${({ theme }) => theme.space[3]};
+  line-height: 1.5;
+  ${MOBILE} {
+    margin-bottom: ${({ theme }) => theme.space[2]};
+  }
   font-size: ${({ theme }) => theme.font.size.xs};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   letter-spacing: ${({ theme }) => theme.font.tracking.wider};
@@ -357,11 +388,6 @@ export const ChipRow = styled.div`
   gap: ${({ theme }) => theme.space[2]};
   ${MOBILE} {
     flex-direction: column;
-    & > button {
-      width: 100%;
-      border-radius: ${({ theme }) => theme.radius.md};
-      justify-content: flex-start;
-    }
   }
 `;
 

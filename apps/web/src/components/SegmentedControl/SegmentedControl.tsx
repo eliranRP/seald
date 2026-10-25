@@ -13,7 +13,7 @@ const PREV_KEYS = new Set(['ArrowLeft', 'ArrowUp']);
  * keys move + select, Home / End jump to the ends.
  */
 export function SegmentedControl<T extends string>(props: SegmentedControlProps<T>) {
-  const { options, value, onChange, block = false, stacked = false, ...rest } = props;
+  const { options, value, onChange, block = false, stacked = false, size = 'md', ...rest } = props;
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
   const enabled = options.map((o, i) => (o.disabled ? -1 : i)).filter((i) => i >= 0);
 
@@ -52,6 +52,7 @@ export function SegmentedControl<T extends string>(props: SegmentedControlProps<
             $active={active}
             $block={block}
             $stacked={stacked}
+            $large={size === 'lg'}
             onClick={() => onChange(option.value)}
             onKeyDown={(event) => move(index, event)}
           >

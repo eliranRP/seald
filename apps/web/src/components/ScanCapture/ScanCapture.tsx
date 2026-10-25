@@ -23,6 +23,7 @@ import type { ScanCaptureProps, ScanPage } from './ScanCapture.types';
 import {
   AddTile,
   BarSlot,
+  BlockAction,
   CamBar,
   CamThumb,
   CamView,
@@ -33,6 +34,7 @@ import {
   HiddenInput,
   Hint,
   IconButton,
+  MakingCenter,
   Meta,
   ProgressWrap,
   Root,
@@ -47,6 +49,7 @@ import {
   TileButton,
   TileImage,
   TileNumber,
+  TopAction,
   TopBar,
   Video,
   Sheet,
@@ -239,7 +242,7 @@ export function ScanCapture(props: ScanCaptureProps): JSX.Element {
     return (
       <Root>
         <Sheet>
-          <Center role="status" aria-live="polite">
+          <MakingCenter role="status" aria-live="polite">
             <Spinner size="lg" />
             <h2>Making your PDF…</h2>
             <ProgressWrap>
@@ -249,7 +252,7 @@ export function ScanCapture(props: ScanCaptureProps): JSX.Element {
                 label={`Processed ${progress} of ${pages.length} pages`}
               />
             </ProgressWrap>
-          </Center>
+          </MakingCenter>
         </Sheet>
       </Root>
     );
@@ -261,11 +264,20 @@ export function ScanCapture(props: ScanCaptureProps): JSX.Element {
         <Sheet>
           <SheetTop>
             <SheetTitle>{pagesLabel(pages.length)}</SheetTitle>
-            <Button variant="ghost" size="sm" onClick={handleRetake}>
-              Retake
-            </Button>
+            <TopAction>
+              <Button variant="ghost" size="sm" onClick={handleRetake}>
+                Retake
+              </Button>
+            </TopAction>
           </SheetTop>
           <SheetBody>
+            <SegmentedControl
+              aria-label="Filter"
+              options={SCAN_FILTERS.map((f) => ({ value: f.value, label: f.label }))}
+              value={filter}
+              onChange={setFilter}
+              block
+            />
             <Grid aria-label="Scanned pages">
               {pages.map((page, index) => (
                 <Tile key={page.id}>
@@ -280,7 +292,7 @@ export function ScanCapture(props: ScanCaptureProps): JSX.Element {
                       disabled={index === 0}
                       onClick={() => movePage(index, -1)}
                     >
-                      <ChevronLeft size={16} aria-hidden />
+                      <ChevronLeft size={14} aria-hidden />
                     </TileButton>
                     <TileButton
                       type="button"
@@ -288,14 +300,14 @@ export function ScanCapture(props: ScanCaptureProps): JSX.Element {
                       disabled={index === pages.length - 1}
                       onClick={() => movePage(index, 1)}
                     >
-                      <ChevronRight size={16} aria-hidden />
+                      <ChevronRight size={14} aria-hidden />
                     </TileButton>
                     <TileButton
                       type="button"
                       aria-label={`Remove page ${index + 1}`}
                       onClick={() => removePage(page.id)}
                     >
-                      <X size={16} aria-hidden />
+                      <X size={12} aria-hidden />
                     </TileButton>
                   </TileActions>
                 </Tile>
@@ -315,13 +327,6 @@ export function ScanCapture(props: ScanCaptureProps): JSX.Element {
               </AddTile>
             </Grid>
             {full ? <Meta>{`${SCAN_MAX_PAGES} pages is the most one scan can hold.`}</Meta> : null}
-            <SegmentedControl
-              aria-label="Filter"
-              options={SCAN_FILTERS.map((f) => ({ value: f.value, label: f.label }))}
-              value={filter}
-              onChange={setFilter}
-              block
-            />
             {buildFailed ? (
               <Meta $error role="alert">
                 {'Something went wrong. Try again.'}
@@ -356,22 +361,24 @@ export function ScanCapture(props: ScanCaptureProps): JSX.Element {
       <Root>
         <Sheet>
           <SheetTop>
-            <span />
             {onClose ? (
-              <IconButton $light type="button" aria-label="Close" onClick={onClose}>
+              <IconButton type="button" aria-label="Close" onClick={onClose}>
                 <X size={20} aria-hidden />
               </IconButton>
             ) : null}
+            <SheetTitle as="p">Scan</SheetTitle>
           </SheetTop>
           <Center>
             <StateIcon aria-hidden>
-              <Lock size={24} />
+              <Lock size={32} />
             </StateIcon>
             <h2>Camera is blocked</h2>
             <Meta>Allow camera in browser settings, or choose photos you already took.</Meta>
-            <Button variant="primary" iconLeft={ImageIcon} onClick={openPicker}>
-              Choose from photos
-            </Button>
+            <BlockAction>
+              <Button variant="primary" iconLeft={ImageIcon} onClick={openPicker}>
+                Choose from photos
+              </Button>
+            </BlockAction>
             <Button variant="ghost" onClick={retryCamera}>
               Try the camera again
             </Button>
@@ -419,7 +426,7 @@ export function ScanCapture(props: ScanCaptureProps): JSX.Element {
         <TopBar>
           {onClose ? (
             <IconButton type="button" aria-label="Close" onClick={onClose}>
-              <X size={22} aria-hidden />
+              <X size={20} aria-hidden />
             </IconButton>
           ) : (
             <span />

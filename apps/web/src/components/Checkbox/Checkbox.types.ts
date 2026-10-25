@@ -10,4 +10,6 @@ export interface CheckboxProps extends Omit<
   /** Short helper text under the label, linked with aria-describedby. */
   readonly hint?: string | undefined;
   readonly disabled?: boolean | undefined;
+  /** Canvas `.checkbox`: a 16px box with a 14px label (default: 20px box, 16px label). */
+  readonly compact?: boolean | undefined;
 }

@@ -36,6 +36,7 @@ export const PageThumbRail = forwardRef<HTMLElement, PageThumbRailProps>((props,
     onSelectPage,
     fieldCountByPage,
     signerDotsByPage,
+    variant = 'floating',
     label = 'Page navigation',
     ...rest
   } = props;
@@ -97,22 +98,26 @@ export const PageThumbRail = forwardRef<HTMLElement, PageThumbRailProps>((props,
     }
   };
 
+  const column = variant === 'column';
+
   const handleThumbClick = (page: number) => (): void => {
     onSelectPage(page);
   };
 
   return (
-    <Rail {...rest} ref={ref} aria-label={label} onKeyDown={handleKeyDown}>
-      <RailHeader aria-hidden>
-        {currentPage}/{totalPages}
-      </RailHeader>
+    <Rail {...rest} ref={ref} aria-label={label} onKeyDown={handleKeyDown} $column={column}>
+      {column ? null : (
+        <RailHeader aria-hidden>
+          {currentPage}/{totalPages}
+        </RailHeader>
+      )}
       {pages.map((page) => {
         const count = fieldCountByPage?.[page] ?? 0;
         const dots = signerDotsByPage?.[page] ?? [];
         let badge: ReactNode = null;
         if (dots.length > 0) {
           badge = (
-            <ThumbDots aria-hidden>
+            <ThumbDots aria-hidden $column={column}>
               {dots.slice(0, 4).map((color) => (
                 <ThumbDot key={color} $color={color} />
               ))}
@@ -133,12 +138,13 @@ export const PageThumbRail = forwardRef<HTMLElement, PageThumbRailProps>((props,
             ref={isCurrent ? activeRef : undefined}
             type="button"
             $active={isCurrent}
+            $column={column}
             aria-current={isCurrent ? 'page' : undefined}
             aria-label={`Page ${String(page)}${countLabel}`}
             title={`Page ${String(page)}`}
             onClick={handleThumbClick(page)}
           >
-            <SkeletonLines aria-hidden>
+            <SkeletonLines aria-hidden $column={column}>
               {Array.from({ length: lineCount }, (_v, i) => (
                 // Decorative skeleton — index-based key is fine since nothing
                 // about these lines has stable identity beyond position.
@@ -146,7 +152,9 @@ export const PageThumbRail = forwardRef<HTMLElement, PageThumbRailProps>((props,
               ))}
             </SkeletonLines>
             {badge}
-            <PageLabel $active={isCurrent}>{page}</PageLabel>
+            <PageLabel $active={isCurrent} $column={column}>
+              {page}
+            </PageLabel>
           </Thumb>
         );
       })}

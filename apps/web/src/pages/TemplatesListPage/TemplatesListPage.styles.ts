@@ -5,14 +5,15 @@ const MOBILE = '@media (max-width: 640px)';
 export const Main = styled.div`
   flex: 1 1 auto;
   min-width: 0;
-  padding: ${({ theme }) => `${theme.space[8]} ${theme.space[8]} ${theme.space[20]}`};
+  /* Board .container: 1280 border-box with 48px sides → 1184 content. */
+  padding: ${({ theme }) => `${theme.space[8]} ${theme.space[12]} ${theme.space[16]}`};
   ${MOBILE} {
     padding: ${({ theme }) => `${theme.space[4]} ${theme.space[4]} ${theme.space[24]}`};
   }
 `;
 
 export const Inner = styled.div`
-  max-width: 1200px;
+  max-width: 1184px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -25,7 +26,7 @@ export const Inner = styled.div`
 export const HeaderRow = styled.div`
   display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.space[3]};
+  gap: ${({ theme }) => theme.space[2]};
   min-height: 44px;
 `;
 
@@ -34,6 +35,7 @@ export const Title = styled.h1`
   font-family: ${({ theme }) => theme.font.serif};
   font-size: ${({ theme }) => theme.font.size.x4l};
   font-weight: ${({ theme }) => theme.font.weight.medium};
+  line-height: ${({ theme }) => theme.font.lineHeight.tight};
   letter-spacing: ${({ theme }) => theme.font.tracking.tight};
   color: ${({ theme }) => theme.color.fg[1]};
   ${MOBILE} {
@@ -77,7 +79,7 @@ export const SearchField = styled.label`
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.space[2]};
-  height: 44px;
+  height: 40px;
   padding: 0 ${({ theme }) => theme.space[3]};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
   border-radius: ${({ theme }) => theme.radius.md};
@@ -107,6 +109,7 @@ export const SearchField = styled.label`
   }
   ${MOBILE} {
     max-width: none;
+    height: 44px;
   }
 `;
 

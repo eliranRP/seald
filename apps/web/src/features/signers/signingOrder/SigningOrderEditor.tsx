@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import type { DragEvent } from 'react';
+import type { ChangeEvent, DragEvent } from 'react';
 import { ArrowDown, ArrowUp, GripVertical, ListOrdered } from 'lucide-react';
 import { isFeatureEnabled } from 'shared';
 import { Icon } from '@/components/Icon';
@@ -12,6 +12,9 @@ import {
 } from '@/components/ReminderToggle/ReminderToggle.styles';
 import { moveRow, setJoinsPrevious, stepNumbers, type SigningOrderValue } from './model';
 import {
+  CompactSwitch,
+  CompactSwitchInput,
+  CompactSwitchText,
   Email,
   Grip,
   Hint,
@@ -38,6 +41,13 @@ export interface SigningOrderEditorProps {
   readonly value: SigningOrderValue;
   readonly onChange: (next: SigningOrderValue) => void;
   readonly disabled?: boolean | undefined;
+  /**
+   * Prepare panel layout (canvas `.switch` in the Signers header row): a
+   * small switch pinned to the top right of the nearest positioned
+   * ancestor, the explanation kept for screen readers only. The step list
+   * still renders in flow when the order is on.
+   */
+  readonly compact?: boolean | undefined;
 }
 
 /**
@@ -53,6 +63,7 @@ export function SigningOrderEditor({
   value,
   onChange,
   disabled = false,
+  compact = false,
 }: SigningOrderEditorProps) {
   const switchId = useId();
   const titleId = useId();
@@ -115,31 +126,55 @@ export function SigningOrderEditor({
     setOverId(null);
   };
 
+  const hint = value.sequential
+    ? 'Signers are invited one step at a time. The next step is invited once everyone in the current step has signed.'
+    : 'Everyone is invited at once and can sign in any order.';
+  const toggle = (event: ChangeEvent<HTMLInputElement>): void =>
+    onChange({ ...value, sequential: event.currentTarget.checked });
+
   return (
-    <Root ref={rootRef} aria-label="Signing order">
-      <SwitchRoot htmlFor={switchId}>
-        <SwitchInput
-          id={switchId}
-          type="checkbox"
-          role="switch"
-          checked={value.sequential}
-          disabled={disabled}
-          aria-labelledby={titleId}
-          aria-describedby={hintId}
-          onChange={(event) => onChange({ ...value, sequential: event.currentTarget.checked })}
-        />
-        <CopyCol>
-          <SwitchText id={titleId}>
-            <Icon icon={ListOrdered} size={16} />
-            Signing order
-          </SwitchText>
-          <Copy id={hintId}>
-            {value.sequential
-              ? 'Signers are invited one step at a time. The next step is invited once everyone in the current step has signed.'
-              : 'Everyone is invited at once and can sign in any order.'}
-          </Copy>
-        </CopyCol>
-      </SwitchRoot>
+    <Root
+      ref={rootRef}
+      aria-label="Signing order"
+      // Nothing in flow while compact and off: the parent skips its spacing.
+      data-collapsed={compact && !value.sequential ? 'true' : undefined}
+    >
+      {compact ? (
+        <CompactSwitch htmlFor={switchId}>
+          <CompactSwitchInput
+            id={switchId}
+            type="checkbox"
+            role="switch"
+            checked={value.sequential}
+            disabled={disabled}
+            aria-labelledby={titleId}
+            aria-describedby={hintId}
+            onChange={toggle}
+          />
+          <CompactSwitchText id={titleId}>Signing order</CompactSwitchText>
+          <VisuallyHidden id={hintId}>{hint}</VisuallyHidden>
+        </CompactSwitch>
+      ) : (
+        <SwitchRoot htmlFor={switchId}>
+          <SwitchInput
+            id={switchId}
+            type="checkbox"
+            role="switch"
+            checked={value.sequential}
+            disabled={disabled}
+            aria-labelledby={titleId}
+            aria-describedby={hintId}
+            onChange={toggle}
+          />
+          <CopyCol>
+            <SwitchText id={titleId}>
+              <Icon icon={ListOrdered} size={16} />
+              Signing order
+            </SwitchText>
+            <Copy id={hintId}>{hint}</Copy>
+          </CopyCol>
+        </SwitchRoot>
+      )}
       {value.sequential ? (
         <>
           <List aria-label="Signing steps">

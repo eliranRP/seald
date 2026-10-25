@@ -1,13 +1,9 @@
 import { useRef, useState } from 'react';
-import { Mail, MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal } from 'lucide-react';
 import type { EnvelopeListItem } from 'shared';
 import { Button } from '@/components/Button';
-import { DocThumb } from '@/components/DocThumb';
 import { Menu, MenuAnchor } from '@/components/Menu';
 import type { MenuEntry } from '@/components/Menu';
-import { SignerProgressBar } from '@/components/SignerProgressBar';
-import { SignerStack } from '@/components/SignerStack';
-import { StatusBadge } from '@/components/StatusBadge';
 import { formatUpdated, rowStatus, statusReason } from '@/features/dashboard';
 import type { RowStatus } from '@/features/dashboard';
 import {
@@ -16,17 +12,17 @@ import {
   DocText,
   DocTitleButton,
   MCard,
-  Mono,
   RowActions,
   RowCheck,
+  SignedText,
   SignersCell,
   StatusCell,
-  StatusMeta,
+  StatusText,
   Tag,
   TRow,
   UpdatedCell,
 } from './DashboardPage.styles';
-import { PRIMARY_ACTION, STATUS_META_ICON, stackEntries } from './rowModel';
+import { PRIMARY_ACTION, STATUS_TONE, signedSummary, statusLine } from './rowModel';
 
 export interface DocumentRowProps {
   readonly envelope: EnvelopeListItem;
@@ -44,12 +40,6 @@ export interface DocumentRowProps {
   readonly onPrimary: (status: RowStatus) => void;
   /** Mobile: open the row sheet instead of a dropdown. */
   readonly onOpenSheet: () => void;
-}
-
-/** Status meta glyph: the mail icon of "Delivered · now" for a fresh send. */
-function MetaGlyph({ status, fresh }: { readonly status: RowStatus; readonly fresh: boolean }) {
-  const Glyph = fresh && status === 'others' ? Mail : STATUS_META_ICON[status];
-  return <Glyph size={14} aria-hidden />;
 }
 
 /** One document: a table row on desktop, a card on phones. */
@@ -72,8 +62,17 @@ export function DocumentRow(props: DocumentRowProps) {
   const primary = PRIMARY_ACTION[status];
   const [menuOpen, setMenuOpen] = useState(false);
   const moreRef = useRef<HTMLButtonElement | null>(null);
-  const reason =
-    fresh && status === 'others' ? 'Delivered · now' : statusReason(env, status, viewerEmail, now);
+  const line =
+    fresh && status === 'others'
+      ? 'Delivered just now'
+      : statusLine(status, statusReason(env, status, viewerEmail, now));
+  const statusText = (
+    <StatusText $tone={STATUS_TONE[status]} $strong={status === 'you'}>
+      {line}
+    </StatusText>
+  );
+  const signed = signedSummary(env);
+  const tags = env.tags ?? [];
   const check = (
     <RowCheck
       type="checkbox"
@@ -82,26 +81,19 @@ export function DocumentRow(props: DocumentRowProps) {
       aria-label={`Select ${env.title}`}
     />
   );
-  const thumb = <DocThumb size={40} title={env.title} signed={status === 'sealed'} aria-hidden />;
 
   if (mobile) {
     return (
       <MCard $selected={selected} $fresh={fresh} data-testid="doc-row">
         {selectable ? check : null}
-        {thumb}
         <DocText>
           <DocTitleButton type="button" onClick={onOpen}>
             {env.title}
           </DocTitleButton>
-          <StatusMeta>
-            <MetaGlyph status={status} fresh={fresh} />
-            {reason}
-          </StatusMeta>
+          {statusText}
         </DocText>
-        <StatusBadge status={status} />
         <Button
           variant="ghost"
-          size="sm"
           iconOnly
           iconLeft={MoreHorizontal}
           aria-label={`More actions for ${env.title}`}
@@ -116,40 +108,26 @@ export function DocumentRow(props: DocumentRowProps) {
     <TRow $selected={selected} $hot={menuOpen} $fresh={fresh} data-testid="doc-row">
       {check}
       <DocCell>
-        {thumb}
         <DocText>
           <DocTitleButton type="button" onClick={onOpen}>
             {env.title}
           </DocTitleButton>
-          <DocSub>
-            <Mono>{env.short_code}</Mono>
-            {(env.tags ?? []).slice(0, 2).map((t) => (
-              <Tag key={t}>{t}</Tag>
-            ))}
-            {(env.tags ?? []).length > 2 ? (
-              <Tag aria-label={`${(env.tags ?? []).length - 2} more tags`}>
-                +{(env.tags ?? []).length - 2}
-              </Tag>
-            ) : null}
-          </DocSub>
+          {tags.length > 0 ? (
+            <DocSub>
+              {tags.slice(0, 2).map((t) => (
+                <Tag key={t}>{t}</Tag>
+              ))}
+              {tags.length > 2 ? (
+                <Tag aria-label={`${tags.length - 2} more tags`}>+{tags.length - 2}</Tag>
+              ) : null}
+            </DocSub>
+          ) : null}
         </DocText>
       </DocCell>
-      <StatusCell>
-        <StatusBadge status={status} />
-        <StatusMeta>
-          <MetaGlyph status={status} fresh={fresh} />
-          {reason}
-        </StatusMeta>
-      </StatusCell>
-      <SignersCell>
-        <SignerStack signers={stackEntries(env, viewerEmail)} aria-label={`${env.title} signers`} />
-        <SignerProgressBar
-          signers={stackEntries(env, viewerEmail)}
-          aria-label={`${env.title} progress`}
-        />
-      </SignersCell>
+      <StatusCell>{statusText}</StatusCell>
+      <SignersCell>{signed !== null ? <SignedText>{signed}</SignedText> : null}</SignersCell>
       <UpdatedCell>{formatUpdated(env.updated_at, now)}</UpdatedCell>
-      <RowActions>
+      <RowActions data-part="row-actions">
         <Button
           size="sm"
           variant={primary.variant}

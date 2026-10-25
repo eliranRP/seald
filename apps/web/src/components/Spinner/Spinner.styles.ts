@@ -2,7 +2,7 @@ import styled from 'styled-components';
 import { MOTION_KEYFRAMES } from '@/styles/motion';
 import type { SpinnerSize } from './Spinner.types';
 
-const SIZE: Record<SpinnerSize, string> = { sm: '12px', md: '16px', lg: '24px' };
+const SIZE: Record<SpinnerSize, string> = { sm: '14px', md: '16px', lg: '32px' };
 
 export const SpinnerRoot = styled.span<{ $size: SpinnerSize }>`
   display: inline-block;

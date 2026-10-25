@@ -1,5 +1,6 @@
 import { forwardRef, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
+import { Tag, X } from 'lucide-react';
 import styled, { css } from 'styled-components';
 import { TagChip } from '@/components/TagChip';
 
@@ -32,10 +33,8 @@ const Root = styled.div<{ readonly $inline: boolean }>`
   ${({ $inline, theme }) =>
     $inline
       ? css`
-          flex-direction: row;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 6px;
+          /* Chips join the parent meta row so they wrap and space with it. */
+          display: contents;
         `
       : css`
           flex-direction: column;
@@ -84,25 +83,59 @@ const Input = styled.input<{ readonly $inline: boolean }>`
 `;
 
 /**
- * Compact "+ tag" chip-style button shown in inline layout when the
- * input is collapsed. Clicking expands it into the input.
+ * Compact tag-icon button shown in inline layout when the input is
+ * collapsed (canvas `.btn-ghost.btn-sm.btn-icon`, 32px). Clicking expands
+ * it into the input.
  */
 const AddTagButton = styled.button`
   all: unset;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  font-family: ${({ theme }) => theme.font.sans};
-  font-size: 12px;
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: ${({ theme }) => theme.radius.sm};
   color: ${({ theme }) => theme.color.fg[2]};
-  border: 1px dashed ${({ theme }) => theme.color.border[1]};
-  border-radius: 999px;
   cursor: pointer;
   &:hover {
-    color: ${({ theme }) => theme.color.fg[1]};
-    border-color: ${({ theme }) => theme.color.border[2]};
+    background: ${({ theme }) => theme.color.bg.subtle};
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+`;
+
+/**
+ * Inline-layout tag chip (canvas `.chip`): 32px pill sitting on the
+ * envelope meta row next to the status badge, with a 22px remove button.
+ */
+const InlineChip = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 6px 0 12px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  font-family: ${({ theme }) => theme.font.sans};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  background: ${({ theme }) => theme.color.indigo[50]};
+  color: ${({ theme }) => theme.color.indigo[800]};
+  white-space: nowrap;
+`;
+
+const InlineChipRemove = styled.button`
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  cursor: pointer;
+  &:hover {
+    background: ${({ theme }) => theme.color.indigo[100]};
   }
   &:focus-visible {
     outline: none;
@@ -239,7 +272,20 @@ export const TagEditor = forwardRef<HTMLDivElement, TagEditorProps>((props, ref)
         <ChipsRow $inline={inline} role="list" aria-label="Selected tags">
           {value.map((t, i) => (
             <span key={`${t}-${i}`} role="listitem">
-              <TagChip label={t} onRemove={() => removeAt(i)} />
+              {inline ? (
+                <InlineChip>
+                  {t}
+                  <InlineChipRemove
+                    type="button"
+                    onClick={() => removeAt(i)}
+                    aria-label={`Remove tag ${t}`}
+                  >
+                    <X size={12} aria-hidden />
+                  </InlineChipRemove>
+                </InlineChip>
+              ) : (
+                <TagChip label={t} onRemove={() => removeAt(i)} />
+              )}
             </span>
           ))}
         </ChipsRow>
@@ -255,7 +301,7 @@ export const TagEditor = forwardRef<HTMLDivElement, TagEditorProps>((props, ref)
             window.setTimeout(() => inputRef.current?.focus(), 0);
           }}
         >
-          + tag
+          <Tag size={14} aria-hidden />
         </AddTagButton>
       ) : null}
 

@@ -4,7 +4,7 @@ import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { SheetDialog } from '@/components/SheetDialog';
 import { useT } from '@/lib/i18n';
-import { Heading, Meta, Pad } from './FinishSheet.styles';
+import { Heading, Meta, Pad, Stack } from './FinishSheet.styles';
 import type { FinishSheetProps } from './FinishSheet.types';
 
 /**
@@ -45,14 +45,16 @@ export function FinishSheet(props: FinishSheetProps) {
         )
       }
     >
-      <Pad>{preview}</Pad>
-      <Heading>{t('signing.sign.finish.title', { title: docTitle })}</Heading>
-      <Meta>{t('signing.sign.finish.as', { name: signerName, email: signerEmail })}</Meta>
-      <Meta>
-        <Icon icon={ShieldCheck} size={14} />
-        {t('signing.sign.finish.binding')}
-      </Meta>
-      <Meta>{t('signing.sign.finish.intent')}</Meta>
+      <Stack>
+        <Pad>{preview}</Pad>
+        <Heading>{t('signing.sign.finish.title', { title: docTitle })}</Heading>
+        <Meta>{t('signing.sign.finish.as', { name: signerName, email: signerEmail })}</Meta>
+        <Meta>
+          <Icon icon={ShieldCheck} size={14} />
+          {t('signing.sign.finish.binding')}
+        </Meta>
+        <Meta>{t('signing.sign.finish.intent')}</Meta>
+      </Stack>
       {codeForm ?? null}
       {error ? <Banner tone="error">{error}</Banner> : null}
     </SheetDialog>

@@ -17,6 +17,11 @@ export interface FlowHeaderProps extends Omit<HTMLAttributes<HTMLElement>, 'titl
   readonly title?: string | undefined;
   /** Small line under the title, e.g. "8 pages". */
   readonly meta?: string | undefined;
+  /**
+   * Phone-only title for a flow with no document yet (Upload: "New
+   * document"). Desktop shows the Seald logo in its place.
+   */
+  readonly mobileTitle?: string | undefined;
   /** Right-hand actions. */
   readonly children?: ReactNode;
 }

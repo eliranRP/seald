@@ -17,8 +17,8 @@ export const Stage = styled.main`
   padding: ${({ theme }) => `${theme.space[8]} ${theme.space[6]} 120px`};
 
   @media (max-width: 640px) {
-    gap: ${({ theme }) => theme.space[4]};
-    padding: ${({ theme }) => `${theme.space[4]} ${theme.space[4]} 110px`};
+    gap: ${({ theme }) => theme.space[3]};
+    padding: ${({ theme }) => `${theme.space[4]} ${theme.space[4]} 96px`};
   }
 `;
 

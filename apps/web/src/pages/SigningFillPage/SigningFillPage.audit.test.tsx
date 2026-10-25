@@ -130,7 +130,7 @@ describe('SigningFillPage — mobile canvas width (audit item 1)', () => {
     expect(widthPx).toBeLessThanOrEqual(375);
   });
 
-  it('renders the canvas at the default 560 px on a desktop viewport', async () => {
+  it('renders the page at the 640 px paper width on a desktop viewport', async () => {
     Object.defineProperty(window, 'innerWidth', {
       value: 1440,
       writable: true,
@@ -158,7 +158,8 @@ describe('SigningFillPage — mobile canvas width (audit item 1)', () => {
 
     const pageNode = await screen.findByText('Audit Doc', { selector: 'div' });
     const canvasNode = pageNode.closest('[data-r-page]');
-    expect(canvasNode?.getAttribute('data-canvas-width')).toBe('560');
+    // Canvas `.paper` is 640 wide; fields are fractions, so they scale with it.
+    expect(canvasNode?.getAttribute('data-canvas-width')).toBe('640');
   });
 });
 

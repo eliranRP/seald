@@ -3,9 +3,11 @@ import { Check, Pencil, X } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import type { TemplateFlowHeaderProps } from './TemplateFlowHeader.types';
+import { useFocusedShell } from '@/layout/shellChrome';
 import {
   Actions,
   Bar,
+  Lead,
   Meta,
   ModePill,
   NameBlock,
@@ -20,6 +22,8 @@ import {
  * "Save template" on the right.
  */
 export const TemplateFlowHeader = forwardRef<HTMLElement, TemplateFlowHeaderProps>((props, ref) => {
+  // The flow header replaces the app top bar (design: Upload / Prepare).
+  useFocusedShell();
   const {
     mode,
     templateName,
@@ -50,52 +54,54 @@ export const TemplateFlowHeader = forwardRef<HTMLElement, TemplateFlowHeaderProp
 
   return (
     <Bar ref={ref} {...rest}>
-      {onCancel ? (
-        <Button
-          variant="ghost"
-          iconOnly
-          iconLeft={X}
-          aria-label="Close and go back to templates"
-          onClick={onCancel}
-        />
-      ) : null}
-
-      <NameBlock>
-        {editing ? (
-          <NameInput
-            autoFocus
-            value={draft}
-            aria-label="Template name"
-            onChange={(e) => {
-              const next = e.target.value;
-              setDraft(next);
-              // Forward each keystroke so the host can autosave (it debounces
-              // and skips empty names); blur or Enter then commits for real.
-              if (onRenameTemplate) onRenameTemplate(next);
-            }}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commit();
-              if (e.key === 'Escape') {
-                setDraft(templateName);
-                setEditing(false);
-              }
-            }}
+      <Lead>
+        {onCancel ? (
+          <Button
+            variant="ghost"
+            iconOnly
+            iconLeft={X}
+            aria-label="Close and go back to templates"
+            onClick={onCancel}
           />
-        ) : (
-          <NameButton
-            type="button"
-            $editable={editable}
-            onClick={editable ? () => setEditing(true) : undefined}
-            title={editable ? 'Rename template' : undefined}
-            aria-label={editable ? `Rename template ${templateName}` : templateName}
-          >
-            <span>{templateName}</span>
-            {editable ? <Icon icon={Pencil} size={12} /> : null}
-          </NameButton>
-        )}
-        {meta ? <Meta>{meta}</Meta> : null}
-      </NameBlock>
+        ) : null}
+
+        <NameBlock>
+          {editing ? (
+            <NameInput
+              autoFocus
+              value={draft}
+              aria-label="Template name"
+              onChange={(e) => {
+                const next = e.target.value;
+                setDraft(next);
+                // Forward each keystroke so the host can autosave (it debounces
+                // and skips empty names); blur or Enter then commits for real.
+                if (onRenameTemplate) onRenameTemplate(next);
+              }}
+              onBlur={commit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commit();
+                if (e.key === 'Escape') {
+                  setDraft(templateName);
+                  setEditing(false);
+                }
+              }}
+            />
+          ) : (
+            <NameButton
+              type="button"
+              $editable={editable}
+              onClick={editable ? () => setEditing(true) : undefined}
+              title={editable ? 'Rename template' : undefined}
+              aria-label={editable ? `Rename template ${templateName}` : templateName}
+            >
+              <span>{templateName}</span>
+              {editable ? <Icon icon={Pencil} size={12} /> : null}
+            </NameButton>
+          )}
+          {meta ? <Meta>{meta}</Meta> : null}
+        </NameBlock>
+      </Lead>
 
       <ModePill>{mode === 'using' ? 'From template' : 'Template'}</ModePill>
 

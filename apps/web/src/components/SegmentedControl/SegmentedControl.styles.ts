@@ -9,12 +9,17 @@ export const SegmentedRoot = styled.div<{ $block: boolean }>`
   border-radius: ${({ theme }) => theme.radius.md};
 `;
 
-export const Segment = styled.button<{ $active: boolean; $block: boolean; $stacked: boolean }>`
+export const Segment = styled.button<{
+  $active: boolean;
+  $block: boolean;
+  $stacked: boolean;
+  $large: boolean;
+}>`
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 40px;
+  height: ${({ $large }) => ($large ? '44px' : '40px')};
   padding: 0 14px;
   border: 0;
   border-radius: ${({ theme }) => theme.radius.sm};

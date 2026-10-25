@@ -1,44 +1,92 @@
 import styled from 'styled-components';
 import { rise } from '@/styles/motion';
+import { visuallyHidden } from '@/styles/mixins';
 import { DialogSectionedCard } from '../DialogPrimitives';
 
+const MOBILE = '@media (max-width: 640px)';
+
+/** Canvas Prepare stack: 20px between blocks; phones stack tighter. */
 export const Root = styled.div`
   display: flex;
   flex-direction: column;
-  gap: ${({ theme }) => theme.space[3]};
+  gap: ${({ theme }) => theme.space[5]};
+  ${MOBILE} {
+    gap: ${({ theme }) => theme.space[2]};
+  }
 `;
 
+/** Desktop board has no label over the recent avatars; phones show a `.meta` one. */
 export const Eyebrow = styled.span`
-  font-size: ${({ theme }) => theme.font.size.xs};
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  letter-spacing: ${({ theme }) => theme.font.tracking.wider};
-  text-transform: uppercase;
-  color: ${({ theme }) => theme.color.fg[3]};
+  ${visuallyHidden}
+  ${MOBILE} {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0 0 -4px;
+    overflow: visible;
+    clip: auto;
+    clip-path: none;
+    white-space: normal;
+    font-size: ${({ theme }) => theme.font.size.caption};
+    line-height: 1.5;
+    color: ${({ theme }) => theme.color.fg[3]};
+  }
 `;
 
 export const RecentRow = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: ${({ theme }) => theme.space[2]};
+  ${MOBILE} {
+    gap: ${({ theme }) => theme.space[1]};
+  }
 `;
 
+/**
+ * Canvas `.avatar.av-none`: a 28px soft chip with initials. Phones wrap a
+ * 36px chip in a 44px target.
+ */
 export const RecentButton = styled.button`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  flex: none;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: 0;
   border-radius: 50%;
   background: transparent;
   cursor: pointer;
-  &:hover {
-    box-shadow: 0 0 0 2px ${({ theme }) => theme.color.indigo[200]};
+  &:hover > span {
+    background: ${({ theme }) => theme.color.ink[200]};
   }
   &:focus-visible {
     outline: none;
     box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+  ${MOBILE} {
+    width: 44px;
+    height: 44px;
+  }
+`;
+
+export const RecentInitials = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: ${({ theme }) => theme.color.ink[100]};
+  color: ${({ theme }) => theme.color.ink[600]};
+  font-size: ${({ theme }) => theme.font.size.badge};
+  font-weight: ${({ theme }) => theme.font.weight.bold};
+  line-height: 1;
+  ${MOBILE} {
+    width: 36px;
+    height: 36px;
+    font-size: ${({ theme }) => theme.font.size.xs};
   }
 `;
 

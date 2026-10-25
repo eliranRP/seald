@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 
-export const Root = styled.label<{ $disabled: boolean }>`
+export const Root = styled.label<{ $disabled: boolean; $compact: boolean }>`
   display: flex;
   align-items: flex-start;
   gap: ${({ theme }) => theme.space[3]};
@@ -9,6 +9,25 @@ export const Root = styled.label<{ $disabled: boolean }>`
   font-family: ${({ theme }) => theme.font.sans};
   cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
   opacity: ${({ $disabled }) => ($disabled ? 0.6 : 1)};
+
+  ${({ $compact, theme }) =>
+    $compact
+      ? `
+    gap: ${theme.space[2]};
+    & > input {
+      width: 16px;
+      height: 16px;
+      border-radius: ${theme.radius.xxs};
+    }
+    & > input::after {
+      width: 8px;
+      height: 4px;
+    }
+    & span[id] {
+      font-size: ${theme.font.size.bodySm};
+    }
+  `
+      : ''}
 `;
 
 export const Input = styled.input`

@@ -4,26 +4,19 @@ import {
   Bell,
   Ban,
   ChevronDown,
-  Clock,
   Download,
   Eye,
-  Inbox,
   LayoutTemplate,
   Link2,
-  PenLine,
   Search,
-  ShieldCheck,
   Smartphone,
   Tag as TagIcon,
   Trash2,
   Undo2,
   Upload,
   X,
-  XCircle,
-  FilePen,
   CircleCheck,
 } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import type { EnvelopeListItem } from 'shared';
@@ -44,7 +37,6 @@ import {
   copyDocumentLink,
   downloadEnvelopes,
   fixBouncedEmail,
-  formatTurnaround,
   groupByRecency,
   hasActiveFilters,
   needsYouCards,
@@ -67,11 +59,11 @@ import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 import { useAuth } from '@/providers/AuthProvider';
 import { ConfirmDialog } from './ConfirmDialog';
 import {
-  AvgMeta,
   BulkBar,
   Footer,
   GroupLabel,
   HeaderRow,
+  HeaderSearch,
   Inner,
   Main,
   MobileActionBar,
@@ -85,7 +77,7 @@ import {
   TableShell,
   TabsRow,
   THead,
-  CountPill,
+  TabCount,
   RowCheck,
   Spacer,
 } from './DashboardPage.styles';
@@ -97,13 +89,13 @@ import type { SheetAction } from './MobileSheets';
 import { NeedsYouStrip } from './NeedsYouStrip';
 import { TagDialog } from './TagDialog';
 
-const TAB_META: Record<DashboardTab, { label: string; icon: LucideIcon }> = {
-  all: { label: 'All', icon: Inbox },
-  you: { label: 'To sign', icon: PenLine },
-  others: { label: 'Waiting', icon: Clock },
-  sealed: { label: 'Sealed', icon: ShieldCheck },
-  drafts: { label: 'Drafts', icon: FilePen },
-  stopped: { label: 'Stopped', icon: XCircle },
+const TAB_META: Record<DashboardTab, { label: string }> = {
+  all: { label: 'All' },
+  you: { label: 'To sign' },
+  others: { label: 'Waiting' },
+  sealed: { label: 'Sealed' },
+  drafts: { label: 'Drafts' },
+  stopped: { label: 'Stopped' },
 };
 
 /** Undo stays on screen this long after Send. */
@@ -178,6 +170,8 @@ export function DashboardPage() {
   const [selecting, setSelecting] = useState(false);
   const [needsExpanded, setNeedsExpanded] = useState(false);
   const [filterSheet, setFilterSheet] = useState(false);
+  /** Phones: the search field opens from the header's search button. */
+  const [mobileSearch, setMobileSearch] = useState(false);
   const [sheetFor, setSheetFor] = useState<string | null>(null);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const newChevronRef = useRef<HTMLButtonElement | null>(null);
@@ -219,7 +213,6 @@ export function DashboardPage() {
   const cards = useMemo(() => needsYouCards(items, viewerEmail, now), [items, viewerEmail, now]);
   const people = useMemo(() => uniquePeople(items), [items]);
   const tags = useMemo(() => uniqueTags(items), [items]);
-  const avg = useMemo(() => formatTurnaround(items), [items]);
   const filtered = hasActiveFilters(filters);
   const firstRun = !loading && !query.isError && items.length === 0;
 
@@ -493,7 +486,7 @@ export function DashboardPage() {
           </div>
           {mobile ? null : (
             <>
-              <Skeleton width={88} height={24} />
+              <Skeleton variant="pill" width={88} height={24} />
               <Skeleton width={120} height={28} />
               <Skeleton width={48} height={10} />
               <span />
@@ -567,6 +560,18 @@ export function DashboardPage() {
       <Inner>
         <HeaderRow>
           <PageTitle>Documents</PageTitle>
+          {mobile ? (
+            <HeaderSearch>
+              <Button
+                variant="ghost"
+                iconOnly
+                iconLeft={Search}
+                aria-label="Search"
+                aria-expanded={mobileSearch}
+                onClick={() => setMobileSearch((o) => !o)}
+              />
+            </HeaderSearch>
+          ) : null}
           <MenuAnchor>
             <SplitGroup>
               <Button variant="primary" iconLeft={Upload} onClick={() => navigate('/document/new')}>
@@ -627,7 +632,6 @@ export function DashboardPage() {
               <TabList role="tablist" aria-label="Status">
                 {DASHBOARD_TABS.map((key) => {
                   const meta = TAB_META[key];
-                  const Icon = meta.icon;
                   const active = filters.tab === key;
                   return (
                     <Tab
@@ -638,23 +642,14 @@ export function DashboardPage() {
                       $active={active}
                       onClick={() => patchFilters({ tab: key })}
                     >
-                      <Icon size={16} aria-hidden />
                       {meta.label}
-                      {loading ? (
-                        <Skeleton variant="circle" width={20} height={20} />
-                      ) : (
-                        <CountPill aria-label={`${counts[key]} documents`}>{counts[key]}</CountPill>
+                      {loading ? null : (
+                        <TabCount aria-label={`${counts[key]} documents`}>{counts[key]}</TabCount>
                       )}
                     </Tab>
                   );
                 })}
               </TabList>
-              {avg !== null ? (
-                <AvgMeta>
-                  <Clock size={14} aria-hidden />
-                  {avg} avg
-                </AvgMeta>
-              ) : null}
             </TabsRow>
 
             {bulkOn ? (
@@ -726,6 +721,8 @@ export function DashboardPage() {
                 mobile={mobile}
                 onOpenFilterSheet={() => setFilterSheet(true)}
                 onStartSelecting={() => setSelecting(true)}
+                searchOpen={mobileSearch}
+                resultCount={loading ? undefined : visible.length}
               />
             )}
 

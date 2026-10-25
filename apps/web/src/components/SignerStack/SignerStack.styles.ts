@@ -1,5 +1,5 @@
-import styled from 'styled-components';
-import { truncateText } from '@/styles/mixins';
+import styled, { type DefaultTheme } from 'styled-components';
+import { truncateText, visuallyHidden } from '@/styles/mixins';
 import type { SignerStackStatus } from './SignerStack.types';
 
 export const Root = styled.div`
@@ -15,64 +15,64 @@ export const Stack = styled.div`
   align-items: center;
 `;
 
+/** Canvas `.av-*` soft tints, one per signer status. */
+const avatarTone = (t: DefaultTheme, status: SignerStackStatus): { bg: string; fg: string } =>
+  ({
+    signed: { bg: t.color.success[50], fg: t.color.success[700] },
+    pending: { bg: t.color.warn[50], fg: t.color.warn[700] },
+    'awaiting-you': { bg: t.color.indigo[50], fg: t.color.indigo[800] },
+    declined: { bg: t.color.danger[50], fg: t.color.danger[700] },
+    draft: { bg: t.color.ink[100], fg: t.color.ink[600] },
+  })[status];
+
 /**
- * Stacked signer avatar. The previous colored 2 px ring (per status)
- * was visually noisy on the dashboard — five red / amber / indigo
- * rings fighting for attention against the row's Status pill, which
- * already carries the same signal. Dropped to a single neutral
- * `border[1]` so the avatar reads as "person N" and the status lives
- * on the pill.
- *
- * The surface-colored box-shadow stays — when avatars overlap (each
- * `& + &` shifts -8 px), that ring punches a hole through the previous
- * avatar so the silhouettes don't blur together.
- *
- * `$status` is kept on the prop signature even though we don't paint
- * with it any more — callers still pass it (the popover row + tests
- * read it) and styled-components is happy to drop the transient prop
- * without emitting it to the DOM.
+ * Stacked signer avatar (canvas `.avatars > .avatar`): 28px, a soft tint
+ * for the signer's status, and a surface-coloured ring so overlapping
+ * avatars (each shifted -4px) stay distinct.
  */
 export const Avatar = styled.span<{ $status: SignerStackStatus }>`
   width: 28px;
   height: 28px;
+  flex: none;
   border-radius: ${({ theme }) => theme.radius.pill};
-  background: ${({ theme }) => theme.color.indigo[600]};
-  color: ${({ theme }) => theme.color.paper};
+  background: ${({ theme, $status }) => avatarTone(theme, $status).bg};
+  color: ${({ theme, $status }) => avatarTone(theme, $status).fg};
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  letter-spacing: 0.02em;
-  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  font-size: ${({ theme }) => theme.font.size.badge};
+  font-weight: ${({ theme }) => theme.font.weight.bold};
+  line-height: 1;
   box-shadow: 0 0 0 2px ${({ theme }) => theme.color.bg.surface};
   position: relative;
   & + & {
-    margin-left: -8px;
+    margin-left: -4px;
   }
 `;
 
 export const OverflowChip = styled.span`
   width: 28px;
   height: 28px;
+  flex: none;
   border-radius: ${({ theme }) => theme.radius.pill};
   background: ${({ theme }) => theme.color.ink[100]};
-  color: ${({ theme }) => theme.color.fg[2]};
+  color: ${({ theme }) => theme.color.ink[600]};
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  border: 2px solid ${({ theme }) => theme.color.border[1]};
+  font-size: ${({ theme }) => theme.font.size.badge};
+  font-weight: ${({ theme }) => theme.font.weight.bold};
+  line-height: 1;
   box-shadow: 0 0 0 2px ${({ theme }) => theme.color.bg.surface};
-  margin-left: -8px;
+  margin-left: -4px;
 `;
 
+/**
+ * "n/m signed". The design shows progress with the segment bar alone, so
+ * the fraction is kept for screen readers only.
+ */
 export const Fraction = styled.span`
-  font-family: ${({ theme }) => theme.font.mono};
-  font-size: 12px;
-  color: ${({ theme }) => theme.color.fg[3]};
-  white-space: nowrap;
+  ${visuallyHidden}
 `;
 
 // Top/left/position are supplied at the call site via an inline style
