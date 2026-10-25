@@ -120,7 +120,7 @@ export const FEATURE_FLAGS: Record<string, boolean> = {
    * and falls back to the API while the RPC is not deployed yet. Off: every
    * read goes through the API, as before.
    */
-  ownerReadRpcs: false,
+  ownerReadRpcs: true,
 } as const;
 
 export type FeatureFlag =
