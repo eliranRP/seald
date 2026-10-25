@@ -112,6 +112,15 @@ export const FEATURE_FLAGS: Record<string, boolean> = {
    * locale switcher and translated strings. On since the parity flag flip.
    */
   i18n: true,
+
+  /**
+   * Owner list reads straight from Postgres (docs/supabase-native-architecture.md,
+   * step 4). On: the SPA reads the dashboard list, contacts and templates
+   * with `supabase.rpc('seald_list_*')` (migration 0050) instead of the API,
+   * and falls back to the API while the RPC is not deployed yet. Off: every
+   * read goes through the API, as before.
+   */
+  ownerReadRpcs: false,
 } as const;
 
 export type FeatureFlag =
@@ -129,7 +138,8 @@ export type FeatureFlag =
   | 'publicApi'
   | 'bulkSend'
   | 'directLinks'
-  | 'i18n';
+  | 'i18n'
+  | 'ownerReadRpcs';
 
 /**
  * Runtime override hook for tests / local walkthroughs. Production never
