@@ -95,7 +95,7 @@ jobs:
         env:
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: |
-          for i in 1 2 3 4 5 6; do
+          for _ in 1 2 3 4 5 6; do
             code=$(curl -s -o /dev/null -w '%{http_code}' \
               "https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/seald/health")
             [ "$code" = "200" ] && echo "bridge healthy" && exit 0
