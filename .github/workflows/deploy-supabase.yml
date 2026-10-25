@@ -82,7 +82,7 @@ jobs:
           sh apps/api/scripts/migrate.sh
 
       # --use-api uploads the raw ~10.5 MB seald bundle and gets HTTP 413;
-      # --use-docker ships a compressed eszip (seald ~2.5 MB).
+      # --use-docker ships a compressed bundle (seald ~2.5 MB).
       - name: Deploy functions
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
