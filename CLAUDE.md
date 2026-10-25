@@ -289,6 +289,7 @@ Parity-plan migrations (each has a paired down in `down/`; `0038` is unused):
 - `0036` MCP OAuth: OAuth 2.1 grant tables (WP-27).
 - `0037` automation auto-disable: disable record on the recipe after 20 consecutive failures (WP-34).
 - `0039` MCP "Later" list: `signer_corrected` and `expiry_changed` events, `signer_corrected` mail kind (WP-26).
+- `0049` edge schedules: `seald_install_edge_schedules(functions_url)` / `seald_remove_edge_schedules()`, the pg_cron + pg_net jobs for the Edge Functions. Inert until an operator runs the installer at cut-over (needs the Vault secret `seald_cron_secret`).
 - `0048` envelope job progress: `envelope_jobs.progress`, the step state of a multi-step seal on the `seal-worker` Edge Function (S.9).
 - `0044` scan sessions: `scan_sessions`, the 10 minute phone-to-computer hand-off for "Scan with phone" (redesign v2 WS-J; only the code's hash is stored). The phone page `/scan/:code` needs `camera=(self)` in the Permissions-Policy of `apps/landing/_worker.js` and `public/_headers`.
 

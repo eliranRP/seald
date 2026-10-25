@@ -21,6 +21,33 @@ import { requireFlag } from '../common/feature-flag.guard';
 import { SealSweepService, type SealSweepResult } from '../sealing/seal-sweep.service';
 import { StepSweepService, type StepSweepResult } from '../signing/step-sweep.service';
 import { StagedUploadsService } from '../uploads/staged-uploads.service';
+import { isFeatureEnabled } from 'shared';
+import {
+  AutomationWorkerService,
+  type AutomationFlushResult,
+} from '../automations/automation-worker.service';
+import {
+  AutomationMatcherService,
+  automationsActive,
+  type RescanResult,
+} from '../automations/matcher';
+import { BulkWorkerService, type BulkFlushResult } from '../bulk/bulk-worker.service';
+
+/**
+ * Per-call caps for `tick`. pg_cron calls it every minute on a Supabase Edge
+ * Function, whose CPU budget is per worker, so each pass stays small; the
+ * next minute picks up the rest (docs/supabase-native-architecture.md).
+ */
+export const TICK_LIMITS = { reminders: 50, bulkRows: 3, automationRuns: 3 } as const;
+
+export interface TickResult {
+  readonly reminders: ReminderSweepResult;
+  readonly bulk: BulkFlushResult | null;
+  readonly automations: {
+    readonly matched: RescanResult;
+    readonly runs: AutomationFlushResult;
+  } | null;
+}
 
 /**
  * Internal cron endpoints. Locked down with a shared-secret header
@@ -41,7 +68,56 @@ export class CronController {
     private readonly stepSweep: StepSweepService,
     @Inject(APP_ENV) private readonly env: AppEnv,
     private readonly stagedUploads: StagedUploadsService,
+    private readonly bulk: BulkWorkerService,
+    private readonly automationWorker: AutomationWorkerService,
+    private readonly automationMatcher: AutomationMatcherService,
   ) {}
+
+  /**
+   * POST /internal/cron/tick
+   *
+   * The per-minute work the in-process loops do when WORKER_ENABLED=true,
+   * for hosts with no long-lived process (Supabase Edge Functions, where
+   * pg_cron calls this). One bounded pass each: queue due reminders, send a
+   * few bulk rows, match pending automation triggers and run a few
+   * automation actions. Safe to overlap with itself and with the loops:
+   * every claim is row-conditional or `skip locked`.
+   */
+  @Post('tick')
+  @HttpCode(200)
+  async tick(@Headers('x-cron-secret') secret: string | undefined): Promise<TickResult> {
+    this.assertSecret(secret);
+    const now = new Date();
+    const reminders = await this.reminders.enqueueDue(now, TICK_LIMITS.reminders);
+    const bulk = isFeatureEnabled('bulkSend')
+      ? await this.bulk.flushOnce(TICK_LIMITS.bulkRows)
+      : null;
+    const automations = automationsActive(this.env)
+      ? {
+          matched: await this.automationMatcher.rescan(),
+          runs: await this.automationWorker.flushOnce(TICK_LIMITS.automationRuns),
+        }
+      : null;
+    return { reminders, bulk, automations };
+  }
+
+  /**
+   * POST /internal/cron/daily
+   *
+   * The once-a-day passes of the automation loops: trigger retention plus a
+   * full pending rescan, and clearing rotated-out webhook secrets.
+   */
+  @Post('daily')
+  @HttpCode(200)
+  async daily(
+    @Headers('x-cron-secret') secret: string | undefined,
+  ): Promise<{ automations: ({ deleted: number } & RescanResult) | null }> {
+    this.assertSecret(secret);
+    if (!automationsActive(this.env)) return { automations: null };
+    const now = new Date();
+    await this.automationWorker.maintenance(now);
+    return { automations: await this.automationMatcher.sweep(now) };
+  }
 
   /**
    * POST /internal/cron/expire
