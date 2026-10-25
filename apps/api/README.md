@@ -185,46 +185,10 @@ exponential backoff up to `max_attempts` (default 5).
 | POST | `/internal/cron/flush-emails` | `X-Cron-Secret` header = `CRON_SECRET` | Drain the outbound email queue. The in-process worker does this when `WORKER_ENABLED=true`.                                                                                                                                                                                                                        |
 | POST | `/internal/cron/reminders`    | `X-Cron-Secret` header = `CRON_SECRET` | Queue one automated reminder per unsigned signer whose last invite or reminder is at least 24 hours old (cap of 7 per signer). Does not send mail; `flush-emails` or the email worker does. Safe to overlap with the in-process reminder worker. Call about once a day, or let `WORKER_ENABLED` poll every minute. |
 
-## Deploying (single-node)
+## Deploying
 
-Everything needed for a production single-node deploy lives at the repo
-root: `Dockerfile`, `docker-compose.yml`, `deploy/Caddyfile`, and
-`deploy/terraform/` for host provisioning. Supabase provides Postgres +
-Storage.
-
-### Host (Terraform)
-
-`deploy/terraform/` provisions an EC2 spot instance + EIP + security
-group inside your default VPC. See `deploy/terraform/README.md` for
-variable setup. DNS is manual: after `terraform apply`, paste the
-outputted EIP into your GoDaddy DNS dashboard as an A record pointing
-at your API subdomain.
-
-### App
-
-```bash
-# On the deploy host (e.g. t4g.small spot + EIP):
-git clone <repo> /opt/seald && cd /opt/seald
-cp apps/api/.env.example apps/api/.env
-# Fill in SUPABASE_*, SIGNER_SESSION_SECRET, CRON_SECRET,
-# RESEND_API_KEY, APP_PUBLIC_URL, CORS_ORIGIN, CADDY_DOMAIN.
-docker compose up -d --build
-```
-
-Caddy handles automatic HTTPS via Let's Encrypt against `CADDY_DOMAIN`.
-The API listens on `:3000` inside the compose network; Caddy terminates
-TLS on `:443` and proxies to it. `/internal/*` and `/metrics` are
-blocked at the edge.
-
-Host cron (optional; the worker already drains jobs):
-
-```cron
-*/15 * * * * curl -fsS -X POST -H "X-Cron-Secret: $(grep '^CRON_SECRET=' /opt/seald/apps/api/.env | cut -d= -f2)" http://localhost:3000/internal/cron/expire >/dev/null
-0 9 * * * curl -fsS -X POST -H "X-Cron-Secret: $(grep '^CRON_SECRET=' /opt/seald/apps/api/.env | cut -d= -f2)" http://localhost:3000/internal/cron/reminders >/dev/null
-```
-
-Migrations (`apps/api/db/migrations/*.sql`) apply automatically on every
-container boot via `scripts/entrypoint.sh` → `scripts/migrate.sh`. The
-script tracks applied filenames in a `schema_migrations` ledger table so
-re-runs are a no-op. Set `SKIP_MIGRATIONS=1` on API-only nodes in
-horizontally-scaled deploys where one dedicated node owns migrations.
+Production runs as Supabase Edge Functions (`seald`, `seal-worker`,
+`email-worker`) deployed by `.github/workflows/deploy-supabase.yml`, with
+pg_cron driving the workers. Cloudflare Pages proxies
+`api.seald.nromomentum.com` to the `seald` function. The former EC2 /
+Docker / Terraform deploy was removed after the AWS exit.

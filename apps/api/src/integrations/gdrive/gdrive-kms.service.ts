@@ -1,6 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
-import { KMSClient, GenerateDataKeyCommand, DecryptCommand } from '@aws-sdk/client-kms';
 import { parseAutomationSecretsKey } from '../../automations/actions/webhook/secret-box';
 import type { AppEnv } from '../../config/env.schema';
 import { LOCAL_WRAP_KEY_ID, LocalWrapKmsClient } from './local-wrap-kms-client';
@@ -8,41 +7,12 @@ import { LOCAL_WRAP_KEY_ID, LocalWrapKmsClient } from './local-wrap-kms-client';
 /**
  * Port over the subset of KMS operations the OAuth refresh-token store
  * needs. Lets the unit suite exercise the AES envelope path without an
- * AWS SDK dependency at test time. The production implementation
- * (`AwsKmsClient`) wraps the real `@aws-sdk/client-kms` calls.
+ * real key at test time. The production implementation is
+ * `LocalWrapKmsClient` (AES-GCM under GDRIVE_TOKEN_WRAP_KEY).
  */
 export interface KmsClientPort {
   generateDataKey(keyId: string): Promise<{ plaintext: Buffer; ciphertextBlob: Buffer }>;
   decrypt(ciphertextBlob: Buffer): Promise<Buffer>;
-}
-
-/**
- * Production KMS adapter. Uses RSA-less symmetric `GenerateDataKey` /
- * `Decrypt` — the SAME pattern PR #12 used for sealing, just with the
- * tenant CMK ARN swapped in. Per Watchpoint #5, this is per-tenant single
- * CMK; per-user CMK would be a manager-level scope change.
- */
-export class AwsKmsClient implements KmsClientPort {
-  constructor(private readonly kms: KMSClient) {}
-
-  async generateDataKey(keyId: string): Promise<{ plaintext: Buffer; ciphertextBlob: Buffer }> {
-    const out = await this.kms.send(
-      new GenerateDataKeyCommand({ KeyId: keyId, KeySpec: 'AES_256' }),
-    );
-    if (!out.Plaintext || !out.CiphertextBlob) {
-      throw new Error('kms_generate_data_key_failed');
-    }
-    return {
-      plaintext: Buffer.from(out.Plaintext),
-      ciphertextBlob: Buffer.from(out.CiphertextBlob),
-    };
-  }
-
-  async decrypt(ciphertextBlob: Buffer): Promise<Buffer> {
-    const out = await this.kms.send(new DecryptCommand({ CiphertextBlob: ciphertextBlob }));
-    if (!out.Plaintext) throw new Error('kms_decrypt_failed');
-    return Buffer.from(out.Plaintext);
-  }
 }
 
 /**
@@ -51,7 +21,7 @@ export class AwsKmsClient implements KmsClientPort {
  *   [4-byte BE wrapped-key-len][wrapped data key][12-byte IV][16-byte tag][ciphertext]
  *
  * AES-256-GCM with a fresh data key per row. The data key is wrapped by
- * the tenant KMS CMK; we never store the raw data key. The plaintext
+ * GDRIVE_TOKEN_WRAP_KEY; we never store the raw data key. The plaintext
  * refresh token NEVER touches `bytea` directly (red-flag row 3). Errors
  * deliberately omit the plaintext from messages so logs cannot leak it.
  */
@@ -59,41 +29,20 @@ export class AwsKmsClient implements KmsClientPort {
 export class GDriveKmsService {
   private readonly client: KmsClientPort;
   private readonly keyArn: string;
-  private readonly legacy: { readonly client: KmsClientPort; readonly keyArn: string } | null;
 
-  /**
-   * `legacy` decrypts rows whose stored key id is not `keyArn`: the rows
-   * still wrapped by AWS KMS while the local wrap key takes over (AWS exit
-   * plan, WS-3). New rows are always wrapped by `client`.
-   */
-  constructor(
-    client: KmsClientPort,
-    keyArn: string,
-    legacy: { readonly client: KmsClientPort; readonly keyArn: string } | null = null,
-  ) {
+  constructor(client: KmsClientPort, keyArn: string) {
     this.client = client;
     this.keyArn = keyArn;
-    this.legacy = legacy;
   }
 
   static fromEnv(env: AppEnv): GDriveKmsService {
-    const arn = env.GDRIVE_TOKEN_KMS_KEY_ARN;
-    const region = env.GDRIVE_TOKEN_KMS_REGION;
-    const aws =
-      arn && region ? { client: new AwsKmsClient(new KMSClient({ region })), keyArn: arn } : null;
     const wrapKey = parseAutomationSecretsKey(env.GDRIVE_TOKEN_WRAP_KEY);
-    if (wrapKey) {
-      return new GDriveKmsService(new LocalWrapKmsClient(wrapKey), LOCAL_WRAP_KEY_ID, aws);
+    if (!wrapKey) {
+      throw new Error('gdrive_kms_misconfigured: GDRIVE_TOKEN_WRAP_KEY required');
     }
-    if (!aws) {
-      throw new Error(
-        'gdrive_kms_misconfigured: GDRIVE_TOKEN_WRAP_KEY, or GDRIVE_TOKEN_KMS_KEY_ARN + GDRIVE_TOKEN_KMS_REGION, required',
-      );
-    }
-    return new GDriveKmsService(aws.client, aws.keyArn);
+    return new GDriveKmsService(new LocalWrapKmsClient(wrapKey), LOCAL_WRAP_KEY_ID);
   }
 
-  /** Key id that `encrypt` stamps on new rows. */
   get currentKeyArn(): string {
     return this.keyArn;
   }
@@ -131,10 +80,8 @@ export class GDriveKmsService {
   }
 
   async decrypt(ciphertext: Buffer, kmsKeyArn: string, aad?: Buffer): Promise<string> {
-    const client =
-      this.legacy && kmsKeyArn !== this.keyArn && kmsKeyArn === this.legacy.keyArn
-        ? this.legacy.client
-        : this.client;
+    void kmsKeyArn; // every stored row is wrapped by the local key
+    const client = this.client;
     if (ciphertext.length < 4 + 12 + 16) throw new Error('gdrive_kms_decrypt_failed');
     const wrappedLen = ciphertext.readUInt32BE(0);
     const offset = 4 + wrappedLen;

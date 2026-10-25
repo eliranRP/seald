@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import forge from 'node-forge';
 import type { AppEnv } from '../../config/env.schema';
-import { KmsPadesSigner, NoopPadesSigner, P12PadesSigner } from '../pades-signer';
+import { NoopPadesSigner, P12PadesSigner } from '../pades-signer';
 import { selectPadesSigner, type SignerSelectionLogger } from '../sealing.module';
 import type { TsaClient } from '../tsa-client';
 
@@ -53,13 +53,11 @@ function selfSignedCert(): { certPem: string; keys: forge.pki.rsa.KeyPair } {
 describe('selectPadesSigner (rule S.1)', () => {
   let dir: string;
   let p12Path: string;
-  let certPem: string;
   const p12Pass = 'factory-pass';
 
   beforeAll(() => {
     dir = mkdtempSync(join(tmpdir(), 'seald-factory-'));
     const { certPem: pem, keys } = selfSignedCert();
-    certPem = pem;
     const p12Asn1 = forge.pkcs12.toPkcs12Asn1(
       keys.privateKey,
       [forge.pki.certificateFromPem(pem)],
@@ -72,62 +70,6 @@ describe('selectPadesSigner (rule S.1)', () => {
 
   afterAll(() => {
     rmSync(dir, { recursive: true, force: true });
-  });
-
-  describe('kms', () => {
-    const full: EnvOverrides = {
-      PDF_SIGNING_PROVIDER: 'kms',
-      PDF_SIGNING_KMS_KEY_ID: 'alias/seald-test',
-      PDF_SIGNING_KMS_REGION: 'us-east-1',
-    };
-
-    it('builds KmsPadesSigner when key, region and cert are set', () => {
-      const signer = selectPadesSigner(
-        makeEnv({ ...full, PDF_SIGNING_KMS_CERT_PEM: certPem }),
-        tsaOff,
-        quietLogger(),
-      );
-      expect(signer).toBeInstanceOf(KmsPadesSigner);
-    });
-
-    it.each([
-      ['PDF_SIGNING_KMS_KEY_ID', { PDF_SIGNING_KMS_KEY_ID: undefined }],
-      ['PDF_SIGNING_KMS_REGION', { PDF_SIGNING_KMS_REGION: undefined }],
-    ] as const)('throws when %s is missing', (name, drop) => {
-      expect(() =>
-        selectPadesSigner(
-          makeEnv({ ...full, PDF_SIGNING_KMS_CERT_PEM: certPem, ...drop }),
-          tsaOff,
-          quietLogger(),
-        ),
-      ).toThrow(new RegExp(`PDF_SIGNING_PROVIDER=kms but ${name}`));
-    });
-
-    it('throws when neither cert PEM nor cert path is set', () => {
-      expect(() => selectPadesSigner(makeEnv(full), tsaOff, quietLogger())).toThrow(
-        /PDF_SIGNING_KMS_CERT_PEM or PDF_SIGNING_KMS_CERT_PEM_PATH/,
-      );
-    });
-
-    it('throws when the cert path does not exist', () => {
-      expect(() =>
-        selectPadesSigner(
-          makeEnv({ ...full, PDF_SIGNING_KMS_CERT_PEM_PATH: join(dir, 'missing.pem') }),
-          tsaOff,
-          quietLogger(),
-        ),
-      ).toThrow(/cannot read cert PEM/);
-    });
-
-    it('still throws on a missing key id under NODE_ENV=test', () => {
-      expect(() =>
-        selectPadesSigner(
-          makeEnv({ ...full, NODE_ENV: 'test', PDF_SIGNING_KMS_KEY_ID: undefined }),
-          tsaOff,
-          quietLogger(),
-        ),
-      ).toThrow(/PDF_SIGNING_KMS_KEY_ID/);
-    });
   });
 
   describe('local', () => {
@@ -282,12 +224,12 @@ describe('selectPadesSigner (rule S.1)', () => {
           makeEnv({
             NODE_ENV: 'production',
             PDF_SIGNING_ALLOW_NOOP: true,
-            PDF_SIGNING_PROVIDER: 'kms',
+            PDF_SIGNING_PROVIDER: 'local',
           }),
           tsaOff,
           quietLogger(),
         ),
-      ).toThrow(/PDF_SIGNING_PROVIDER=kms/);
+      ).toThrow(/PDF_SIGNING_PROVIDER=local/);
     });
   });
 });

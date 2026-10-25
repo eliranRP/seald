@@ -73,7 +73,7 @@ const envSchema = z
      * which production refuses unless PDF_SIGNING_ALLOW_NOOP=true. A set
      * provider with missing config throws at startup in SealingModule.
      */
-    PDF_SIGNING_PROVIDER: z.enum(['local', 'kms', 'sslcom']).optional(),
+    PDF_SIGNING_PROVIDER: z.enum(['local', 'sslcom']).optional(),
     /**
      * Escape hatch for a production host that may seal without a CMS
      * signature (staging). Only read when PDF_SIGNING_PROVIDER is unset.
@@ -121,27 +121,13 @@ const envSchema = z
     PDF_SIGNING_LOCAL_P12_PATH: z.string().optional(),
     /**
      * The same PKCS#12 file, base64-encoded, for hosts with no file to mount
-     * (the Supabase Edge Function). Wins over PDF_SIGNING_LOCAL_P12_PATH,
-     * like the inline KMS cert PEM wins over its path.
+     * (the Supabase Edge Function). Wins over PDF_SIGNING_LOCAL_P12_PATH.
      */
     PDF_SIGNING_LOCAL_P12_BASE64: z.string().optional(),
     PDF_SIGNING_LOCAL_P12_PASS: z.string().optional(),
     PDF_SIGNING_SSLCOM_CLIENT_ID: z.string().optional(),
     PDF_SIGNING_SSLCOM_CLIENT_SECRET: z.string().optional(),
     PDF_SIGNING_SSLCOM_CERT_ID: z.string().optional(),
-    /**
-     * AWS KMS-backed sealing (PDF_SIGNING_PROVIDER=kms). The KMS key must be
-     * an asymmetric SIGN_VERIFY key with KeySpec=RSA_3072 and KeyUsage=SIGN
-     * (cryptography-expert §8). The signing certificate is the public-side
-     * X.509 cert that pairs with that key — KMS itself does not issue or
-     * store certs, so we provide it via PEM (inline or filesystem path).
-     * For the no-CA-required MVP this is a self-signed cert pinning the
-     * KMS public key; AATL-trusted issuance comes later.
-     */
-    PDF_SIGNING_KMS_KEY_ID: z.string().optional(),
-    PDF_SIGNING_KMS_REGION: z.string().optional(),
-    PDF_SIGNING_KMS_CERT_PEM: z.string().optional(),
-    PDF_SIGNING_KMS_CERT_PEM_PATH: z.string().optional(),
     PDF_SIGNING_TSA_URL: z.string().url().default('https://freetsa.org/tsr'),
     /**
      * Comma-separated list of additional TSA endpoints to try if
@@ -239,20 +225,16 @@ const envSchema = z
 
     /**
      * Google Drive integration (Phase 5 of the gdrive feature). Required
-     * only when `feature.gdriveIntegration` is on. The KMS key is the
-     * per-tenant CMK that wraps the per-row data key encrypting each
-     * stored OAuth refresh token (red-flag row 3 — never plaintext).
+     * only when `feature.gdriveIntegration` is on. Each stored OAuth refresh
+     * token is encrypted with a per-row data key wrapped by
+     * GDRIVE_TOKEN_WRAP_KEY (red-flag row 3 — never plaintext).
      */
     GDRIVE_OAUTH_CLIENT_ID: z.string().optional(),
     GDRIVE_OAUTH_CLIENT_SECRET: z.string().optional(),
     GDRIVE_OAUTH_REDIRECT_URI: z.string().url().optional(),
-    GDRIVE_TOKEN_KMS_KEY_ARN: z.string().optional(),
-    GDRIVE_TOKEN_KMS_REGION: z.string().optional(),
     /**
-     * Local AES-GCM key, 32 bytes (64 hex characters, or base64 of 32 bytes) that
-     * wraps the per-row data keys instead of AWS KMS (AWS exit plan, WS-3).
-     * When set, new tokens are wrapped with it; rows still wrapped by the
-     * KMS key above decrypt through KMS while both are configured.
+     * Local AES-GCM key, 32 bytes (64 hex characters, or base64 of 32 bytes)
+     * that wraps the per-row data keys of stored Drive refresh tokens.
      */
     GDRIVE_TOKEN_WRAP_KEY: z.string().optional(),
     GDRIVE_API_RATE_PER_USER: z.coerce.number().int().positive().optional(),
@@ -437,26 +419,6 @@ const envSchema = z
           path: ['PDF_SIGNING_LOCAL_P12_PASS'],
           message:
             'PDF_SIGNING_LOCAL_P12_PASS required when PDF_SIGNING_PROVIDER=local and NODE_ENV!=test',
-        });
-      }
-    }
-
-    if (env.PDF_SIGNING_PROVIDER === 'kms' && env.NODE_ENV !== 'test') {
-      for (const key of ['PDF_SIGNING_KMS_KEY_ID', 'PDF_SIGNING_KMS_REGION'] as const) {
-        if (!env[key]) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [key],
-            message: `${key} required when PDF_SIGNING_PROVIDER=kms and NODE_ENV!=test`,
-          });
-        }
-      }
-      if (!env.PDF_SIGNING_KMS_CERT_PEM && !env.PDF_SIGNING_KMS_CERT_PEM_PATH) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['PDF_SIGNING_KMS_CERT_PEM'],
-          message:
-            'PDF_SIGNING_KMS_CERT_PEM or PDF_SIGNING_KMS_CERT_PEM_PATH required when PDF_SIGNING_PROVIDER=kms',
         });
       }
     }

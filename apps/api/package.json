@@ -18,11 +18,9 @@
     "storage:init": "node scripts/ensure-storage-bucket.mjs",
     "smoke:upload": "node scripts/smoke-upload.mjs",
     "seed:signer": "ts-node --transpile-only scripts/seed-signer.ts",
-    "flush:emails": "ts-node --transpile-only scripts/flush-emails.ts",
-    "kms:gen-cert": "ts-node --transpile-only scripts/generate-kms-binding-cert.ts"
+    "flush:emails": "ts-node --transpile-only scripts/flush-emails.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-kms": "^3.1156.0",
     "@modelcontextprotocol/sdk": "1.32.1",
     "@nestjs/common": "^11.1.21",
     "@nestjs/core": "^11.1.21",

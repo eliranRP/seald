@@ -1,6 +1,0 @@
-# Local init state — backend is S3; leave no local state on disk.
-.terraform/
-*.tfstate
-*.tfstate.backup
-*.tfplan
-terraform.tfvars
