@@ -80,7 +80,6 @@ describe('GDriveKmsService', () => {
 
 describe('GDriveKmsService with the local wrap key (AWS exit plan, WS-3)', () => {
   const WRAP_KEY = randomBytes(32);
-  const AWS_ARN = 'arn:aws:kms:us-east-1:000000000000:key/legacy';
 
   it('wraps new rows locally and stamps local:v1', async () => {
     const svc = new GDriveKmsService(new LocalWrapKmsClient(WRAP_KEY), LOCAL_WRAP_KEY_ID);
@@ -102,26 +101,9 @@ describe('GDriveKmsService with the local wrap key (AWS exit plan, WS-3)', () =>
     ).rejects.toThrow();
   });
 
-  it('still decrypts rows wrapped by AWS KMS through the legacy client', async () => {
-    const aws = new MockKmsClient();
-    const legacyRow = await new GDriveKmsService(aws, AWS_ARN).encrypt('1//refresh-aws');
-    const svc = new GDriveKmsService(new LocalWrapKmsClient(WRAP_KEY), LOCAL_WRAP_KEY_ID, {
-      client: aws,
-      keyArn: AWS_ARN,
-    });
-    await expect(svc.decrypt(legacyRow.ciphertext, legacyRow.kmsKeyArn)).resolves.toBe(
-      '1//refresh-aws',
-    );
-    const fresh = await svc.encrypt('1//refresh-new');
-    expect(fresh.kmsKeyArn).toBe(LOCAL_WRAP_KEY_ID);
-    expect(aws.generateDataKeyCalls).toBe(1);
-  });
-
-  it('fromEnv prefers the wrap key and keeps KMS for legacy reads', () => {
+  it('fromEnv uses the wrap key', () => {
     const svc = GDriveKmsService.fromEnv({
       GDRIVE_TOKEN_WRAP_KEY: WRAP_KEY.toString('hex'),
-      GDRIVE_TOKEN_KMS_KEY_ARN: AWS_ARN,
-      GDRIVE_TOKEN_KMS_REGION: 'us-east-1',
     } as unknown as AppEnv);
     expect(svc.currentKeyArn).toBe(LOCAL_WRAP_KEY_ID);
   });

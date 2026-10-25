@@ -63,20 +63,14 @@ preview every change in real Gmail before committing.
 The seald API seals every completed envelope into a PAdES PDF that
 progresses **B-T → B-LT (DSS) → optional B-LTA**. All sealing code lives
 in `apps/api/src/sealing/`. Full pipeline + module-factory selection in
-`memory/project_pades_pipeline.md`; KMS hand-built CMS rationale in
-`memory/project_kms_signer.md`.
+`memory/project_pades_pipeline.md`. The AWS KMS signer was removed when
+production moved to Supabase Edge (AWS exit).
 
-- **S.1** Producer order in `SealingModule` factory: `KmsPadesSigner`
-  (production, when `PDF_SIGNING_PROVIDER=kms` + key id set) →
-  `P12PadesSigner` (dev, P12 path present) → `NoopPadesSigner` (last
-  resort). Never silently downgrade — startup must throw on misconfig.
-- **S.2** `KmsCmsSigner` hand-builds CMS — forge's `pkcs7.sign()`
-  requires a local private key, which defeats KMS. Preserve the RFC 5652
-  §5.4 explicit-`SET` (tag `0x31`) re-encoding of `signedAttrs` before
-  hashing; Adobe Reader rejects the wrong tag.
-- **S.3** Env-var contract: `PDF_SIGNING_PROVIDER` (`local`/`kms`/`sslcom`),
-  `PDF_SIGNING_KMS_KEY_ID`, `PDF_SIGNING_KMS_REGION`,
-  `PDF_SIGNING_KMS_CERT_PEM` or `_PATH`, `PDF_SIGNING_TSA_URLS` (CSV;
+- **S.1** Producer order in `SealingModule` factory: `P12PadesSigner`
+  (`PDF_SIGNING_PROVIDER=local`, production and dev) → `NoopPadesSigner`
+  (last resort). Never silently downgrade — startup must throw on misconfig.
+- **S.3** Env-var contract: `PDF_SIGNING_PROVIDER` (`local`/`sslcom`),
+  `PDF_SIGNING_TSA_URLS` (CSV;
   rotated on failure by `MultiTsaClient`; legacy singular
   `PDF_SIGNING_TSA_URL` still honored).
   For `local`, the P12 comes from `PDF_SIGNING_LOCAL_P12_PATH` or, on
@@ -135,21 +129,15 @@ The `apps/api/src/integrations/gdrive/` module reads these at startup:
 - `GDRIVE_OAUTH_REDIRECT_URI` — must exactly match the URI registered in
   Google Cloud Console (e.g.
   `https://api.seald.nromomentum.com/integrations/gdrive/oauth/callback`)
-- `GDRIVE_TOKEN_KMS_KEY_ARN` — AWS KMS CMK ARN used to wrap per-row DEKs
-  for refresh-token storage (envelope AES-256-GCM)
-- `GDRIVE_TOKEN_KMS_REGION` — AWS region for the CMK
-- `GDRIVE_TOKEN_WRAP_KEY` — 32-byte local wrap key (64 hex) that replaces
-  the CMK for new rows (`kms_key_arn = 'local:v1'`; AWS exit plan, WS-3).
-  While the two KMS vars are also set, rows they wrapped still decrypt
-  through KMS.
+- `GDRIVE_TOKEN_WRAP_KEY` — 32-byte local wrap key (64 hex) that wraps
+  the per-row DEKs for refresh-token storage (envelope AES-256-GCM;
+  `kms_key_arn = 'local:v1'`). Required when Drive is enabled.
 - `GDRIVE_API_RATE_PER_USER` — token-bucket capacity (default `30`); WT-A-2
 - `GDRIVE_API_RATE_WINDOW_SECONDS` — token-bucket refill window seconds
   (default `60`); WT-A-2
 - `GDRIVE_GOTENBERG_URL` — internal URL of the Gotenberg sidecar
-  (default `http://gotenberg:3000`); WT-D. The sidecar is the
-  `gotenberg` service in the repo-root `docker-compose.yml`, on the
-  compose default network, with no published host port. Caddy never
-  proxies it.
+  (default `http://gotenberg:3000`); WT-D. Optional; production on
+  Supabase Edge converts through Google Drive instead.
 - `GDRIVE_CONVERSION_MAX_BYTES` — hard size cap for Drive bytes in and
   Gotenberg PDFs out (default `26214400` = 25 MiB); WT-D. Raising it
   without re-checking the Gotenberg memory budget will OOM the
