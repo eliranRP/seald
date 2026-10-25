@@ -90,6 +90,18 @@ so AWS can be switched off as soon as sealing and the workers run natively.
 7. **`mcp`, `public-api`, `integrations`**, then delete the bridge and
    `apps/api`'s Nest shell.
 
+## Progress
+
+- Step 1 done: step-wise sealing on `seal-worker` (CLAUDE.md S.9).
+- Step 2 done: `email-worker`; the per-minute and daily loop work as
+  `POST /internal/cron/tick` and `/daily` on the bridge; pg_cron installer
+  (migration 0049). A slim `jobs` function replaces those bridge
+  endpoints when the rest of the routes move.
+- Step 3 prepared, not executed: the API hostname proxy in `_worker.js`
+  with `EDGE_PROXY_SECRET`, the `deploy-supabase` and `backup-supabase`
+  workflows, the Drive token re-wrap script, and the runbook in
+  `docs/self-hosting.md`.
+
 ## Rules for the new code
 
 - Core modules import nothing from `@nestjs/*`. They take their

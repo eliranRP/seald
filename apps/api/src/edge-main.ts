@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import type { NextFunction, Request, Response } from 'express';
 import { createConfiguredApp } from './app-setup';
+import { edgeProxyGuard } from './edge/proxy-guard';
 
 /**
  * Supabase Edge Function entry (AWS exit plan, WS-0).
@@ -16,7 +17,11 @@ export async function bootstrapEdge(functionName: string): Promise<void> {
   // Nest's default on a boot error is process.abort(), which the edge
   // runtime ignores, leaving a half-built app. Throw instead so the worker
   // fails visibly and the gateway reports it.
-  const { app } = await createConfiguredApp({ abortOnError: false });
+  const { app, env } = await createConfiguredApp({ abortOnError: false });
+  // The function also has a public *.supabase.co URL; see proxy-guard.ts.
+  if (env.NODE_ENV === 'production' && !env.EDGE_PROXY_SECRET) {
+    throw new Error('EDGE_PROXY_SECRET is required for the bridge function in production');
+  }
   const prefix = `/${functionName}`;
   app.use((req: Request, _res: Response, next: NextFunction) => {
     if (req.url === prefix) req.url = '/';
@@ -25,5 +30,6 @@ export async function bootstrapEdge(functionName: string): Promise<void> {
     }
     next();
   });
+  app.use(edgeProxyGuard(env.EDGE_PROXY_SECRET));
   await app.listen(EDGE_PORT);
 }

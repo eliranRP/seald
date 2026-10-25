@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
-import worker, { isSpaRoute, MARKETING_PATHS } from '../../../landing/_worker.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import worker, { apiProxyUrl, isSpaRoute, MARKETING_PATHS } from '../../../landing/_worker.js';
 import { QUIET_ROBOTS_TXT, robotsTxt } from '../../../landing/indexing.config.js';
 
 /**
@@ -414,5 +414,69 @@ describe('apps/landing/_worker.js routing', () => {
       expect(body, path).toContain('Page not found');
       expect(fetched, path).not.toContain(path);
     }
+  });
+});
+
+describe('apps/landing/_worker.js API hostname proxy', () => {
+  const PROXY = {
+    API_HOSTNAME: 'api.seald.nromomentum.com',
+    API_PROXY_ORIGIN: 'https://ref.supabase.co/functions/v1/',
+    EDGE_PROXY_SECRET: 's'.repeat(48),
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('is inert until the API variables are set, and only for the API host', () => {
+    const request = new Request('https://api.seald.nromomentum.com/health');
+    expect(apiProxyUrl(request, {})).toBeNull();
+    expect(apiProxyUrl(new Request('https://seald.nromomentum.com/health'), PROXY)).toBeNull();
+    expect(apiProxyUrl(new Request('https://api.seald.nromomentum.com/a/b?x=1'), PROXY)).toBe(
+      'https://ref.supabase.co/functions/v1/seald/a/b?x=1',
+    );
+  });
+
+  it('forwards to the bridge with the proxy secret and the real client IP', async () => {
+    const seen: Request[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string, init: RequestInit) => {
+        seen.push(new Request(input, init));
+        return new Response('{"ok":true}', { status: 201 });
+      }),
+    );
+    const { env } = site();
+    const response = await worker.fetch(
+      new Request('https://api.seald.nromomentum.com/envelopes?draft=1', {
+        method: 'POST',
+        body: '{"title":"x"}',
+        headers: {
+          'content-type': 'application/json',
+          'cf-connecting-ip': '203.0.113.7',
+          // A client cannot pick its own IP or guess its way past the check.
+          'x-seald-client-ip': '198.51.100.1',
+          'x-seald-proxy-secret': 'forged',
+        },
+      }),
+      { ...env, ...PROXY },
+    );
+    expect(response.status).toBe(201);
+    const sent = seen[0]!;
+    expect(sent.url).toBe('https://ref.supabase.co/functions/v1/seald/envelopes?draft=1');
+    expect(sent.method).toBe('POST');
+    expect(sent.headers.get('x-seald-client-ip')).toBe('203.0.113.7');
+    expect(sent.headers.get('x-seald-proxy-secret')).toBe(PROXY.EDGE_PROXY_SECRET);
+    expect(await sent.text()).toBe('{"title":"x"}');
+  });
+
+  it('answers 503 rather than proxying without the shared secret', async () => {
+    const { env } = site();
+    const response = await worker.fetch(new Request('https://api.seald.nromomentum.com/health'), {
+      ...env,
+      API_HOSTNAME: PROXY.API_HOSTNAME,
+      API_PROXY_ORIGIN: PROXY.API_PROXY_ORIGIN,
+    });
+    expect(response.status).toBe(503);
   });
 });

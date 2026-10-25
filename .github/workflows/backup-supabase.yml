@@ -1,0 +1,113 @@
+name: Backup (Supabase database + storage)
+
+# Supabase Free has no automated backups, and sealed envelopes are legal
+# evidence (docs/aws-exit-plan.md WS-8). Nightly: a pg_dump of the database
+# and, optionally, every object in the `envelopes` bucket, encrypted with
+# `age` to BACKUP_AGE_RECIPIENT before anything leaves the runner, kept as
+# a workflow artifact for 30 days. Only the holder of the age private key
+# can read a backup. Skipped (not failed) until the secrets exist.
+#
+# Secrets:
+#   SUPABASE_DB_URL            session-mode connection string
+#   BACKUP_AGE_RECIPIENT       age public key (age1...)
+#   SUPABASE_URL               https://<ref>.supabase.co  (storage only)
+#   SUPABASE_SERVICE_ROLE_KEY  storage reads              (storage only)
+#
+# Restore: age -d -i key.txt db.dump.age > db.dump &&
+#   pg_restore --clean --if-exists --no-owner -d "$TARGET_DB_URL" db.dump
+# Mind the artifact storage quota of the GitHub plan; storage backups grow
+# with every sealed envelope.
+
+on:
+  schedule:
+    - cron: '23 2 * * *'
+  workflow_dispatch:
+    inputs:
+      storage:
+        description: 'Also back up the envelopes bucket'
+        type: boolean
+        default: true
+
+concurrency:
+  group: backup-supabase
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  backup:
+    name: Encrypted dump
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      WANT_STORAGE: ${{ github.event_name == 'schedule' || inputs.storage }}
+    steps:
+      - name: Check secrets
+        id: check
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ] || [ -z "$BACKUP_AGE_RECIPIENT" ]; then
+            echo "::notice::backup secrets not set yet; skipping"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install pg_dump 17 and age
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17 age jq
+
+      - name: Dump and encrypt the database
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          mkdir -p out
+          /usr/lib/postgresql/17/bin/pg_dump "$SUPABASE_DB_URL" \
+            --format=custom --no-owner --no-privileges \
+            --schema=public --schema=auth --schema=storage \
+            | age -r "$BACKUP_AGE_RECIPIENT" -o out/db.dump.age
+          ls -la out
+
+      - name: Copy and encrypt the envelopes bucket
+        if: steps.check.outputs.ready == 'true' && env.WANT_STORAGE == 'true' && env.SUPABASE_URL != ''
+        run: |
+          base="${SUPABASE_URL%/}/storage/v1"
+          auth=(-H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" -H "apikey: $SUPABASE_SERVICE_ROLE_KEY")
+          # Names from storage.objects: one query, where the Storage list API
+          # would page folder by folder.
+          psql_names=$(/usr/lib/postgresql/17/bin/psql "$SUPABASE_DB_URL" -At \
+            -c "select name from storage.objects where bucket_id = 'envelopes' order by name")
+          mkdir -p bucket
+          count=0
+          while IFS= read -r name; do
+            [ -z "$name" ] && continue
+            mkdir -p "bucket/$(dirname "$name")"
+            curl -fsS "${auth[@]}" "$base/object/envelopes/$name" -o "bucket/$name"
+            count=$((count + 1))
+          done <<< "$psql_names"
+          echo "copied $count objects"
+          tar -C bucket -cf - . | age -r "$BACKUP_AGE_RECIPIENT" -o out/storage.tar.age
+          rm -rf bucket
+          ls -la out
+
+      - name: Keep the encrypted backup
+        if: steps.check.outputs.ready == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: supabase-backup-${{ github.run_id }}
+          path: out/
+          retention-days: 30
+          if-no-files-found: error

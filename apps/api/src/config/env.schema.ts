@@ -165,6 +165,15 @@ const envSchema = z
     WORKER_ENABLED: strictBooleanString(false),
 
     /**
+     * Shared secret between the Cloudflare Pages worker that proxies the API
+     * hostname and the bridge Edge Function (src/edge/proxy-guard.ts). With
+     * it set, only proxied requests may set the client IP, and direct calls
+     * to the function URL are refused except health and cron. Required for
+     * the bridge in production; unused by the Docker deploy.
+     */
+    EDGE_PROXY_SECRET: z.string().min(32).optional(),
+
+    /**
      * Bulk send throttle (WP-36): most envelopes the bulk worker creates and
      * sends in any rolling minute, across all workers. Unset means 30. Each
      * envelope queues one invite per signer, so this also bounds the mail a

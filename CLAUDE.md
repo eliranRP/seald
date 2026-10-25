@@ -229,6 +229,11 @@ contract is in `apps/api/src/config/env.schema.ts`, and
   `POST /webhooks/resend`. Unset, the route answers 503. A hard
   `email.bounced` marks the signer `delivery_status = 'bounced'` and mails
   the sender (`bounced_to_sender`). Migration 0040.
+- `EDGE_PROXY_SECRET` (>= 32 chars). Shared by the Cloudflare Pages worker
+  and the `seald` bridge Edge Function (`apps/api/src/edge/proxy-guard.ts`).
+  Required for the bridge in production: only proxied requests may set the
+  client IP, and direct calls to the function URL are refused except
+  `/health` and `/internal/cron/*`. Unused by the Docker deploy.
 - `PDF_SIGNING_ALLOW_NOOP`. Strict boolean, read only when
   `PDF_SIGNING_PROVIDER` is unset. Production refuses to seal without a CMS
   signature unless this is `true`. Staging escape hatch only (S.3).
@@ -507,6 +512,11 @@ Routes added by the parity work (all SPA shell, same worker rules):
   `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, and no
   cookie-consent beacon. Do not drop these headers or the beacon strip.
 - `/d/` (prefix, `SPA_PREFIXES`): template direct signing links (WP-37).
+- API hostname proxy: with `API_HOSTNAME`, `API_PROXY_ORIGIN` and
+  `EDGE_PROXY_SECRET` set on the Pages project, `_worker.js` (`apiProxyUrl`)
+  sends that host's requests to the `seald` Edge Function, adding the
+  proxy secret and `CF-Connecting-IP`. Inert until those are set; see
+  `docs/self-hosting.md` ("Supabase Edge Functions").
 - `/api/v1/*` is not a Pages route. It is the public REST API (WP-35) on
   the API host, `api.seald.nromomentum.com`, behind `publicApi`. The worker
   must not catch it.

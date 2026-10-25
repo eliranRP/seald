@@ -369,8 +369,48 @@ async function route(request, env) {
   return asset;
 }
 
+// API hostname proxy (docs/supabase-native-architecture.md, decision 6).
+// Once `api.seald.nromomentum.com` is a custom domain of this Pages
+// project, its requests go to the `seald` Supabase Edge Function instead
+// of being served as site pages. The public API URL stays the same, so
+// OAuth redirect URIs, webhooks, MCP clients and links in sent mail keep
+// working. Inert until all three variables are set on the Pages project:
+//   API_HOSTNAME        api.seald.nromomentum.com
+//   API_PROXY_ORIGIN    https://<ref>.supabase.co/functions/v1
+//   EDGE_PROXY_SECRET   same value as the function's EDGE_PROXY_SECRET
+// The secret and the real client IP (CF-Connecting-IP) travel in two
+// headers the bridge trusts only together (apps/api/src/edge/proxy-guard.ts);
+// any copies a client sent are replaced.
+export function apiProxyUrl(request, env) {
+  if (!env.API_HOSTNAME || !env.API_PROXY_ORIGIN) return null;
+  const url = new URL(request.url);
+  if (url.hostname !== env.API_HOSTNAME) return null;
+  return `${env.API_PROXY_ORIGIN.replace(/\/+$/, '')}/seald${url.pathname}${url.search}`;
+}
+
+async function proxyApi(request, env, target) {
+  if (!env.EDGE_PROXY_SECRET) {
+    return new Response('api proxy not configured', { status: 503 });
+  }
+  const headers = new Headers(request.headers);
+  headers.delete('host');
+  headers.set('x-seald-proxy-secret', env.EDGE_PROXY_SECRET);
+  headers.set('x-seald-client-ip', request.headers.get('cf-connecting-ip') ?? '');
+  const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
+  return fetch(target, {
+    method: request.method,
+    headers,
+    body: hasBody ? request.body : undefined,
+    redirect: 'manual',
+    // Streams the body through; required by fetch for a streamed body.
+    duplex: 'half',
+  });
+}
+
 export default {
   async fetch(request, env) {
+    const apiTarget = apiProxyUrl(request, env);
+    if (apiTarget) return proxyApi(request, env, apiTarget);
     return applyIndexingPolicy(await route(request, env));
   },
 };
