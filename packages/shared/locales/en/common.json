@@ -119,7 +119,7 @@
         "notifiedAnon": "The sender was notified.",
         "wrongRecipient": "Wrong recipient",
         "wrongRecipientBody": "They can send a fresh link to the right person.",
-        "close": "Close"
+        "close": "Go to Seald home"
       },
       "link": {
         "signed": {
@@ -134,6 +134,8 @@
         "expired": {
           "title": "Link expired",
           "ask": "Ask for a new link",
+          "body": "Ask {{sender}} for a new one. It arrives by email.",
+          "bodyAnon": "Ask the sender for a new one. It arrives by email.",
           "requested": "Requested",
           "sent": "{{sender}} will send a new link.",
           "sentAnon": "The sender will send a new link.",

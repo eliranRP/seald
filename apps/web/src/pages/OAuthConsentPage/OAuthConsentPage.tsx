@@ -54,13 +54,15 @@ const Strong = styled.strong`
   font-weight: ${({ theme }) => theme.font.weight.semibold};
 `;
 
+/** Same 14px as the card's other lines, in the primary ink: it is what the user grants. */
 const ScopeList = styled.ul`
-  margin: 0;
+  margin: ${({ theme }) => theme.space[1]} 0 0;
   padding-left: ${({ theme }) => theme.space[5]};
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.space[1]};
-  font-size: ${({ theme }) => theme.font.size.body};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  color: ${({ theme }) => theme.color.fg[1]};
 `;
 
 const Notice = styled.div<{ $tone: 'warn' | 'error' }>`

@@ -5,7 +5,7 @@ import { SheetDialog } from '@/components/SheetDialog';
 import { useT } from '@/lib/i18n';
 import type { CommonKey } from '@/lib/i18n';
 import { composeDeclineReason } from './composeDeclineReason';
-import { Chip, Chips, Note, NoteLabel } from './DeclineSheet.styles';
+import { Chip, Chips, Field, FieldLabel, Note } from './DeclineSheet.styles';
 import type { DeclineChip, DeclineSheetProps } from './DeclineSheet.types';
 
 const CHIPS: ReadonlyArray<{ readonly id: DeclineChip; readonly key: CommonKey }> = [
@@ -24,6 +24,7 @@ export function DeclineSheet(props: DeclineSheetProps) {
   const [chip, setChip] = useState<DeclineChip | null>(null);
   const [note, setNote] = useState('');
   const noteId = useId();
+  const reasonId = useId();
   const noteLabel = senderName
     ? t('signing.sign.decline.noteTo', { sender: senderName })
     : t('signing.sign.decline.note');
@@ -51,22 +52,29 @@ export function DeclineSheet(props: DeclineSheetProps) {
         </>
       }
     >
-      <Chips role="group" aria-label={t('signing.sign.decline.reason')}>
-        {CHIPS.map((c) => (
-          <Chip
-            key={c.id}
-            type="button"
-            $on={chip === c.id}
-            aria-pressed={chip === c.id}
-            onClick={() => setChip(chip === c.id ? null : c.id)}
-          >
-            {t(c.key)}
-          </Chip>
-        ))}
-      </Chips>
-      {/* Persistent label above the field, not a placeholder that vanishes on typing. */}
-      <NoteLabel htmlFor={noteId}>{noteLabel}</NoteLabel>
-      <Note id={noteId} maxLength={400} value={note} onChange={(e) => setNote(e.target.value)} />
+      {/* Each question carries a persistent label above it (forms § 2). */}
+      <Field>
+        <FieldLabel as="span" id={reasonId}>
+          {t('signing.sign.decline.reason')}
+        </FieldLabel>
+        <Chips role="group" aria-labelledby={reasonId}>
+          {CHIPS.map((c) => (
+            <Chip
+              key={c.id}
+              type="button"
+              $on={chip === c.id}
+              aria-pressed={chip === c.id}
+              onClick={() => setChip(chip === c.id ? null : c.id)}
+            >
+              {t(c.key)}
+            </Chip>
+          ))}
+        </Chips>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor={noteId}>{noteLabel}</FieldLabel>
+        <Note id={noteId} maxLength={400} value={note} onChange={(e) => setNote(e.target.value)} />
+      </Field>
       {error ? <Banner tone="error">{error}</Banner> : null}
     </SheetDialog>
   );

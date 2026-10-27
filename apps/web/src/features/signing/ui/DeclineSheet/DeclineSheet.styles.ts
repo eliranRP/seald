@@ -12,7 +12,7 @@ export const Chip = styled.button<{ readonly $on: boolean }>`
   align-items: center;
   gap: ${({ theme }) => theme.space[1]};
   height: 36px;
-  padding: 0 14px;
+  padding: 0 ${({ theme }) => theme.space[4]};
   border: 1px solid ${({ theme, $on }) => ($on ? theme.color.indigo[600] : theme.color.border[1])};
   border-radius: ${({ theme }) => theme.radius.pill};
   background: ${({ theme, $on }) => ($on ? theme.color.indigo[50] : theme.color.paper)};
@@ -37,9 +37,23 @@ export const Chip = styled.button<{ readonly $on: boolean }>`
   }
 `;
 
-export const NoteLabel = styled.label`
+/**
+ * One question: its label 8px above the control. Consecutive questions sit
+ * 24px apart (the sheet's 16px gap plus this margin), so each label reads
+ * with its own control.
+ */
+export const Field = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[2]};
+
+  & + & {
+    margin-top: ${({ theme }) => theme.space[2]};
+  }
+`;
+
+export const FieldLabel = styled.label`
   display: block;
-  margin-top: ${({ theme }) => theme.space[2]};
   font-size: ${({ theme }) => theme.font.size.bodySm};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: ${({ theme }) => theme.color.fg[2]};
@@ -49,7 +63,7 @@ export const Note = styled.textarea`
   box-sizing: border-box;
   width: 100%;
   min-height: 88px;
-  padding: 12px;
+  padding: ${({ theme }) => theme.space[3]};
   resize: vertical;
   border: 1px solid ${({ theme }) => theme.color.border[1]};
   border-radius: ${({ theme }) => theme.radius.md};

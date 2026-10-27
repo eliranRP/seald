@@ -7,7 +7,16 @@ import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { Toast } from '@/components/Toast';
 import { DeleteAccountDialog } from './DeleteAccountDialog';
-import { Eyebrow, Row, RowIcon, RowLabel, RowsCard, Section, Spacer } from './SettingsPage.styles';
+import {
+  DangerButton,
+  Eyebrow,
+  Row,
+  RowIcon,
+  RowLabel,
+  RowsCard,
+  Section,
+  Spacer,
+} from './SettingsPage.styles';
 
 /**
  * Account: download everything, sign out, and the danger zone. Delete opens
@@ -64,7 +73,7 @@ export function AccountSection() {
           </RowIcon>
           <RowLabel>Sign out</RowLabel>
           <Spacer />
-          <Button variant="ghost" size="sm" onClick={() => void leave()}>
+          <Button variant="secondary" size="sm" onClick={() => void leave()}>
             Sign out
           </Button>
         </Row>
@@ -80,8 +89,10 @@ export function AccountSection() {
           </RowIcon>
           <RowLabel $danger>Delete account</RowLabel>
           <Spacer />
-          <Button
-            variant="danger"
+          {/* Red text, not a filled red button: the filled red confirm lives in
+              the dialog, so this row never outweighs the rest of the page. */}
+          <DangerButton
+            variant="secondary"
             size="sm"
             onClick={() => {
               setDeleteError(null);
@@ -89,7 +100,7 @@ export function AccountSection() {
             }}
           >
             Delete
-          </Button>
+          </DangerButton>
         </Row>
       </RowsCard>
 

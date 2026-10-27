@@ -12,7 +12,7 @@ export const Stack = styled.div`
 
 export const Intro = styled.p`
   margin: 0;
-  font-size: ${({ theme }) => theme.font.size.body};
+  font-size: ${({ theme }) => theme.font.size.bodyMd};
   line-height: ${({ theme }) => theme.font.lineHeight.relaxed};
   color: ${({ theme }) => theme.color.fg[2]};
 `;
@@ -43,7 +43,8 @@ export const DisclosureButton = styled.button`
   align-items: center;
   gap: ${({ theme }) => theme.space[1]};
   min-height: 44px;
-  padding: 0 ${({ theme }) => theme.space[2]};
+  /* No left inset: the chevron sits on the column's left edge. */
+  padding: 0 ${({ theme }) => theme.space[2]} 0 0;
   border: none;
   background: transparent;
   font: inherit;
@@ -223,6 +224,7 @@ export const ScopeList = styled.ul`
 
 export const ScopeChip = styled.li`
   padding: 2px ${({ theme }) => theme.space[2]};
+  font-size: ${({ theme }) => theme.font.size.caption};
   border-radius: ${({ theme }) => theme.radius.sm};
   background: ${({ theme }) => theme.color.bg.sunken};
   color: ${({ theme }) => theme.color.fg[2]};
@@ -246,8 +248,9 @@ export const Tile = styled.li`
   padding: ${({ theme }) => theme.space[3]};
   border: 1px dashed ${({ theme }) => theme.color.border[1]};
   border-radius: ${({ theme }) => theme.radius.md};
-  font-size: ${({ theme }) => theme.font.size.body};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
   color: ${({ theme }) => theme.color.fg[3]};
+  white-space: nowrap;
 `;
 
 export const DialogActions = styled.div`

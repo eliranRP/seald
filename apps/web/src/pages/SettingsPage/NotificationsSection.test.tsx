@@ -78,7 +78,7 @@ describe('NotificationsSection', () => {
     const user = userEvent.setup();
     renderWithProviders(<NotificationsSection />);
     expect(await screen.findByRole('radio', { name: '3 days' })).toBeChecked();
-    expect(screen.getByRole('radio', { name: '30' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: '30 days' })).toBeChecked();
     await user.click(screen.getByRole('radio', { name: 'Weekly' }));
     await waitFor(() =>
       expect(patchMock).toHaveBeenCalledWith('/me/settings', { reminder_default: 'weekly' }),

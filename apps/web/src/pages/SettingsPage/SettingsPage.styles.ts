@@ -244,6 +244,16 @@ export const Eyebrow = styled.span<{
   text-transform: uppercase;
   color: ${({ theme, $danger }) => ($danger ? theme.color.danger[700] : theme.color.fg[3])};
 
+  /* Desktop: the label hugs its own card (8px) and a later group starts
+     32px under the card above, so the groups read apart. */
+  @media (min-width: 641px) {
+    margin-bottom: -${({ theme }) => theme.space[2]};
+
+    &:not(:first-child) {
+      margin-top: ${({ theme }) => theme.space[4]};
+    }
+  }
+
   ${MOBILE} {
     display: ${({ $mobileHidden }) => ($mobileHidden ? 'none' : 'inline')};
     margin: ${({ $mobileGroup }) => ($mobileGroup ? '8px 0 -8px' : '0')};
@@ -296,6 +306,8 @@ export const RowSegmented = styled.div`
     & [role='radio'] {
       flex: 1;
       height: 44px;
+      padding: 0 ${({ theme }) => theme.space[2]};
+      white-space: nowrap;
     }
   }
 `;
@@ -688,11 +700,6 @@ export const IndexLink = styled(NavLink)`
     outline: 2px solid ${({ theme }) => theme.color.indigo[500]};
     outline-offset: 2px;
   }
-`;
-
-export const Lock = styled.span`
-  display: inline-flex;
-  color: ${({ theme }) => theme.color.fg[3]};
 `;
 
 export const DialogIconBubble = styled.span<{ $bad?: boolean }>`

@@ -30,7 +30,7 @@ export function SignBar(props: SignBarProps) {
             {t('signing.sign.bar.optional', { count: optionalLeft })}
           </Note>
         ) : null}
-        {!ready ? <Note $required>{t('signing.sign.bar.required')}</Note> : null}
+        {!ready ? <Note>{t('signing.sign.bar.required')}</Note> : null}
       </Progress>
       <Action>
         {ready ? (
