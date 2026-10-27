@@ -157,7 +157,7 @@ export const SheetActions = styled.div`
 `;
 
 export const Notice = styled.div`
-  width: 100%;
+  margin: ${({ theme }) => `${theme.space[3]} ${theme.space[4]} 0`};
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -171,10 +171,22 @@ export const Notice = styled.div`
   font-size: ${({ theme }) => theme.font.size.bodySm};
 `;
 
-export const Bar = styled.div`
+/**
+ * Sticky bottom stack: the notice (a failed Approve, "sign in again") sits
+ * directly above the action bar, so it is on screen where the owner tapped.
+ * In normal flow it landed under the tall page, out of view on a phone.
+ */
+export const Footer = styled.div`
   position: sticky;
   bottom: 0;
   z-index: ${({ theme }) => theme.z.sticky};
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[2]};
+  background: ${({ theme }) => theme.color.paper};
+`;
+
+export const Bar = styled.div`
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.space[2]};
