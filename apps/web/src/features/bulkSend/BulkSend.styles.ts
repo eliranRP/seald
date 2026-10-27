@@ -12,6 +12,7 @@ export const Stack = styled.div`
 
 export const Intro = styled.p`
   margin: 0;
+  max-width: 65ch;
   font-size: ${({ theme }) => theme.font.size.body};
   line-height: ${({ theme }) => theme.font.lineHeight.relaxed};
   color: ${({ theme }) => theme.color.fg[2]};
@@ -66,10 +67,13 @@ export const Mono = styled.code`
   overflow-wrap: anywhere;
 `;
 
+/** Label above control; capped at 480px so a short select isn't page-wide. */
 export const Field = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.space[1]};
+  width: 100%;
+  max-width: calc(${({ theme }) => theme.space[24]} * 5);
   font-size: ${({ theme }) => theme.font.size.bodySm};
   color: ${({ theme }) => theme.color.fg[2]};
 `;
@@ -85,10 +89,28 @@ export const FileInput = styled.input`
   border: 1px dashed ${({ theme }) => theme.color.border[2]};
   border-radius: ${({ theme }) => theme.radius.sm};
   font: inherit;
-  font-size: 16px;
+  font-size: ${({ theme }) => theme.font.size.body};
   color: ${({ theme }) => theme.color.fg[1]};
   background: ${({ theme }) => theme.color.paper};
   max-width: 100%;
+  cursor: pointer;
+
+  /* The browser's grey "Choose File" button, drawn as our secondary button. */
+  &::file-selector-button {
+    margin-right: ${({ theme }) => theme.space[3]};
+    padding: ${({ theme }) => `${theme.space[2]} ${theme.space[4]}`};
+    border: 1px solid ${({ theme }) => theme.color.border[2]};
+    border-radius: ${({ theme }) => theme.radius.sm};
+    background: ${({ theme }) => theme.color.paper};
+    color: ${({ theme }) => theme.color.fg[1]};
+    font: inherit;
+    font-size: ${({ theme }) => theme.font.size.bodySm};
+    font-weight: ${({ theme }) => theme.font.weight.semibold};
+    cursor: pointer;
+  }
+  &:hover::file-selector-button {
+    background: ${({ theme }) => theme.color.bg.sunken};
+  }
 
   &:focus-visible {
     outline: 2px solid ${({ theme }) => theme.color.indigo[500]};
@@ -102,7 +124,7 @@ export const Select = styled.select`
   border: 1px solid ${({ theme }) => theme.color.border[1]};
   border-radius: ${({ theme }) => theme.radius.sm};
   font: inherit;
-  font-size: 16px;
+  font-size: ${({ theme }) => theme.font.size.body};
   color: ${({ theme }) => theme.color.fg[1]};
   background: ${({ theme }) => theme.color.paper};
   max-width: 100%;
