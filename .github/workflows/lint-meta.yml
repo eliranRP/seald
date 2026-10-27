@@ -114,6 +114,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
+          check-latest: true
           cache: pnpm
 
       - name: Install root deps
@@ -139,6 +140,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
+          check-latest: true
           cache: pnpm
 
       - name: Install root deps
