@@ -270,6 +270,9 @@ export const EnvelopeSchema = z.object({
   // WP-38 (migration 0035): locale of the signing experience and emails.
   // Present only while the `i18n` flag is on; null means `en`.
   locale: z.string().nullable().optional(),
+  // Migration 0051: when the owner archived the envelope; null when not.
+  // Archiving only hides it from the Documents tabs; nothing else changes.
+  archived_at: iso.nullable().optional(),
   created_at: iso,
   updated_at: iso,
   // "Save to Google Drive" state for this envelope. `null` when the
@@ -438,6 +441,7 @@ export const EnvelopeListItemSchema = EnvelopeSchema.pick({
   completed_at: true,
   expires_at: true,
   tags: true,
+  archived_at: true,
   created_at: true,
   updated_at: true,
 }).extend({

@@ -530,6 +530,23 @@ export async function deleteEnvelope(id: string, signal?: AbortSignal): Promise<
   await apiClient.delete(`/envelopes/${id}`, configWithSignal(signal));
 }
 
+/**
+ * Archive (`archived` true) or unarchive an envelope in any status. It only
+ * moves between the Documents tabs and Archived; nothing else changes.
+ */
+export async function setEnvelopeArchived(
+  id: string,
+  archived: boolean,
+  signal?: AbortSignal,
+): Promise<Envelope> {
+  const { data } = await apiClient.post<Envelope>(
+    `/envelopes/${id}/${archived ? 'archive' : 'unarchive'}`,
+    undefined,
+    configWithSignal(signal),
+  );
+  return data;
+}
+
 export interface CancelEnvelopeResponse {
   readonly status: 'canceled';
   readonly envelope_status: 'canceled';

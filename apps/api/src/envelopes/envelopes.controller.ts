@@ -130,6 +130,28 @@ export class EnvelopesController {
     return this.svc.deleteDraft(user.id, id);
   }
 
+  /**
+   * Archive / unarchive (any status). The envelope leaves the Documents
+   * tabs and shows under Archived; files, events and signing are untouched.
+   */
+  @Post(':id/archive')
+  @HttpCode(200)
+  async archive(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<Envelope> {
+    return this.withDocuments(await this.svc.setArchived(user.id, id, true));
+  }
+
+  @Post(':id/unarchive')
+  @HttpCode(200)
+  async unarchive(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<Envelope> {
+    return this.withDocuments(await this.svc.setArchived(user.id, id, false));
+  }
+
   @Post(':id/upload')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -326,7 +348,7 @@ export class EnvelopesController {
     @Query('document_id') documentId?: string,
   ): Promise<{ url: string; kind: EnvelopeDownloadKind | 'zip'; document_id?: string }> {
     // WP-03 (flag on): `?document_id=` picks one document's original or
-    // sealed PDF, `?kind=zip` bundles every sealed document + audit.pdf.
+    // sealed PDF, `?kind=zip` bundles every sealed document (audit.pdf stays separate).
     // With the flag off both are ignored, as unknown params always were.
     if (isFeatureEnabled(MULTI_DOC) && (documentId !== undefined || kind === 'zip')) {
       if (documentId !== undefined && !UUID_RE.test(documentId)) {

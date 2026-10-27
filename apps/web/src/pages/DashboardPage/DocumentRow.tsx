@@ -12,6 +12,7 @@ import {
   DocText,
   DocTitleButton,
   MCard,
+  MobileCheckHit,
   RowActions,
   RowCheck,
   SignedText,
@@ -85,9 +86,9 @@ export function DocumentRow(props: DocumentRowProps) {
   if (mobile) {
     return (
       <MCard $selected={selected} $fresh={fresh} data-testid="doc-row">
-        {selectable ? check : null}
+        {selectable ? <MobileCheckHit>{check}</MobileCheckHit> : null}
         <DocText>
-          <DocTitleButton type="button" onClick={onOpen}>
+          <DocTitleButton type="button" dir="auto" title={env.title} onClick={onOpen}>
             {env.title}
           </DocTitleButton>
           {statusText}
@@ -109,7 +110,7 @@ export function DocumentRow(props: DocumentRowProps) {
       {check}
       <DocCell>
         <DocText>
-          <DocTitleButton type="button" onClick={onOpen}>
+          <DocTitleButton type="button" dir="auto" title={env.title} onClick={onOpen}>
             {env.title}
           </DocTitleButton>
           {tags.length > 0 ? (

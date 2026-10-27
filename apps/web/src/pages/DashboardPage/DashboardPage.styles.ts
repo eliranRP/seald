@@ -631,6 +631,26 @@ export const RowCheck = styled.input`
   cursor: pointer;
 `;
 
+/**
+ * Phones: a 44px hit area around the row checkbox (the box itself stays
+ * 20px), pulled into the card padding so the layout does not move.
+ */
+export const MobileCheckHit = styled.label`
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: -${({ theme }) => theme.space[2]} -${({ theme }) => theme.space[2]};
+  cursor: pointer;
+
+  & > input {
+    width: 20px;
+    height: 20px;
+  }
+`;
+
 export const DocCell = styled.div`
   display: flex;
   align-items: center;
