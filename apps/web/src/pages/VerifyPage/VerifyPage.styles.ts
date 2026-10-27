@@ -463,7 +463,7 @@ export const Footer = styled.footer`
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: ${({ theme }) => theme.space[2]};
   font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[3]};
 `;
@@ -484,7 +484,7 @@ export const EntryStack = styled.div`
   align-items: center;
   gap: ${({ theme }) => theme.space[6]};
   ${MOBILE} {
-    gap: 20px;
+    gap: ${({ theme }) => theme.space[5]};
   }
 `;
 
@@ -501,11 +501,12 @@ export const EntryTitle = styled.h1`
   }
 `;
 
+/* Label, field and help sit 8px apart; the button gets 16px (hierarchy § 5). */
 export const CodeForm = styled.form`
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: ${({ theme }) => theme.space[3]};
+  gap: ${({ theme }) => theme.space[2]};
   width: 100%;
 `;
 
@@ -556,10 +557,13 @@ export const CodeInput = styled.input<{ readonly $error: boolean }>`
 `;
 
 /** Verify submit: 240px on desktop, full width on a phone. */
+/* Same 380px column as the code field, so the stack shares one edge. */
 export const VerifyButton = styled(Button)`
-  width: 240px;
+  width: 100%;
+  max-width: 380px;
+  margin-top: ${({ theme }) => theme.space[2]};
   ${MOBILE} {
-    width: 100%;
+    max-width: none;
   }
 `;
 

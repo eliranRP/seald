@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import type { PublicDirectLink } from 'shared';
 import { Button } from '@/components/Button';
 import { TextField } from '@/components/TextField';
 import { Spinner } from '@/components/shared/Spinner';
 import { claimDirectLink, fetchPublicDirectLink } from '@/features/directLinks/directLinksApi';
-import { Body, Card, Form, FormError, Page, Title } from './DirectLinkPage.styles';
+import { PublicHeader } from '@/layout/PublicHeader';
+import { Body, Card, Form, FormError, Intro, Page, Screen, Title } from './DirectLinkPage.styles';
 
 type View =
   | { readonly kind: 'loading' }
@@ -39,6 +40,16 @@ function claimErrorMessage(err: unknown): string {
   if (status === 429) return 'Too many requests. Please wait a while and try again.';
   if (status === 400) return 'Check your name and email address and try again.';
   return 'We could not start this just now. Please try again.';
+}
+
+/** The shared logo bar, so a visitor can tell which service is asking. */
+function Frame({ children }: { readonly children: ReactNode }) {
+  return (
+    <Screen>
+      <PublicHeader />
+      <Page>{children}</Page>
+    </Screen>
+  );
 }
 
 /**
@@ -135,66 +146,74 @@ export function DirectLinkPage() {
 
   if (view.kind === 'loading') {
     return (
-      <Page>
+      <Frame>
         <Card role="status" aria-live="polite">
           <Spinner />
           <Body>Opening this link…</Body>
         </Card>
-      </Page>
+      </Frame>
     );
   }
 
   if (view.kind === 'unavailable') {
     return (
-      <Page>
+      <Frame>
         <Card>
-          <Title>This link is not available</Title>
-          <Body>
-            It may have been turned off or replaced. Ask the person who shared it for a new link.
-          </Body>
+          <Intro>
+            <Title>This link is not available</Title>
+            <Body>
+              It may have been turned off or replaced. Ask the person who shared it for a new link.
+            </Body>
+          </Intro>
         </Card>
-      </Page>
+      </Frame>
     );
   }
 
   if (view.kind === 'error') {
     return (
-      <Page>
+      <Frame>
         <Card>
-          <Title>Something went wrong</Title>
-          <Body role="alert">
-            We could not open this link right now. Check your connection, then try again.
-          </Body>
+          <Intro>
+            <Title>Something went wrong</Title>
+            <Body role="alert">
+              We could not open this link right now. Check your connection, then try again.
+            </Body>
+          </Intro>
           <Button variant="primary" fullWidth onClick={() => setAttempt((n) => n + 1)}>
             Try again
           </Button>
         </Card>
-      </Page>
+      </Frame>
     );
   }
 
   if (view.kind === 'sent') {
     return (
-      <Page>
+      <Frame>
         <Card role="status" aria-live="polite">
-          <Title>Check your email</Title>
-          <Body>
-            If this link can start a signing request for {view.email}, we have sent a signing link
-            there. Open it to continue. You can close this page.
-          </Body>
+          <Intro>
+            <Title>Check your email</Title>
+            <Body>
+              If this link can start a signing request for {view.email}, we have sent a signing link
+              there. Open it to continue. You can close this page.
+            </Body>
+          </Intro>
         </Card>
-      </Page>
+      </Frame>
     );
   }
 
   return (
-    <Page>
+    <Frame>
       <Card>
-        <Title>{view.link.template_title}</Title>
-        <Body>
-          {view.link.sender_name} asks you to sign this document. Enter your name and email and we
-          will send you a link to review and sign it.
-        </Body>
+        <Intro>
+          <Title>{view.link.template_title}</Title>
+          <Body>
+            {view.link.sender_name} asks you to sign this document. Enter your name and email and we
+            will send you a link to review and sign it.
+          </Body>
+        </Intro>
         <Form onSubmit={(e) => void onSubmit(e)} noValidate>
           <TextField
             ref={nameRef}
@@ -225,6 +244,6 @@ export function DirectLinkPage() {
           </Button>
         </Form>
       </Card>
-    </Page>
+    </Frame>
   );
 }
