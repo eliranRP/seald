@@ -1106,9 +1106,11 @@ test.describe('visual audit', () => {
       await p.goto('/document/new');
       await p.getByLabel('Choose file').setInputFiles(SAMPLE_PDF_PATH);
       await p.waitForURL(/\/document\/[^/]+$/, { timeout: 15_000 });
-      // Phones open on the Signers panel; the page canvas is a tab away.
-      if (vp.width < 640) await expect(p.getByText('sample-1page').first()).toBeVisible();
-      else await expect(p.locator('[data-page="1"]').first()).toBeVisible();
+      // Phones open on the Signers panel; the page canvas is a tab away. Wait
+      // for the Prepare tabs: the file name also matches the upload card.
+      if (vp.width < 640) {
+        await expect(p.getByRole('radiogroup', { name: 'Prepare' })).toBeVisible();
+      } else await expect(p.locator('[data-page="1"]').first()).toBeVisible();
     });
   });
 
