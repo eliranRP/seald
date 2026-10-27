@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
+import { useAuth } from '@/providers/AuthProvider';
+import { needsSignInToApprove } from '@/features/approvals/signInFreshness';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button } from '@/components/Button';
 import { ApprovalFrame } from '@/features/approvals/ApprovalFrame';
 import { ApprovalOutcome } from '@/features/approvals/ApprovalOutcome';
 import { ApprovalsNotFound } from '@/features/approvals/ApprovalsNotFound';
@@ -10,12 +11,7 @@ import {
   useApprovalAction,
   useApprovalDetail,
 } from '@/features/approvals/approvalsApi';
-import {
-  approvalPath,
-  freshSignInCopy,
-  isOwnerActionKind,
-  reviewPath,
-} from '@/features/approvals/model';
+import { approvalPath, isOwnerActionKind, reviewPath } from '@/features/approvals/model';
 import { ApprovalReview } from '@/features/approvals/review/ApprovalReview';
 import { useDocumentTitle } from '@/features/approvals/useDocumentTitle';
 import { useReauth } from '@/features/approvals/useReauth';
@@ -59,7 +55,7 @@ export function ApproveReviewPage() {
   const envelopeId = detail.data?.envelope_id ?? '';
   const envelope = useEnvelopeQuery(envelopeId, envelopeId !== '');
   const act = useApprovalAction();
-  const [needsFresh, setNeedsFresh] = useState(false);
+  const { session } = useAuth();
   const [failed, setFailed] = useState(false);
   const step = Number(params.get('page')) || 1;
   const reauth = useReauth(`${reviewPath(id)}?page=${step}`);
@@ -114,14 +110,23 @@ export function ApproveReviewPage() {
     );
   }
 
+  // Approve needs a recent sign-in; say so on the button up front.
+  const needsSignIn = needsSignInToApprove(session);
+  const signIn = (): void => {
+    reauth().catch(() => undefined);
+  };
   const approve = (): void => {
-    setNeedsFresh(false);
+    if (needsSignIn) {
+      signIn();
+      return;
+    }
     setFailed(false);
     act.mutate(
       { id, action: 'approve' },
       {
         onError: (err) => {
-          if (err.code === 'fresh_login_required') setNeedsFresh(true);
+          // The server still says re-auth: go straight to sign-in.
+          if (err.code === 'fresh_login_required') signIn();
           else setFailed(true);
         },
       },
@@ -133,25 +138,7 @@ export function ApproveReviewPage() {
     navigate(`/document/${data.envelope_id ?? ''}`);
   };
 
-  let notice = null;
-  if (needsFresh) {
-    notice = (
-      <>
-        {freshSignInCopy(data.kind)}
-        <Button
-          variant="secondary"
-          size="lg"
-          onClick={() => {
-            reauth().catch(() => undefined);
-          }}
-        >
-          Sign in again
-        </Button>
-      </>
-    );
-  } else if (failed) {
-    notice = <>That did not go through. Please try again.</>;
-  }
+  const notice = failed ? <>That did not go through. Please try again.</> : null;
 
   return (
     <ApprovalReview
@@ -166,6 +153,7 @@ export function ApproveReviewPage() {
       onExit={backToCard}
       busy={act.isPending && act.variables.action === 'approve'}
       notice={notice}
+      approveLabel={needsSignIn ? 'Sign in to approve' : undefined}
       isMobile={isMobile}
     />
   );
