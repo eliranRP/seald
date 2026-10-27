@@ -4,6 +4,7 @@ import { Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { Button } from '@/components/Button';
+import { ButtonRoot } from '@/components/Button/Button.styles';
 import { StatePage } from '@/components/StatePage';
 import { TextField } from '@/components/TextField';
 
@@ -41,7 +42,15 @@ export function NotFoundPage({ variant }: NotFoundPageProps): JSX.Element {
   };
 
   return (
-    <StatePage code="404" title="Page not found">
+    <StatePage
+      code="404"
+      title="Page not found"
+      description={
+        variant === 'app'
+          ? 'This link is broken or the page moved. Search for the document, or open your documents.'
+          : 'This link is broken or the page moved. Check the address, or start from the home page.'
+      }
+    >
       {variant === 'app' ? (
         <>
           <SearchForm role="search" onSubmit={onSearch}>
@@ -67,9 +76,18 @@ export function NotFoundPage({ variant }: NotFoundPageProps): JSX.Element {
           </Button>
         </>
       ) : (
-        <Button variant="primary" size="md" onClick={() => window.location.assign('/')}>
-          Go to seald.co
-        </Button>
+        // It leaves the SPA for the marketing home, so it is a real link
+        // (middle-click, copy address), styled as the primary button.
+        <ButtonRoot
+          as="a"
+          href="/"
+          $variant="primary"
+          $size="md"
+          $fullWidth={false}
+          $iconOnly={false}
+        >
+          Go to the Seald home page
+        </ButtonRoot>
       )}
     </StatePage>
   );

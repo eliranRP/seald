@@ -106,7 +106,23 @@ export function ApproveReviewPage() {
     return (
       <ApprovalFrame title="Review fields">
         {failedLoad ? (
-          <p role="alert">We could not load this review. Reload the page to try again.</p>
+          <>
+            <p role="alert">
+              We could not load this review. Check your connection, then try again.
+            </p>
+            <div>
+              <Button
+                variant="secondary"
+                loading={detail.isRefetching || envelope.isRefetching}
+                onClick={() => {
+                  if (detail.isError) detail.refetch().catch(() => undefined);
+                  if (envelope.isError) envelope.refetch().catch(() => undefined);
+                }}
+              >
+                Try again
+              </Button>
+            </div>
+          </>
         ) : (
           <p role="status">Loading the review…</p>
         )}

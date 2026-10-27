@@ -32,6 +32,13 @@ export const BackRow = styled.div`
   }
 `;
 
+/** Actions on the load-error card: Try again first, then the way out. Wraps on a phone. */
+export const ErrorActions = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${({ theme }) => theme.space[3]};
+`;
+
 /** Mobile header: back, the envelope title and the more menu (`.m-top`). */
 export const MobileTop = styled.div`
   display: none;
@@ -467,7 +474,22 @@ export const FieldBox = styled.label`
     font: inherit;
     font-size: ${({ theme }) => theme.font.size.bodySm};
     color: ${({ theme }) => theme.color.fg[1]};
+    /* 16px on a phone so iOS does not zoom into the field on focus. */
+    ${MOBILE} {
+      font-size: ${({ theme }) => theme.font.size.body};
+    }
   }
+  &:has(input[aria-invalid='true']) {
+    border-color: ${({ theme }) => theme.color.danger[500]};
+  }
+`;
+
+/** Inline field error under the email fix / replace inputs: what is wrong and how to fix it. */
+export const FieldHint = styled.p`
+  flex-basis: 100%;
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.danger[700]};
 `;
 
 export const ActList = styled.ul`

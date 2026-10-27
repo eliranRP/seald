@@ -41,7 +41,7 @@ describe('SignatureSection', () => {
     );
     expect(screen.getByRole('textbox', { name: 'Initials' })).toHaveValue('EA');
     expect(screen.getByText('Used when you sign your own documents.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save signature' })).not.toBeInTheDocument();
   });
 
   it('saves an edited typed signature and initials', async () => {
@@ -53,7 +53,7 @@ describe('SignatureSection', () => {
     const initials = screen.getByRole('textbox', { name: 'Initials' });
     await user.clear(initials);
     await user.type(initials, 'EZ');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Save signature' }));
 
     await waitFor(() =>
       expect(patchMock).toHaveBeenCalledWith('/me/settings', {
@@ -68,7 +68,11 @@ describe('SignatureSection', () => {
     const user = userEvent.setup();
     renderWithProviders(<SignatureSection />);
     await user.clear(await screen.findByRole('textbox', { name: 'Typed signature' }));
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Save signature' }));
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Type your name to create a typed signature.',
+    );
+    expect(patchMock).not.toHaveBeenCalled();
   });
 
   it('Draw shows a pad with Clear, and Save waits for a drawing', async () => {
@@ -77,7 +81,9 @@ describe('SignatureSection', () => {
     await user.click(await screen.findByRole('radio', { name: 'Draw' }));
     expect(screen.getByRole('img', { name: /signature pad/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Clear' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Save signature' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Draw your signature in the box first.');
+    expect(patchMock).not.toHaveBeenCalled();
   });
 
   it('Upload takes an image, previews it and saves it as an uploaded signature', async () => {
@@ -92,7 +98,7 @@ describe('SignatureSection', () => {
       'src',
       PNG,
     );
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Save signature' }));
     await waitFor(() =>
       expect(patchMock).toHaveBeenCalledWith(
         '/me/settings',

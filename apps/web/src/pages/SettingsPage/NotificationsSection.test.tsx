@@ -60,6 +60,18 @@ describe('NotificationsSection', () => {
     const sw = await screen.findByRole('switch', { name: 'Someone signs' });
     await user.click(sw);
     await waitFor(() => expect(sw).toBeChecked());
+    // The rollback is announced, with the next step, instead of happening silently.
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Couldn't save that change, so it was put back.",
+    );
+  });
+
+  it('confirms a saved change', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<NotificationsSection />);
+    expect(await screen.findByRole('status')).toHaveTextContent('Changes save as you make them.');
+    await user.click(await screen.findByRole('switch', { name: 'Someone signs' }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Saved'));
   });
 
   it('shows the defaults and saves a new reminder cadence', async () => {

@@ -162,6 +162,24 @@ describe('TemplatesListPage — states', () => {
     expect(await screen.findByText('No templates yet')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'New template' })).toHaveLength(1);
   });
+
+  it('says the fetch failed (not "No templates yet") and retries on request', async () => {
+    const user = userEvent.setup();
+    const list = vi
+      .spyOn(templatesApi, 'listTemplates')
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce([]);
+    renderWithProviders(
+      <MemoryRouter initialEntries={['/templates']}>
+        <TemplatesListPage />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Couldn't load your templates")).toBeInTheDocument();
+    expect(screen.queryByText('No templates yet')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('No templates yet')).toBeInTheDocument();
+    expect(list).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('TemplatesListPage — card menu', () => {
@@ -205,57 +223,44 @@ describe('TemplatesListPage — card menu', () => {
     renderPage();
     await user.click(screen.getByRole('button', { name: `More for ${NDA.name}` }));
     await user.click(screen.getByRole('menuitem', { name: 'Duplicate' }));
-    expect(await screen.findByText('Could not duplicate. Try again.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Could not duplicate. Check your connection and try again.'),
+    ).toBeInTheDocument();
     expect(cardNames()).toHaveLength(4);
   });
 });
 
 describe('TemplatesListPage — delete and undo', () => {
-  async function askDelete(user: ReturnType<typeof userEvent.setup>, name: string) {
+  async function deleteFromMenu(user: ReturnType<typeof userEvent.setup>, name: string) {
     await user.click(screen.getByRole('button', { name: `More for ${name}` }));
     await user.click(screen.getByRole('menuitem', { name: 'Delete' }));
-    return screen.getByRole('alertdialog', { name: `Delete ${name}?` });
   }
 
-  it('confirms, removes the card, shows Template deleted, and Undo restores it', async () => {
+  it('deletes at once without an "Are you sure?" step, and Undo restores it', async () => {
     const user = userEvent.setup();
     const del = vi.spyOn(templatesApi, 'deleteTemplate').mockResolvedValue();
     const restore = vi.spyOn(templatesApi, 'restoreTemplate').mockResolvedValue(NDA);
     vi.spyOn(templatesApi, 'listTemplates').mockResolvedValue(TAGGED);
     renderPage();
-    const dialog = await askDelete(user, NDA.name);
-    expect(within(dialog).getByText('Sent documents stay.')).toBeInTheDocument();
-    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await deleteFromMenu(user, NDA.name);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
     await waitFor(() => expect(cardNames()).not.toContain(NDA.name));
     expect(del).toHaveBeenCalledWith(NDA.id);
-    expect(await screen.findByText('Template deleted')).toBeInTheDocument();
+    expect(await screen.findByText(`${NDA.name} deleted`)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Undo' }));
     await waitFor(() => expect(restore).toHaveBeenCalledWith(NDA.id));
     await waitFor(() => expect(cardNames()).toContain(NDA.name));
   });
 
-  it('Keep and Escape leave the template alone', async () => {
-    const user = userEvent.setup();
-    const del = vi.spyOn(templatesApi, 'deleteTemplate').mockResolvedValue();
-    renderPage();
-    const dialog = await askDelete(user, NDA.name);
-    await user.click(within(dialog).getByRole('button', { name: 'Keep' }));
-    expect(screen.queryByRole('alertdialog')).toBeNull();
-    await askDelete(user, NDA.name);
-    await user.keyboard('{Escape}');
-    expect(screen.queryByRole('alertdialog')).toBeNull();
-    expect(del).not.toHaveBeenCalled();
-    expect(cardNames()).toContain(NDA.name);
-  });
-
-  it('refetches and says so when the delete fails', async () => {
+  it('refetches and says how to recover when the delete fails', async () => {
     const user = userEvent.setup();
     vi.spyOn(templatesApi, 'deleteTemplate').mockRejectedValue(new Error('boom'));
     const list = vi.spyOn(templatesApi, 'listTemplates').mockResolvedValue(TAGGED);
     renderPage();
-    const dialog = await askDelete(user, NDA.name);
-    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
-    expect(await screen.findByText('Could not delete. Try again.')).toBeInTheDocument();
+    await deleteFromMenu(user, NDA.name);
+    expect(
+      await screen.findByText('Could not delete. Check your connection and try again.'),
+    ).toBeInTheDocument();
     await waitFor(() => expect(list).toHaveBeenCalled());
     await waitFor(() => expect(cardNames()).toContain(NDA.name));
   });

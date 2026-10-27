@@ -71,20 +71,21 @@ export function AuthCallbackPage() {
     }
   }, [params, loading, user, session, navigate]);
 
-  // Watchdog — bound to `loading` only so the timer is set once per
-  // loading window and torn down once the provider has settled, whether
-  // or not a user materialized. If 10 seconds elapse with `loading`
-  // still true we bounce to /signin so the user gets an actionable
-  // error instead of an indefinite spinner.
+  // Watchdog — armed for as long as no user has arrived, whether the
+  // provider is still loading or settled without a session (a dead or
+  // replayed link with no error in the URL). Either way, after 10 seconds
+  // the user gets an actionable error on /signin instead of a spinner that
+  // never ends. A user arriving tears it down (and the effect above routes
+  // onward).
   useEffect(() => {
-    if (!loading) return undefined;
+    if (user) return undefined;
     const timer = setTimeout(() => {
       navigate('/signin?error=oauth_timeout', { replace: true });
     }, OAUTH_WATCHDOG_MS);
     return () => {
       clearTimeout(timer);
     };
-  }, [loading, navigate]);
+  }, [user, navigate]);
 
   return (
     <AuthSplitLayout>

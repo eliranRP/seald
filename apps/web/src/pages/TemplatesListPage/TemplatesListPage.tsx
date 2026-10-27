@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { JSX } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { LayoutTemplate, Plus, Search, X } from 'lucide-react';
+import { CloudOff, LayoutTemplate, Plus, RefreshCw, Search, X } from 'lucide-react';
 import { isFeatureEnabled } from 'shared';
 import { Button } from '@/components/Button';
-import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { EmptyState } from '@/components/EmptyState';
 import { Icon } from '@/components/Icon';
 import { MWBottomSheet } from '@/components/MWBottomSheet';
@@ -47,7 +46,8 @@ import {
   Toolbar,
 } from './TemplatesListPage.styles';
 
-const UNDO_MS = 6000;
+/** Delete acts at once; Undo stays on screen this long (rule: undo over confirm). */
+const UNDO_MS = 10000;
 const SKELETON_CARDS = 6;
 
 function matchesQuery(template: TemplateSummary, query: string): boolean {
@@ -72,7 +72,8 @@ export interface TemplatesListPageProps {
 /**
  * Templates (`/templates`): a card grid with search and tag pills. A card is
  * "Use" (one step: pick people, document, Send now); its ⋯ menu has Edit,
- * Duplicate, Tags and Delete (with Undo). `/templates/:id/use` is the same
+ * Duplicate, Tags and Delete. Delete acts at once and offers Undo (the server
+ * soft-deletes), so there is no "Are you sure?" step. `/templates/:id/use` is the same
  * page with that template's Use dialog open, so old links keep working.
  */
 export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps = {}): JSX.Element {
@@ -84,6 +85,9 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
     () => initialTemplates ?? getTemplates(),
   );
   const [loading, setLoading] = useState(initialTemplates === undefined);
+  /** The first fetch failed: show a retry instead of a false "No templates yet". */
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   useEffect(() => {
     if (initialTemplates) publishTemplates(initialTemplates);
   }, [initialTemplates]);
@@ -93,22 +97,23 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
   useEffect(() => {
     if (initialTemplates) return undefined;
     const ac = new AbortController();
+    setLoadFailed(false);
     listTemplates(ac.signal)
       .then((rows) => publishTemplates(rows))
       .catch((err) => {
         console.warn('[templates] list fetch failed:', err);
+        if (!ac.signal.aborted) setLoadFailed(true);
       })
       .finally(() => {
         if (!ac.signal.aborted) setLoading(false);
       });
     return () => ac.abort();
-  }, [initialTemplates]);
+  }, [initialTemplates, reloadKey]);
 
   const [query, setQuery] = useState('');
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [usingId, setUsingId] = useState<string | null>(routeUseId ?? null);
-  const [deleting, setDeleting] = useState<TemplateSummary | null>(null);
   const [editTagsFor, setEditTagsFor] = useState<TemplateSummary | null>(null);
   const [directLinkFor, setDirectLinkFor] = useState<TemplateSummary | null>(null);
   const [sheetFor, setSheetFor] = useState<TemplateSummary | null>(null);
@@ -133,7 +138,8 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
     [templates, q, activeTag],
   );
   const filtering = q !== '' || activeTag !== null;
-  const isEmpty = !loading && templates.length === 0;
+  const showLoadError = !loading && loadFailed && templates.length === 0;
+  const isEmpty = !loading && !showLoadError && templates.length === 0;
   const noMatches = !loading && templates.length > 0 && visible.length === 0;
 
   const usingTemplate = useMemo(
@@ -188,32 +194,47 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
         );
         setToast({ title: `Duplicated as ${copy.name}`, tone: 'success' });
       })
-      .catch(() => setToast({ title: 'Could not duplicate. Try again.', tone: 'error' }));
+      .catch(() =>
+        setToast({
+          title: 'Could not duplicate. Check your connection and try again.',
+          tone: 'error',
+        }),
+      );
   }, []);
 
-  const confirmDelete = (): void => {
-    const target = deleting;
-    if (!target) return;
-    setDeleting(null);
+  /** Put a soft-deleted template back; a failed restore offers Undo again. */
+  const undoDelete = (target: TemplateSummary): void => {
+    setToast(null);
+    restoreTemplate(target.id)
+      .then(() => refetch())
+      .catch(() =>
+        setToast({
+          title: 'Could not restore. Check your connection and try again.',
+          tone: 'error',
+          undo: () => undoDelete(target),
+        }),
+      );
+  };
+
+  /** Delete now; the toast's Undo restores it. */
+  const deleteNow = (target: TemplateSummary): void => {
     setSheetFor(null);
     // Optimistic: drop the card now; the server soft-deletes and Undo restores.
     publishTemplates(getTemplates().filter((t) => t.id !== target.id));
     apiDeleteTemplate(target.id)
       .then(() =>
         setToast({
-          title: 'Template deleted',
+          title: `${target.name} deleted`,
           tone: 'success',
-          undo: () => {
-            setToast(null);
-            restoreTemplate(target.id)
-              .then(() => refetch())
-              .catch(() => setToast({ title: 'Could not undo the delete', tone: 'error' }));
-          },
+          undo: () => undoDelete(target),
         }),
       )
       .catch(() => {
         refetch();
-        setToast({ title: 'Could not delete. Try again.', tone: 'error' });
+        setToast({
+          title: 'Could not delete. Check your connection and try again.',
+          tone: 'error',
+        });
       });
   };
 
@@ -245,7 +266,7 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
     onEdit: editTemplate,
     onDuplicate: duplicate,
     onEditTags: setEditTagsFor,
-    onDelete: setDeleting,
+    onDelete: deleteNow,
   } as const;
 
   const clearFilters = (): void => {
@@ -292,7 +313,7 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
           ) : null}
         </HeaderRow>
 
-        {!isEmpty && (!isMobile || searchOpen || allTags.length > 0) ? (
+        {!isEmpty && !showLoadError && (!isMobile || searchOpen || allTags.length > 0) ? (
           <Toolbar>
             {!isMobile || searchOpen ? (
               <SearchField>
@@ -358,6 +379,28 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
           </Grid>
         ) : null}
 
+        {showLoadError ? (
+          <EmptyState
+            icon={CloudOff}
+            title="Couldn't load your templates"
+            role="alert"
+            action={
+              <Button
+                variant="secondary"
+                iconLeft={RefreshCw}
+                onClick={() => {
+                  setLoading(true);
+                  setReloadKey((k) => k + 1);
+                }}
+              >
+                Try again
+              </Button>
+            }
+          >
+            Check your connection, then try again. Your templates are safe.
+          </EmptyState>
+        ) : null}
+
         {isEmpty ? (
           <EmptyState
             icon={LayoutTemplate}
@@ -367,7 +410,9 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
                 New template
               </Button>
             }
-          />
+          >
+            Place fields on a document once, then send it again in one step.
+          </EmptyState>
         ) : null}
 
         {noMatches ? (
@@ -376,7 +421,7 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
             title="No matches"
             action={
               <Button variant="secondary" onClick={clearFilters}>
-                Clear search
+                {activeTag !== null ? 'Clear filters' : 'Clear search'}
               </Button>
             }
           />
@@ -406,14 +451,6 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
       </Inner>
 
       <UseTemplateDialog template={usingTemplate} onClose={closeUse} />
-
-      <ConfirmDeleteDialog
-        open={deleting !== null}
-        title={`Delete ${deleting?.name ?? 'template'}?`}
-        note="Sent documents stay."
-        onCancel={() => setDeleting(null)}
-        onConfirm={confirmDelete}
-      />
 
       {directLinkFor ? (
         <DirectLinkDialog
@@ -492,7 +529,8 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
         <Toast
           title={toast.title}
           tone={toast.tone}
-          duration={UNDO_MS}
+          /* Errors stay until dismissed; successes (with Undo) time out. */
+          {...(toast.tone === 'error' ? {} : { duration: UNDO_MS })}
           onClose={() => setToast(null)}
           {...(toast.undo ? { action: { label: 'Undo', onClick: toast.undo } } : {})}
         />

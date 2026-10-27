@@ -104,7 +104,7 @@ export function GDriveOAuthCallbackPage(): ReactElement {
       <Wrap role="status">
         <p>Drive connected — you can close this window.</p>
         <CloseButton type="button" onClick={handleClose}>
-          Close
+          Close window
         </CloseButton>
       </Wrap>
     </ThemeProvider>

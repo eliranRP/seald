@@ -103,7 +103,7 @@ function leaveApp(url: string): void {
  * outside `AppShell`, a Supabase session required, no analytics. The
  * owner sees the app's name (and "Unverified" for a CIMD app that is not
  * on the allow-list), where the code goes back to, and what it may do,
- * in the same words as API key scopes. Approve and Deny both send the
+ * in the same words as API key scopes. Allow access and Deny both send the
  * browser back to the app with `state`. Approving send-capable access
  * needs a sign-in from the last 10 minutes, like such a key.
  */
@@ -230,7 +230,8 @@ export function ConsentCard({
   return (
     <Card aria-labelledby="consent-app-name">
       <AppName id="consent-app-name">
-        {d.client_name}
+        {/* The client names itself: isolate its direction so an RTL name reads right. */}
+        <bdi>{d.client_name}</bdi>
         {d.unverified ? <Badge tone="amber">Unverified</Badge> : null}
       </AppName>
       <Line>
@@ -278,7 +279,7 @@ export function ConsentCard({
           loading={busy === 'approve'}
           onClick={onApprove}
         >
-          Approve
+          Allow access
         </Button>
         <Button
           variant="secondary"

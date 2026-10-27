@@ -294,7 +294,9 @@ export const TemplatePrimaryButton = styled.button`
  */
 export const SaveAsTemplateRow = styled.div`
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: ${({ theme }) => theme.space[3]};
   padding: ${({ theme }) => theme.space[3]} ${({ theme }) => theme.space[4]};
   border-top: 1px solid ${({ theme }) => theme.color.border[1]};
 `;
@@ -316,10 +318,20 @@ export const SaveAsTemplateButton = styled.button`
     border-color: ${({ theme }) => theme.color.indigo[500]};
     color: ${({ theme }) => theme.color.indigo[700]};
   }
-  &:disabled {
+  &[aria-disabled='true'] {
     opacity: 0.55;
     cursor: not-allowed;
   }
+  &[aria-disabled='true']:hover {
+    border-color: ${({ theme }) => theme.color.border[2]};
+    color: ${({ theme }) => theme.color.fg[2]};
+  }
+`;
+
+/** Why "Save as template" is unavailable (shown next to it, not hidden in a tooltip). */
+export const SaveAsTemplateHint = styled.span`
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.fg[3]};
 `;
 
 /**

@@ -178,6 +178,10 @@ export const AlertInline = styled.p`
 `;
 
 export const Mono = styled.span`
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: ${({ theme }) => theme.font.mono};
   font-size: ${({ theme }) => theme.font.size.xs};
   color: ${({ theme }) => theme.color.fg[2]};

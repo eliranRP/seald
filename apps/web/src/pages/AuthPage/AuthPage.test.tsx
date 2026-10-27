@@ -115,9 +115,16 @@ describe('AuthPage', () => {
     expect(await screen.findByRole('heading', { name: 'Check your email' })).toBeInTheDocument();
   });
 
-  it.each(['oauth', 'oauth_timeout'])('shows the Google banner for ?error=%s', (key) => {
-    renderAt(`/signin?error=${key}`);
+  it('shows the Google banner for ?error=oauth', () => {
+    renderAt('/signin?error=oauth');
     expect(screen.getByRole('alert')).toHaveTextContent("Google sign-in didn't finish");
+  });
+
+  it('names no provider when the callback timed out, and says what to do', () => {
+    renderAt('/signin?error=oauth_timeout');
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Sign-in didn't finish. Continue with Google or email yourself a new link.",
+    );
   });
 
   it('starts Google sign-in and reports a start failure', async () => {

@@ -102,7 +102,7 @@ describe('BulkSendPanel', () => {
       serve({ [SCHEMA_KEY]: fakeSchema() });
       renderPanel();
 
-      await user.click(await screen.findByRole('button', { name: 'Preview' }));
+      await user.click(await screen.findByRole('button', { name: 'Preview rows' }));
 
       expect(await screen.findByRole('alert')).toHaveTextContent('Choose a CSV file first.');
       expect(requestMock.mock.calls.some((c) => (c[0] as Call).method === 'post')).toBe(false);
@@ -115,7 +115,7 @@ describe('BulkSendPanel', () => {
 
       await user.upload(await screen.findByLabelText('CSV file'), csv());
       await user.selectOptions(screen.getByLabelText('Each request expires in'), '14 days');
-      await user.click(screen.getByRole('button', { name: 'Preview' }));
+      await user.click(screen.getByRole('button', { name: 'Preview rows' }));
 
       await waitFor(() => {
         expect(onBatchCreated).toHaveBeenCalledWith(BATCH_ID);
@@ -138,7 +138,7 @@ describe('BulkSendPanel', () => {
       const { onBatchCreated } = renderPanel();
 
       await user.upload(await screen.findByLabelText('CSV file'), csv());
-      await user.click(screen.getByRole('button', { name: 'Preview' }));
+      await user.click(screen.getByRole('button', { name: 'Preview rows' }));
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
         'The file has too many rows. Split it into smaller files of 100 rows or fewer.',
@@ -188,6 +188,31 @@ describe('BulkSendPanel', () => {
           (c) => (c[0] as Call).method === 'post' && (c[0] as Call).url.endsWith('/confirm'),
         ),
       ).toBe(true);
+    });
+
+    it('says why Send is off when every row has a problem', async () => {
+      const bad = fakePreviewWithProblems().rows[1]!;
+      serve({
+        [BATCH_KEY]: fakeBatch({
+          rows: [{ ...bad, row: 1 }],
+          counts: {
+            total: 1,
+            invalid: 1,
+            pending: 0,
+            processing: 0,
+            sent: 0,
+            failed: 0,
+            canceled: 0,
+          },
+          confirmable: false,
+          column_errors: [],
+        }),
+      });
+      renderPanel({ batchId: BATCH_ID });
+
+      const send = await screen.findByRole('button', { name: 'Send 0 envelopes' });
+      expect(send).toBeDisabled();
+      expect(send).toHaveAccessibleDescription(/every row has a problem/i);
     });
 
     it('blocks sending when the file is missing a column and names the column', async () => {

@@ -262,11 +262,23 @@ describe('EnvelopeDetailPage', () => {
       expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
       unmount();
       get.mockReset();
-      get.mockRejectedValue(new Error('404'));
+      get.mockRejectedValue(Object.assign(new Error('Not Found'), { status: 404 }));
       renderAt('env-1');
       expect(await screen.findByText('Document not found')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
       await userEvent.click(screen.getByRole('button', { name: /back to documents/i }));
       expect(await screen.findByText('BACK')).toBeInTheDocument();
+    });
+
+    it('a load failure that is not a 404 offers Try again, which refetches', async () => {
+      get.mockRejectedValue(Object.assign(new Error('Internal Server Error'), { status: 500 }));
+      renderAt('env-1');
+      expect(await screen.findByText("Couldn't load this document")).toBeInTheDocument();
+      expect(screen.queryByText('Document not found')).not.toBeInTheDocument();
+      const calls = get.mock.calls.length;
+      await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+      await waitFor(() => expect(get.mock.calls.length).toBeGreaterThan(calls));
+      expect(screen.getByRole('button', { name: /back to documents/i })).toBeInTheDocument();
     });
 
     it('the back button lands on /documents', async () => {
@@ -322,6 +334,19 @@ describe('EnvelopeDetailPage', () => {
       const user = await ready();
       await user.click(screen.getByRole('button', { name: 'Remind all' }));
       expect(await screen.findByRole('status')).toHaveTextContent('1 sent · 1 throttled');
+    });
+
+    it('partial failure is reported as an error, not lumped in with throttled', async () => {
+      mockApi();
+      post
+        .mockResolvedValueOnce({ data: {}, status: 202 })
+        .mockRejectedValueOnce(new Error('boom'));
+      renderAt('env-1');
+      const user = await ready();
+      await user.click(screen.getByRole('button', { name: 'Remind all' }));
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent('1 sent · 1 failed. Try again for the rest.');
+      expect(alert).not.toHaveTextContent('throttled');
     });
 
     it('every reminder failing for another reason is an error toast', async () => {
@@ -403,6 +428,29 @@ describe('EnvelopeDetailPage', () => {
       expect(screen.queryByRole('textbox', { name: "Alex's email" })).not.toBeInTheDocument();
     });
 
+    it('Fix email checks the address on blur and blocks a malformed one', async () => {
+      mockApi();
+      renderAt('env-1');
+      const user = await ready();
+      await user.click(screen.getByRole('button', { name: 'More for Alex Reyes' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Fix email' }));
+      const field = screen.getByRole('textbox', { name: "Alex's email" });
+      await user.clear(field);
+      await user.type(field, 'alex@quill');
+      // No scolding while typing.
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      await user.tab();
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Enter a full email address, like name@company.com.',
+      );
+      expect(field).toHaveAttribute('aria-invalid', 'true');
+      await user.click(screen.getByRole('button', { name: 'Resend' }));
+      expect(patch).not.toHaveBeenCalled();
+      // Fixing it clears the error live.
+      await user.type(field, '.com');
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
     it('Fix email Cancel closes the form without a request', async () => {
       mockApi();
       renderAt('env-1');
@@ -443,7 +491,10 @@ describe('EnvelopeDetailPage', () => {
       const user = await ready();
       const dialog = await openReplace(user);
       expect(within(dialog).getByText("Alex's link stops working.")).toBeInTheDocument();
-      expect(within(dialog).getByRole('button', { name: /replace & send/i })).toBeDisabled();
+      // Pressing Replace with nothing picked says what is missing instead of doing nothing.
+      await user.click(within(dialog).getByRole('button', { name: /replace & send/i }));
+      expect(within(dialog).getByRole('alert')).toHaveTextContent('Pick a contact to send to.');
+      expect(post).not.toHaveBeenCalled();
       await user.click(await within(dialog).findByRole('radio', { name: /Jordan Lee/ }));
       // A contact already on the envelope is not offered.
       expect(within(dialog).queryByRole('radio', { name: /Hannah Wills/ })).not.toBeInTheDocument();
@@ -487,6 +538,12 @@ describe('EnvelopeDetailPage', () => {
       return screen.findByRole('alertdialog', { name: 'Withdraw envelope' });
     }
 
+    async function openDeleteDraft(user: ReturnType<typeof userEvent.setup>): Promise<HTMLElement> {
+      await user.click(screen.getByRole('button', { name: 'More' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Delete draft' }));
+      return screen.findByRole('alertdialog', { name: 'Delete draft' });
+    }
+
     it('a sent envelope: confirm calls /cancel and says who is told', async () => {
       mockApi();
       post.mockResolvedValue({
@@ -497,7 +554,7 @@ describe('EnvelopeDetailPage', () => {
       const user = await ready();
       const dialog = await openWithdraw(user);
       expect(within(dialog).getByText('2 signers get a cancel email')).toBeInTheDocument();
-      await user.click(within(dialog).getByRole('button', { name: 'Withdraw' }));
+      await user.click(within(dialog).getByRole('button', { name: 'Withdraw envelope' }));
       await waitFor(() =>
         expect(post.mock.calls.some((c) => String(c[0]).endsWith('/envelopes/env-1/cancel'))).toBe(
           true,
@@ -511,10 +568,15 @@ describe('EnvelopeDetailPage', () => {
       renderAt('env-1');
       const user = await ready();
       let dialog = await openWithdraw(user);
-      await user.click(within(dialog).getByRole('button', { name: 'Keep' }));
+      // The safe choice holds focus, so Enter never withdraws by accident.
+      expect(within(dialog).getByRole('button', { name: 'Keep envelope' })).toHaveFocus();
+      await user.click(within(dialog).getByRole('button', { name: 'Keep envelope' }));
       expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
       dialog = await openWithdraw(user);
       await user.click(dialog.parentElement as HTMLElement);
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      await openWithdraw(user);
+      await user.keyboard('{Escape}');
       expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
       expect(post).not.toHaveBeenCalled();
     });
@@ -525,8 +587,13 @@ describe('EnvelopeDetailPage', () => {
       renderAt('env-1');
       const user = await ready();
       const dialog = await openWithdraw(user);
-      await user.click(within(dialog).getByRole('button', { name: 'Withdraw' }));
-      expect(await screen.findByRole('alert')).toHaveTextContent('server down');
+      await user.click(within(dialog).getByRole('button', { name: 'Withdraw envelope' }));
+      // Raw server text never reaches the user; the toast says what to do next.
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent(
+        'Could not withdraw this envelope. Refresh the page and try again.',
+      );
+      expect(alert).not.toHaveTextContent('server down');
     });
 
     it('a draft is deleted, not cancelled, and returns to the list', async () => {
@@ -534,8 +601,8 @@ describe('EnvelopeDetailPage', () => {
       del.mockResolvedValue({ data: undefined, status: 204 });
       renderAt('env-1');
       const user = await ready();
-      const dialog = await openWithdraw(user);
-      await user.click(within(dialog).getByRole('button', { name: 'Withdraw' }));
+      const dialog = await openDeleteDraft(user);
+      await user.click(within(dialog).getByRole('button', { name: 'Delete draft' }));
       expect(await screen.findByText('BACK')).toBeInTheDocument();
       expect(del).toHaveBeenCalledWith('/envelopes/env-1', {});
       expect(post).not.toHaveBeenCalled();
@@ -546,9 +613,11 @@ describe('EnvelopeDetailPage', () => {
       del.mockRejectedValue(new Error('cannot delete'));
       renderAt('env-1');
       const user = await ready();
-      const dialog = await openWithdraw(user);
-      await user.click(within(dialog).getByRole('button', { name: 'Withdraw' }));
-      expect(await screen.findByRole('alert')).toHaveTextContent('cannot delete');
+      const dialog = await openDeleteDraft(user);
+      await user.click(within(dialog).getByRole('button', { name: 'Delete draft' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Could not delete this draft. Refresh the page and try again.',
+      );
     });
   });
 
@@ -577,18 +646,17 @@ describe('EnvelopeDetailPage', () => {
       );
     });
 
-    it('sealed: the main button fetches the sealed PDF and the audit trail together', async () => {
+    it('sealed: the main button opens only the sealed PDF, never the audit trail', async () => {
       mockApi({ status: 'completed', signers: [YOU] });
-      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+      stubWindow();
       renderAt('env-1');
       const user = await ready();
       await user.click(screen.getByRole('button', { name: 'Download' }));
-      expect(await screen.findByRole('status')).toHaveTextContent(/audit trail downloaded/i);
+      expect(await screen.findByRole('status')).toHaveTextContent(/Sealed PDF opened/i);
       const kinds = get.mock.calls
         .filter((c) => c[0] === '/envelopes/env-1/download')
-        .map((c) => (c[1] as { params: { kind: string } }).params.kind)
-        .sort();
-      expect(kinds).toEqual(['audit', 'sealed']);
+        .map((c) => (c[1] as { params: { kind: string } }).params.kind);
+      expect(kinds).toEqual(['sealed']);
     });
 
     it('sealed: Audit trail from the menu opens the audit artifact', async () => {

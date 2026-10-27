@@ -1,5 +1,5 @@
-import { forwardRef, useCallback, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import { forwardRef, useCallback, useId, useMemo, useRef, useState } from 'react';
+import type { JSX, ReactNode } from 'react';
 import {
   ArrowLeft,
   Bookmark,
@@ -109,6 +109,7 @@ import {
   RightRailInner,
   RightRailScroll,
   SaveAsTemplateButton,
+  SaveAsTemplateHint,
   SaveAsTemplateRow,
   Shell,
   ShortcutsDock,
@@ -617,6 +618,33 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     />
   );
 
+  /**
+   * "Save as template" needs at least one field. Instead of a silently
+   * disabled button, it stays focusable (`aria-disabled`) and says why.
+   */
+  const saveTplHintId = useId();
+  const renderSaveAsTemplate = (onSave: () => void): JSX.Element => {
+    const empty = fields.length === 0;
+    return (
+      <SaveAsTemplateRow>
+        {empty ? (
+          <SaveAsTemplateHint id={saveTplHintId}>Place a field first</SaveAsTemplateHint>
+        ) : null}
+        <SaveAsTemplateButton
+          type="button"
+          aria-disabled={empty || undefined}
+          aria-describedby={empty ? saveTplHintId : undefined}
+          onClick={() => {
+            if (!empty) onSave();
+          }}
+        >
+          <Icon icon={BookmarkPlus} size={14} />
+          Save as template
+        </SaveAsTemplateButton>
+      </SaveAsTemplateRow>
+    );
+  };
+
   const preparePanel = (
     <PreparePanel aria-label="Signers and fields" $hidden={isMobile && mobileTab !== 'signers'}>
       <SignersSection>
@@ -666,19 +694,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
         onDuplicateField={duplicateField}
         onRemoveField={removeField}
       />
-      {onSaveAsTemplate ? (
-        <SaveAsTemplateRow>
-          <SaveAsTemplateButton
-            type="button"
-            onClick={onSaveAsTemplate}
-            disabled={fields.length === 0}
-            aria-label="Save current layout as a template"
-          >
-            <Icon icon={BookmarkPlus} size={14} />
-            Save as template
-          </SaveAsTemplateButton>
-        </SaveAsTemplateRow>
-      ) : null}
+      {onSaveAsTemplate ? renderSaveAsTemplate(onSaveAsTemplate) : null}
     </PreparePanel>
   );
 
@@ -1101,19 +1117,9 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                     onRemoveField={removeField}
                   />
                 </RightRailScroll>
-                {onSaveAsTemplate && !isTemplateAuthoring ? (
-                  <SaveAsTemplateRow>
-                    <SaveAsTemplateButton
-                      type="button"
-                      onClick={onSaveAsTemplate}
-                      disabled={fields.length === 0}
-                      aria-label="Save current layout as a template"
-                    >
-                      <Icon icon={BookmarkPlus} size={14} />
-                      Save as template
-                    </SaveAsTemplateButton>
-                  </SaveAsTemplateRow>
-                ) : null}
+                {onSaveAsTemplate && !isTemplateAuthoring
+                  ? renderSaveAsTemplate(onSaveAsTemplate)
+                  : null}
                 {isTemplateAuthoring ? (
                   <TemplatePrimaryFooter>
                     <TemplatePrimaryStatus>

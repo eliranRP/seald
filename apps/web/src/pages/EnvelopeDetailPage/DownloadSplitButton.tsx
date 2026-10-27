@@ -15,7 +15,7 @@ import { Menu } from '@/components/Menu';
 import type { MenuEntry } from '@/components/Menu';
 import { DownloadAnchor, Hint, MenuHint, MenuLabelRow, Split } from './EnvelopeDetailPage.styles';
 
-export type DownloadKind = 'bundle' | 'sealed' | 'audit' | 'original' | 'zip' | 'gdrive';
+export type DownloadKind = 'sealed' | 'audit' | 'original' | 'zip' | 'gdrive';
 
 export interface DownloadSplitButtonProps {
   readonly sealed: boolean;
@@ -122,7 +122,9 @@ export function DownloadSplitButton(props: DownloadSplitButtonProps) {
         ] satisfies MenuEntry[])
       : []),
   ];
-  const sealedKind: DownloadKind = multiDoc ? 'zip' : 'bundle';
+  // The main action is the signed document alone; the audit trail is its
+  // own file, downloaded from the menu, never bundled with it.
+  const sealedKind: DownloadKind = multiDoc ? 'zip' : 'sealed';
   const mainKind: DownloadKind = sealed ? sealedKind : 'original';
   const mainDisabled = sealing || (!sealed && !originalAvailable);
   return (

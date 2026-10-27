@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import type { PublicDirectLink } from 'shared';
@@ -20,6 +20,19 @@ interface HttpErrorLike extends Error {
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+type FieldName = 'name' | 'email';
+type FieldErrors = { readonly [K in FieldName]?: string | undefined };
+
+/** Each message names the fix (forms § 6). */
+function validateField(field: FieldName, raw: string): string | undefined {
+  const value = raw.trim();
+  if (field === 'name') return value.length === 0 ? 'Enter your name.' : undefined;
+  if (value.length === 0) return 'Enter your email address.';
+  return EMAIL_PATTERN.test(value)
+    ? undefined
+    : 'Enter a full email address, like name@example.com.';
+}
 
 function claimErrorMessage(err: unknown): string {
   const status = (err as HttpErrorLike).status;
@@ -43,7 +56,24 @@ export function DirectLinkPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // Per-field errors: shown when a field is left (blur) or on submit, then
+  // re-checked live on every keystroke so they clear the moment the value is
+  // right (forms § 4).
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+
+  const touch = (field: FieldName, value: string): void => {
+    setFieldErrors((prev) => ({ ...prev, [field]: validateField(field, value) }));
+  };
+  const change = (field: FieldName, value: string): void => {
+    if (field === 'name') setName(value);
+    else setEmail(value);
+    // Live only once the field has shown an error.
+    if (fieldErrors[field] !== undefined) touch(field, value);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -60,7 +90,7 @@ export function DirectLinkPage() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, attempt]);
 
   // The token is the credential: keep it out of referrers. (The SPA shell
   // already says noindex, nofollow.)
@@ -79,12 +109,14 @@ export function DirectLinkPage() {
     if (view.kind !== 'form' || submitting) return;
     const cleanName = name.trim();
     const cleanEmail = email.trim();
-    if (cleanName.length === 0) {
-      setError('Enter your name.');
-      return;
-    }
-    if (!EMAIL_PATTERN.test(cleanEmail)) {
-      setError('Enter a valid email address.');
+    const errors: FieldErrors = {
+      name: validateField('name', name),
+      email: validateField('email', email),
+    };
+    setFieldErrors(errors);
+    if (errors.name !== undefined || errors.email !== undefined) {
+      // Mark every blocker, then take the visitor to the first one.
+      (errors.name !== undefined ? nameRef : emailRef).current?.focus();
       return;
     }
     setError(null);
@@ -112,18 +144,30 @@ export function DirectLinkPage() {
     );
   }
 
-  if (view.kind === 'unavailable' || view.kind === 'error') {
+  if (view.kind === 'unavailable') {
     return (
       <Page>
         <Card>
-          <Title>
-            {view.kind === 'unavailable' ? 'This link is not available' : 'Something went wrong'}
-          </Title>
+          <Title>This link is not available</Title>
           <Body>
-            {view.kind === 'unavailable'
-              ? 'It may have been turned off or replaced. Ask the person who shared it for a new link.'
-              : 'We could not open this link right now. Please try again in a moment.'}
+            It may have been turned off or replaced. Ask the person who shared it for a new link.
           </Body>
+        </Card>
+      </Page>
+    );
+  }
+
+  if (view.kind === 'error') {
+    return (
+      <Page>
+        <Card>
+          <Title>Something went wrong</Title>
+          <Body role="alert">
+            We could not open this link right now. Check your connection, then try again.
+          </Body>
+          <Button variant="primary" fullWidth onClick={() => setAttempt((n) => n + 1)}>
+            Try again
+          </Button>
         </Card>
       </Page>
     );
@@ -153,21 +197,27 @@ export function DirectLinkPage() {
         </Body>
         <Form onSubmit={(e) => void onSubmit(e)} noValidate>
           <TextField
+            ref={nameRef}
             label="Your name"
             value={name}
             autoComplete="name"
             maxLength={120}
             required
-            onChange={(v) => setName(v)}
+            error={fieldErrors.name}
+            onChange={(v) => change('name', v)}
+            onBlur={() => touch('name', name)}
           />
           <TextField
+            ref={emailRef}
             label="Your email"
             type="email"
             value={email}
             autoComplete="email"
             maxLength={254}
             required
-            onChange={(v) => setEmail(v)}
+            error={fieldErrors.email}
+            onChange={(v) => change('email', v)}
+            onBlur={() => touch('email', email)}
           />
           {error ? <FormError role="alert">{error}</FormError> : null}
           <Button type="submit" variant="primary" fullWidth loading={submitting}>

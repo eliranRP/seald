@@ -35,6 +35,7 @@ describe('NotFoundPage', () => {
   it('says the page was not found', () => {
     renderPage('app');
     expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
+    expect(screen.getByText(/This link is broken or the page moved/)).toBeInTheDocument();
   });
 
   it('sends the search to /documents?q=', async () => {
@@ -51,7 +52,7 @@ describe('NotFoundPage', () => {
 
   it('offers the marketing site, not a search, when signed out', () => {
     renderPage('public');
-    expect(screen.getByRole('button', { name: 'Go to seald.co' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Go to the Seald home page' })).toBeInTheDocument();
     expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
   });
 });
@@ -78,7 +79,7 @@ describe('NotFoundRoute', () => {
     renderRoute({ auth: { user: null } });
     expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
     expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Go to seald.co' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Go to the Seald home page' })).toBeInTheDocument();
   });
 
   it('shows a loading screen while auth resolves', () => {

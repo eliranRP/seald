@@ -39,6 +39,16 @@ const Title = styled.h1`
   }
 `;
 
+const InlineLink = styled(Link)`
+  color: ${({ theme }) => theme.color.indigo[700]};
+  border-radius: ${({ theme }) => theme.radius.xs};
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.color.indigo[500]};
+    outline-offset: 2px;
+  }
+`;
+
 const Unavailable = styled.p`
   margin: 0;
   font-size: ${({ theme }) => theme.font.size.body};
@@ -76,7 +86,10 @@ export function BulkSendPage() {
           backTo="/templates"
         />
       ) : (
-        <Unavailable>Bulk send isn&apos;t available yet.</Unavailable>
+        <Unavailable>
+          Bulk send isn&apos;t available yet.{' '}
+          <InlineLink to="/templates">Send from a template instead</InlineLink>
+        </Unavailable>
       )}
     </Page>
   );

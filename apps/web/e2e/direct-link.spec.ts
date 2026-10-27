@@ -78,11 +78,14 @@ test.describe('template direct link (public)', () => {
     await page.goto(`/d/${TOKEN}`);
 
     await page.getByRole('button', { name: 'Email me the signing link' }).click();
-    await expect(page.getByRole('alert')).toHaveText('Enter your name.');
+    await expect(page.getByText('Enter your name.')).toBeVisible();
+    await expect(page.getByText('Enter your email address.')).toBeVisible();
     await page.getByLabel('Your name').fill('Ada');
     await page.getByLabel('Your email').fill('not-an-email');
     await page.getByRole('button', { name: 'Email me the signing link' }).click();
-    await expect(page.getByRole('alert')).toHaveText('Enter a valid email address.');
+    await expect(page.getByRole('alert')).toHaveText(
+      'Enter a full email address, like name@example.com.',
+    );
     expect(claims).toBe(0);
   });
 

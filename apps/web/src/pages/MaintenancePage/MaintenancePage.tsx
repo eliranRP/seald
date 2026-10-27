@@ -26,7 +26,12 @@ export function MaintenancePage({ etaMinutes }: MaintenancePageProps): JSX.Eleme
     <>
       <OfflineBar />
       <PublicHeader />
-      <StatePage icon={Settings} tone="neutral" title="Back soon">
+      <StatePage
+        icon={Settings}
+        tone="neutral"
+        title="Back soon"
+        description="Seald is down for planned maintenance. Your documents are safe, and this page reloads by itself when we're back."
+      >
         <InfoChip icon={Clock}>{`About ${String(minutes)} min`}</InfoChip>
         {statusUrl ? (
           // `.btn.btn-ghost` link (44px), as on the System maintenance board.

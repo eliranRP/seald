@@ -5,6 +5,7 @@ import { useAccountActions } from '@/features/account';
 import { useAuth } from '@/providers/AuthProvider';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
+import { Toast } from '@/components/Toast';
 import { DeleteAccountDialog } from './DeleteAccountDialog';
 import { Eyebrow, Row, RowIcon, RowLabel, RowsCard, Section, Spacer } from './SettingsPage.styles';
 
@@ -17,13 +18,24 @@ export function AccountSection() {
   const { signOut } = useAuth();
   const navigate = useNavigate();
   const [confirming, setConfirming] = useState(false);
+  // Export errors toast (until dismissed); delete errors stay in the dialog.
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const leave = useCallback(async (): Promise<void> => {
     await signOut().catch(() => undefined);
     navigate('/signin', { replace: true });
   }, [signOut, navigate]);
 
-  const account = useAccountActions({ onAccountDeleted: leave });
+  const onError = useCallback(
+    (message: string): void => {
+      if (confirming) setDeleteError(message);
+      else setExportError(message);
+    },
+    [confirming],
+  );
+
+  const account = useAccountActions({ onAccountDeleted: leave, onError });
 
   return (
     <Section aria-label="Account">
@@ -38,7 +50,10 @@ export function AccountSection() {
             variant="secondary"
             size="sm"
             loading={account.isExporting}
-            onClick={() => void account.exportData()}
+            onClick={() => {
+              setExportError(null);
+              void account.exportData();
+            }}
           >
             {account.isExporting ? 'Preparing…' : 'Download'}
           </Button>
@@ -65,7 +80,14 @@ export function AccountSection() {
           </RowIcon>
           <RowLabel $danger>Delete account</RowLabel>
           <Spacer />
-          <Button variant="danger" size="sm" onClick={() => setConfirming(true)}>
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => {
+              setDeleteError(null);
+              setConfirming(true);
+            }}
+          >
             Delete
           </Button>
         </Row>
@@ -75,10 +97,22 @@ export function AccountSection() {
         <DeleteAccountDialog
           open
           deleting={account.isDeleting}
+          error={deleteError}
           onCancel={() => setConfirming(false)}
           onConfirm={() => {
-            void account.deleteAccount().finally(() => setConfirming(false));
+            // Success signs out and leaves the page; a failure keeps the
+            // dialog open with the reason, so the typed word is not lost.
+            setDeleteError(null);
+            void account.deleteAccount();
           }}
+        />
+      ) : null}
+      {exportError !== null ? (
+        <Toast
+          tone="error"
+          title="Couldn't prepare your data"
+          subtitle={exportError}
+          onClose={() => setExportError(null)}
         />
       ) : null}
     </Section>

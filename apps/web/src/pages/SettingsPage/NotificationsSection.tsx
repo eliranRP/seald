@@ -5,7 +5,9 @@ import { SegmentedControl } from '@/components/SegmentedControl';
 import { Switch } from '@/components/Switch';
 import {
   Eyebrow,
+  FieldError,
   Lock as LockMark,
+  Meta,
   Row,
   RowIcon,
   RowLabel,
@@ -44,6 +46,12 @@ const ROWS: ReadonlyArray<SwitchRow> = [
   // "Daily summary" stays hidden until the daily-summary email exists; the
   // `notify.daily_summary` preference is kept in the API for it.
 ];
+
+function autosaveCopy(pending: boolean, saved: boolean): string {
+  if (pending) return 'Saving…';
+  if (saved) return 'Saved';
+  return 'Changes save as you make them.';
+}
 
 /**
  * Notifications and the two defaults Prepare and Use template start from.
@@ -126,6 +134,15 @@ export function NotificationsSection() {
           </RowSegmented>
         </Row>
       </RowsCard>
+
+      {/* Autosave is honest: say when a change is saving, saved, or put back. */}
+      {update.isError ? (
+        <FieldError role="alert">
+          Couldn&apos;t save that change, so it was put back. Check your connection and try again.
+        </FieldError>
+      ) : (
+        <Meta role="status">{autosaveCopy(update.isPending, update.isSuccess)}</Meta>
+      )}
     </Section>
   );
 }

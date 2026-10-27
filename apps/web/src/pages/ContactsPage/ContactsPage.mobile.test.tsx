@@ -107,7 +107,7 @@ describe('ContactsPage — phone', () => {
     expect(await screen.findByText('Hannah Wills')).toBeInTheDocument();
   });
 
-  it('select mode toggles rows and offers Delete N in the bar', async () => {
+  it('select mode toggles rows and Delete N deletes at once with Undo', async () => {
     const user = userEvent.setup();
     renderPhone();
     await screen.findByText('Hannah Wills');
@@ -117,9 +117,9 @@ describe('ContactsPage — phone', () => {
     await user.click(screen.getByRole('button', { name: /Luis García/ }));
     const bar = screen.getByRole('toolbar', { name: 'Selection actions' });
     await user.click(within(bar).getByRole('button', { name: 'Delete 2' }));
-    expect(screen.getByRole('alertdialog', { name: 'Delete 2 contacts?' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Keep' }));
-    await user.click(screen.getByRole('button', { name: 'Clear selection' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(await screen.findByText('2 contacts deleted')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument();
     expect(screen.queryByRole('toolbar', { name: 'Selection actions' })).toBeNull();
   });
 });

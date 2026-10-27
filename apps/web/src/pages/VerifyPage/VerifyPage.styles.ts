@@ -509,6 +509,13 @@ export const CodeForm = styled.form`
   width: 100%;
 `;
 
+/** Persistent label above the code field (forms § 2). */
+export const CodeLabel = styled.label`
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[2]};
+`;
+
 export const CodeInput = styled.input<{ readonly $error: boolean }>`
   box-sizing: border-box;
   width: 100%;

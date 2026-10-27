@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { SheetDialog } from '@/components/SheetDialog';
 import { useT } from '@/lib/i18n';
 import type { CommonKey } from '@/lib/i18n';
 import { composeDeclineReason } from './composeDeclineReason';
-import { Chip, Chips, Note } from './DeclineSheet.styles';
+import { Chip, Chips, Note, NoteLabel } from './DeclineSheet.styles';
 import type { DeclineChip, DeclineSheetProps } from './DeclineSheet.types';
 
 const CHIPS: ReadonlyArray<{ readonly id: DeclineChip; readonly key: CommonKey }> = [
@@ -23,7 +23,8 @@ export function DeclineSheet(props: DeclineSheetProps) {
   const t = useT();
   const [chip, setChip] = useState<DeclineChip | null>(null);
   const [note, setNote] = useState('');
-  const notePlaceholder = senderName
+  const noteId = useId();
+  const noteLabel = senderName
     ? t('signing.sign.decline.noteTo', { sender: senderName })
     : t('signing.sign.decline.note');
 
@@ -63,13 +64,9 @@ export function DeclineSheet(props: DeclineSheetProps) {
           </Chip>
         ))}
       </Chips>
-      <Note
-        aria-label={notePlaceholder}
-        placeholder={notePlaceholder}
-        maxLength={400}
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-      />
+      {/* Persistent label above the field, not a placeholder that vanishes on typing. */}
+      <NoteLabel htmlFor={noteId}>{noteLabel}</NoteLabel>
+      <Note id={noteId} maxLength={400} value={note} onChange={(e) => setNote(e.target.value)} />
       {error ? <Banner tone="error">{error}</Banner> : null}
     </SheetDialog>
   );

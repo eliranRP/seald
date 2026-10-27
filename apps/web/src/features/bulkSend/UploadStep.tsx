@@ -127,7 +127,7 @@ export function UploadStep({ schema, busy, error, onSubmit }: UploadStepProps) {
           ) : null}
           <Actions>
             <Button type="submit" variant="primary" iconLeft={Upload} loading={busy}>
-              Preview
+              Preview rows
             </Button>
           </Actions>
         </Section>

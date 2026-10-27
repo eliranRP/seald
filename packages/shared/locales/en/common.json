@@ -18,7 +18,8 @@
   "signing": {
     "common": {
       "cancel": "Cancel",
-      "apply": "Apply"
+      "apply": "Apply",
+      "network": "We couldn't reach Seald. Check your connection and try again."
     },
     "sign": {
       "opening": "Opening your document…",
@@ -43,6 +44,7 @@
         "alsoConfirm": "Also confirms: {{statement}}",
         "disclosure": "Disclosure",
         "start": "Start",
+        "needAgree": "Tick the box to agree, then press Start.",
         "errorAccept": "We could not record your acceptance. Please try again."
       },
       "bar": {
@@ -80,15 +82,15 @@
         "other": "Other",
         "note": "Note to the sender (optional)",
         "noteTo": "Note to {{sender}} (optional)",
-        "cancel": "Cancel",
-        "confirm": "Decline",
+        "cancel": "Keep signing",
+        "confirm": "Decline to sign",
         "error": "We could not decline right now. Please try again."
       },
       "notMe": {
         "title": "Are you not the intended recipient?",
         "body": "We'll let the sender know to send a fresh link to the right person. This is recorded in the audit trail and cannot be undone.",
         "confirm": "This isn't me",
-        "cancel": "Cancel"
+        "cancel": "Keep signing"
       },
       "withdraw": {
         "title": "Withdraw consent to sign electronically?",

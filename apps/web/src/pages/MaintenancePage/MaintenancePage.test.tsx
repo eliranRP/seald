@@ -15,6 +15,8 @@ describe('MaintenancePage', () => {
     renderWithTheme(<MaintenancePage />);
     expect(screen.getByRole('heading', { name: 'Back soon' })).toBeInTheDocument();
     expect(screen.getByText('About 15 min')).toBeInTheDocument();
+    // Says what happened and that nothing is needed from the visitor.
+    expect(screen.getByText(/reloads by itself/)).toBeInTheDocument();
   });
 
   it('uses the eta the API sent', () => {

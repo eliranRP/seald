@@ -212,11 +212,11 @@ Then('the verify entry page asks for a document code', async ({ page }) => {
   await expect(page.getByLabel('Verification code')).toBeVisible();
 });
 
-Then('the Verify button is disabled until 13 characters are typed', async ({ page }) => {
+Then('the Verify button asks for all 13 characters before it looks up a code', async ({ page }) => {
   const verify = page.getByRole('button', { name: 'Verify', exact: true });
-  await expect(verify).toBeDisabled();
-  await page.getByLabel('Verification code').fill('PuBLicSm0kE1');
-  await expect(verify).toBeDisabled();
-  await page.getByLabel('Verification code').fill('PuBLicSm0kE12');
   await expect(verify).toBeEnabled();
+  await page.getByLabel('Verification code').fill('PuBLicSm0kE1');
+  await verify.click();
+  await expect(page.getByRole('alert')).toHaveText('Enter all 13 characters (12 so far).');
+  await expect(page).toHaveURL(/\/verify$/);
 });

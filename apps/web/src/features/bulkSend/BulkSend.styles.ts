@@ -137,6 +137,7 @@ export const SummaryLine = styled.p`
 
 export const TableScroll = styled.div`
   width: 100%;
+  /* Desktop safety net only: under 640px the rows are cards and never scroll. */
   overflow-x: auto;
   border: 1px solid ${({ theme }) => theme.color.border[1]};
   border-radius: ${({ theme }) => theme.radius.md};
@@ -175,6 +176,70 @@ export const Table = styled.table`
     color: ${({ theme }) => theme.color.fg[2]};
     background: ${({ theme }) => theme.color.bg.sunken};
     white-space: nowrap;
+  }
+
+  /* The row number is a number: tabular figures so the column lines up. */
+  tbody th[scope='row'] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /*
+   * Phones: no sideways scroll. Each row becomes a card. Line 1: recipients
+   * (who) and the row number; line 2: the check/result; line 3: the title.
+   */
+  @media (max-width: 640px) {
+    min-width: 0;
+
+    thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+    }
+
+    tbody tr {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        'who row'
+        'state state'
+        'title title';
+      gap: ${({ theme }) => theme.space[2]};
+      padding: ${({ theme }) => theme.space[3]} ${({ theme }) => theme.space[4]};
+      border-top: 1px solid ${({ theme }) => theme.color.border[1]};
+    }
+
+    tbody th,
+    tbody td {
+      padding: 0;
+      border-top: 0;
+      background: transparent;
+      min-width: 0;
+    }
+
+    tbody th[scope='row'] {
+      grid-area: row;
+      font-weight: ${({ theme }) => theme.font.weight.regular};
+      color: ${({ theme }) => theme.color.fg[3]};
+    }
+    tbody th[scope='row']::before {
+      content: 'Row ';
+    }
+    tbody td:nth-of-type(1) {
+      grid-area: who;
+    }
+    tbody td:nth-of-type(2) {
+      grid-area: title;
+      color: ${({ theme }) => theme.color.fg[2]};
+    }
+    tbody td:nth-of-type(2)::before {
+      content: 'Title: ';
+      color: ${({ theme }) => theme.color.fg[3]};
+    }
+    tbody td:nth-of-type(3) {
+      grid-area: state;
+    }
   }
 `;
 

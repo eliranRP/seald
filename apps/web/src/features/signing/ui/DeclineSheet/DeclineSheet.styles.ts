@@ -30,6 +30,19 @@ export const Chip = styled.button<{ readonly $on: boolean }>`
     outline: none;
     box-shadow: ${({ theme }) => theme.shadow.focus};
   }
+
+  /* 44px touch target on a phone. */
+  @media (max-width: 640px) {
+    height: 44px;
+  }
+`;
+
+export const NoteLabel = styled.label`
+  display: block;
+  margin-top: ${({ theme }) => theme.space[2]};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[2]};
 `;
 
 export const Note = styled.textarea`
@@ -44,6 +57,11 @@ export const Note = styled.textarea`
   font: inherit;
   font-size: ${({ theme }) => theme.font.size.bodySm};
   color: ${({ theme }) => theme.color.fg[1]};
+
+  /* 16px on a phone so iOS does not zoom into the field. */
+  @media (max-width: 640px) {
+    font-size: ${({ theme }) => theme.font.size.body};
+  }
 
   &:focus-visible {
     outline: none;

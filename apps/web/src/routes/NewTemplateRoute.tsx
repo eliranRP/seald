@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import styled from 'styled-components';
 import { isFeatureEnabled } from 'shared';
-import { Banner } from '../components/Banner';
 import { Button } from '../components/Button';
 import { DrivePicker } from '../components/drive-picker';
 import {
@@ -30,12 +29,6 @@ const Top = styled.div`
   padding: ${({ theme }) => `${theme.space[3]} ${theme.space[4]} 0`};
 `;
 
-const Notice = styled.div`
-  max-width: 640px;
-  margin: 0 auto;
-  padding: ${({ theme }) => `0 ${theme.space[4]}`};
-`;
-
 /**
  * `/templates/new`: pick a sample document (from the computer or Google
  * Drive), then the editor opens in template mode to place the fields. Save
@@ -43,7 +36,6 @@ const Notice = styled.div`
  */
 export function NewTemplateRoute(): JSX.Element {
   const navigate = useNavigate();
-  const [error, setError] = useState<string | null>(null);
 
   const open = (file: File): void => {
     // The sample's file name is a fair first template name; it renames inline.
@@ -79,11 +71,9 @@ export function NewTemplateRoute(): JSX.Element {
         subtitle="Upload a sample document. You place the fields once; every use reuses them."
         dropHeading="Drop a sample PDF"
         dropSubheading="We use it to place fields · up to 25 MB"
-        onFileSelected={(file) => {
-          setError(null);
-          open(file);
-        }}
-        onError={(_code, message) => setError(message)}
+        // UploadPage shows the reason (and a way out) in the drop zone itself;
+        // a second banner here would repeat it.
+        onFileSelected={open}
         {...(gdriveOn && driveAccountId !== null
           ? { onPickDrive: () => setDrivePickerOpen(true) }
           : {})}
@@ -91,11 +81,6 @@ export function NewTemplateRoute(): JSX.Element {
           ? { onConnectDrive: () => connectDrive.mutate() }
           : {})}
       />
-      {error ? (
-        <Notice>
-          <Banner tone="error">{error}</Banner>
-        </Notice>
-      ) : null}
       {gdriveOn && driveAccountId !== null ? (
         <DrivePicker
           open={drivePickerOpen}
