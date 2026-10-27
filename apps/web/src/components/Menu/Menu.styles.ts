@@ -74,6 +74,9 @@ export const MenuItemButton = styled.button<{ $danger: boolean; $checked: boolea
     opacity: 0.5;
     cursor: not-allowed;
   }
+  @media (pointer: coarse) {
+    height: 44px;
+  }
 `;
 
 export const MenuItemLabel = styled.span`

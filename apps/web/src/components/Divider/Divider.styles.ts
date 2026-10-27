@@ -17,7 +17,7 @@ export const Label = styled.span`
   font-family: ${({ theme }) => theme.font.sans};
   font-size: ${({ theme }) => theme.font.size.micro};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
-  color: ${({ theme }) => theme.color.fg[4]};
+  color: ${({ theme }) => theme.color.fg[3]};
   letter-spacing: 0.08em;
   text-transform: uppercase;
 `;

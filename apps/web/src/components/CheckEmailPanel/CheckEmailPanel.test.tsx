@@ -76,7 +76,10 @@ describe('CheckEmailPanel', () => {
     expect(onResend).toHaveBeenCalledTimes(1);
     expect(document.body).toHaveTextContent('New link sent');
     expect(getByRole('button', { name: 'Resend in 0:30' })).toBeDisabled();
+    // Confirmation toasts stay up 4s (UX rules: feedback-and-states § 9).
     await tick(3);
+    expect(document.body).toHaveTextContent('New link sent');
+    await tick(2);
     expect(document.body).not.toHaveTextContent('New link sent');
   });
 

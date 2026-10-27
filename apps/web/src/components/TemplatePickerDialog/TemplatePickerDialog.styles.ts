@@ -120,9 +120,9 @@ export const FilterRow = styled.div`
 `;
 
 export const FilterLabel = styled.span`
-  font-size: 11px;
+  font-size: ${({ theme }) => theme.font.size.micro};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
-  color: ${({ theme }) => theme.color.fg[4]};
+  color: ${({ theme }) => theme.color.fg[3]};
   letter-spacing: 0.06em;
   text-transform: uppercase;
   margin-right: 4px;

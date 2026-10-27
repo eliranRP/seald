@@ -11,7 +11,7 @@ import { MailRow, ResendRow, StateIcon, Strong, TouchButton } from './CheckEmail
 
 const DEFAULT_COOLDOWN_S = 30;
 const RATE_LIMIT_COOLDOWN_S = 60;
-const TOAST_MS = 2000;
+const TOAST_MS = 4000;
 
 function formatLeft(seconds: number): string {
   return `0:${String(seconds).padStart(2, '0')}`;

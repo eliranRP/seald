@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { axe } from 'vitest-axe';
 import { renderWithTheme } from '@/test/renderWithTheme';
 import { ResponsiveDialog } from './ResponsiveDialog';
@@ -103,5 +105,38 @@ describe('ResponsiveDialog', () => {
       </ResponsiveDialog>,
     );
     expect(await axe(container)).toHaveNoViolations();
+  });
+  it('moves focus in, traps Tab and restores focus to the trigger on desktop', async () => {
+    stubViewport(false);
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            Open
+          </button>
+          <ResponsiveDialog
+            open={open}
+            onClose={() => setOpen(false)}
+            title="Edit contact"
+            footer={<button type="button">Save</button>}
+          >
+            <input aria-label="Name" />
+          </ResponsiveDialog>
+        </>
+      );
+    }
+    const { getByRole } = renderWithTheme(<Harness />);
+    const trigger = getByRole('button', { name: 'Open' });
+    await userEvent.click(trigger);
+    expect(getByRole('textbox', { name: 'Name' })).toHaveFocus();
+    await userEvent.tab();
+    expect(getByRole('button', { name: 'Save' })).toHaveFocus();
+    await userEvent.tab();
+    expect(getByRole('button', { name: 'Close' })).toHaveFocus();
+    await userEvent.tab({ shift: true });
+    expect(getByRole('button', { name: 'Save' })).toHaveFocus();
+    await userEvent.keyboard('{Escape}');
+    expect(trigger).toHaveFocus();
   });
 });
