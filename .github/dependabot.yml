@@ -1,82 +1,49 @@
 version: 2
 
-# Weekly grouped dependency updates. The npm ecosystem entry covers pnpm
-# workspaces — Dependabot resolves pnpm-lock.yaml at each `directory` and
-# opens one PR per group. GitHub Actions are tracked separately.
+# One root npm entry for the whole pnpm workspace (pnpm-workspace.yaml covers
+# apps/* and packages/*), so every Dependabot PR refreshes the single root
+# pnpm-lock.yaml. Minor/patch bumps are grouped; majors open their own PRs
+# because they need human review.
 #
-# Groups limit churn: one PR per workspace per category per week.
-# Major bumps are excluded from the auto-grouped PRs because every recent
-# advisory we couldn't auto-patch (multer, @nestjs/core, pdfjs-dist, vite 6)
-# was a major version that needed human review.
+# Commit messages use a lowercase conventional prefix so they pass Commitlint
+# (@commitlint/config-conventional), e.g. "chore(deps): bump x from 1 to 2".
 
 updates:
-  # ---------------- root (husky, lint-staged, prettier) ----------------
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
     groups:
-      root-prod:
+      prod-minor-patch:
         dependency-type: production
         update-types: [minor, patch]
-      root-dev:
+      dev-minor-patch:
         dependency-type: development
         update-types: [minor, patch]
+    ignore:
+      # playwright-bdd 8.x crashes on @playwright/test >= 1.64.
+      - dependency-name: "@playwright/test"
+        versions: [">=1.61.0"]
+      - dependency-name: "playwright"
+        versions: [">=1.61.0"]
+      # @react-pdf/renderer >= 4.6 pulls in a dependency jest can't load
+      # (breaks the sealing/audit-PDF suites).
+      - dependency-name: "@react-pdf/renderer"
+        versions: [">=4.6.0"]
 
-  # ---------------- apps/api (Nest.js) ----------------
-  - package-ecosystem: npm
-    directory: /apps/api
-    schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 5
-    groups:
-      api-prod:
-        dependency-type: production
-        update-types: [minor, patch]
-      api-dev:
-        dependency-type: development
-        update-types: [minor, patch]
-
-  # ---------------- apps/web (React + Vite) ----------------
-  - package-ecosystem: npm
-    directory: /apps/web
-    schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 5
-    groups:
-      web-prod:
-        dependency-type: production
-        update-types: [minor, patch]
-      web-dev:
-        dependency-type: development
-        update-types: [minor, patch]
-
-  # ---------------- packages/shared ----------------
-  - package-ecosystem: npm
-    directory: /packages/shared
-    schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 3
-    groups:
-      shared-prod:
-        dependency-type: production
-        update-types: [minor, patch]
-      shared-dev:
-        dependency-type: development
-        update-types: [minor, patch]
-
-  # ---------------- GitHub Actions workflow files ----------------
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
       day: monday
     open-pull-requests-limit: 3
+    commit-message:
+      prefix: "ci"
     groups:
       gh-actions:
         patterns: ["*"]
