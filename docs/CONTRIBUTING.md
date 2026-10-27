@@ -6,7 +6,7 @@ configured in this repo today.
 
 ## Prerequisites
 
-- Node **>=22.12** (see `engines.node` in `package.json` and `.nvmrc`)
+- Node **>=22.23.4** (see `engines.node` in `package.json` and `.nvmrc`). Older 22.x releases miss the October 2026 security fixes (CVE-2026-111497 and others).
 - pnpm **>=9** — the repo pins `pnpm@9.12.0` via the `packageManager` field in
   `package.json`; Corepack will pick it up automatically.
 - Git (hooks are managed by Husky).

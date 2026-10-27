@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "engines": {
-    "node": ">=22.12",
+    "node": ">=22.23.4",
     "pnpm": ">=9"
   },
   "packageManager": "pnpm@9.12.0",
@@ -27,8 +27,8 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@commitlint/cli": "^21.2.3",
-    "@commitlint/config-conventional": "^21.2.3",
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
     "cspell": "^10.4.0",
     "gherkin-lint": "^4.2.4",
     "husky": "9.1.7",
@@ -106,8 +106,7 @@
         "GHSA-wrwg-2hg8-v723",
         "GHSA-xf7r-hgr6-v32p",
         "GHSA-v52c-386h-88mc",
-        "GHSA-5528-5vmv-3xc2",
-        "GHSA-86w9-cpqp-85rv"
+        "GHSA-5528-5vmv-3xc2"
       ]
     },
     "patchedDependencies": {
