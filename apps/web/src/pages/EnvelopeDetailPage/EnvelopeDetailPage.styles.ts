@@ -108,14 +108,25 @@ export const Title = styled.h1`
 
 export const HeadMeta = styled.div`
   display: flex;
-  gap: 10px;
+  gap: ${({ theme }) => theme.space[2]};
   align-items: center;
   flex-wrap: wrap;
   font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[3]};
-  ${MOBILE} {
-    gap: ${({ theme }) => theme.space[2]};
-  }
+`;
+
+/** Tag chips + add button; a full line of the meta block when tags exist. */
+export const HeadTags = styled.div<{ readonly $ownRow: boolean }>`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+  min-width: 0;
+  ${({ $ownRow }) =>
+    $ownRow &&
+    css`
+      flex-basis: 100%;
+    `}
 `;
 
 export const HeadCode = styled.span`
@@ -600,7 +611,8 @@ export const SheetList = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.space[1]};
-  padding: ${({ theme }) => `0 ${theme.space[4]} ${theme.space[4]}`};
+  /* The sheet surface already holds the 16px gutter; rows line up with its title. */
+  padding-bottom: ${({ theme }) => theme.space[4]};
   /* Sheet rows read as a menu (canvas .menu-item, 48px): icon and label start-aligned. */
   & > button {
     justify-content: flex-start;

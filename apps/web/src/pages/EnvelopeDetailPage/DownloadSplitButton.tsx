@@ -12,8 +12,16 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Menu } from '@/components/Menu';
-import type { MenuEntry } from '@/components/Menu';
-import { DownloadAnchor, Hint, MenuHint, MenuLabelRow, Split } from './EnvelopeDetailPage.styles';
+import type { MenuActionItem, MenuEntry } from '@/components/Menu';
+import { MWBottomSheet } from '@/components/MWBottomSheet';
+import {
+  DownloadAnchor,
+  Hint,
+  MenuHint,
+  MenuLabelRow,
+  SheetList,
+  Split,
+} from './EnvelopeDetailPage.styles';
 
 export type DownloadKind = 'sealed' | 'audit' | 'original' | 'zip' | 'gdrive';
 
@@ -27,7 +35,16 @@ export interface DownloadSplitButtonProps {
   readonly busy: string | null;
   readonly gdriveLastSaved?: string | null | undefined;
   readonly fullWidth?: boolean | undefined;
+  /**
+   * Phones: the button sits in the bar pinned to the bottom of the screen, so
+   * the options open in a bottom sheet instead of a menu dropping off-screen.
+   */
+  readonly asSheet?: boolean | undefined;
   readonly onSelect: (kind: DownloadKind) => void;
+}
+
+function isAction(entry: MenuEntry): entry is MenuActionItem {
+  return entry.type === undefined || entry.type === 'item';
 }
 
 /**
@@ -45,6 +62,7 @@ export function DownloadSplitButton(props: DownloadSplitButtonProps) {
     busy,
     gdriveLastSaved,
     fullWidth,
+    asSheet,
     onSelect,
   } = props;
   const [open, setOpen] = useState(false);
@@ -153,14 +171,39 @@ export function DownloadSplitButton(props: DownloadSplitButtonProps) {
             onClick={() => setOpen((v) => !v)}
           />
         </Split>
-        <Menu
-          open={open}
-          onClose={() => setOpen(false)}
-          items={entries}
-          anchorRef={anchorRef}
-          aria-label="Download"
-        />
+        {asSheet === true ? null : (
+          <Menu
+            open={open}
+            onClose={() => setOpen(false)}
+            items={entries}
+            anchorRef={anchorRef}
+            aria-label="Download"
+          />
+        )}
       </DownloadAnchor>
+      {asSheet === true ? (
+        <MWBottomSheet open={open} onClose={() => setOpen(false)} title="Download">
+          <SheetList>
+            {entries.filter(isAction).map((entry) => (
+              <Button
+                key={entry.id}
+                variant="ghost"
+                size="lg"
+                fullWidth
+                iconLeft={entry.icon}
+                disabled={entry.disabled === true}
+                loading={entry.busy === true}
+                onClick={() => {
+                  setOpen(false);
+                  entry.onSelect();
+                }}
+              >
+                {entry.label}
+              </Button>
+            ))}
+          </SheetList>
+        </MWBottomSheet>
+      ) : null}
     </>
   );
 }

@@ -81,6 +81,7 @@ import {
   ErrorActions,
   HeadActions,
   HeadCode,
+  HeadTags,
   HeadMeta,
   HeadRow,
   HeadText,
@@ -718,6 +719,7 @@ export function EnvelopeDetailPage() {
       multiDoc={multiDoc}
       busy={downloadBusy}
       fullWidth={fullWidth}
+      asSheet={fullWidth}
       gdriveLastSaved={
         envelope.gdriveExport?.lastPushedAt
           ? `Saved ${formatShortDate(envelope.gdriveExport.lastPushedAt)}`
@@ -775,14 +777,19 @@ export function EnvelopeDetailPage() {
               <StatusBadge status={badge.status} {...(badge.label ? { label: badge.label } : {})} />
               <HeadCode>{envelope.short_code}</HeadCode>
               {envelope.original_pages !== null ? (
-                <DesktopOnly>{envelope.original_pages} pages</DesktopOnly>
+                <DesktopOnly>
+                  {`${envelope.original_pages} page${envelope.original_pages === 1 ? '' : 's'}`}
+                </DesktopOnly>
               ) : null}
               <span>Sent {formatShortDateOrDash(envelope.sent_at)}</span>
-              <TagEditor
-                layout="inline"
-                value={envelope.tags ?? []}
-                onChange={(next) => handleTagsChange(next)}
-              />
+              {/* Tags get their own line once there are any, so they never split across rows. */}
+              <HeadTags $ownRow={(envelope.tags ?? []).length > 0}>
+                <TagEditor
+                  layout="inline"
+                  value={envelope.tags ?? []}
+                  onChange={(next) => handleTagsChange(next)}
+                />
+              </HeadTags>
             </HeadMeta>
           </HeadText>
           <HeadActions>

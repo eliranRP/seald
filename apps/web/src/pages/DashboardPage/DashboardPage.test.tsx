@@ -434,7 +434,7 @@ describe('DashboardPage on a phone', () => {
       fireEvent.click(
         screen.getByRole('button', { name: 'More actions for Offer letter — M. Chen' }),
       );
-      const sheet = await screen.findByRole('dialog', { name: 'Row actions' });
+      const sheet = await screen.findByRole('dialog', { name: 'Document actions' });
       expect(within(sheet).getByRole('button', { name: 'Download' })).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: /^Filter/ }));
       expect(await screen.findByRole('dialog', { name: 'Filter' })).toBeInTheDocument();

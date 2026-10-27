@@ -653,13 +653,18 @@ export function DashboardPage() {
             </HeaderSearch>
           ) : null}
           <MenuAnchor>
-            <SplitGroup>
-              <Button variant="primary" iconLeft={Upload} onClick={() => navigate('/document/new')}>
+            <SplitGroup $secondary={firstRun}>
+              {/* First run: the empty state's "Choose file" is the one primary action. */}
+              <Button
+                variant={firstRun ? 'secondary' : 'primary'}
+                iconLeft={Upload}
+                onClick={() => navigate('/document/new')}
+              >
                 New document
               </Button>
               <Button
                 ref={newChevronRef}
-                variant="primary"
+                variant={firstRun ? 'secondary' : 'primary'}
                 iconOnly
                 iconLeft={ChevronDown}
                 aria-label="More ways to start"
@@ -816,7 +821,6 @@ export function DashboardPage() {
                 onOpenFilterSheet={() => setFilterSheet(true)}
                 onStartSelecting={() => setSelecting(true)}
                 searchOpen={mobileSearch}
-                resultCount={loading ? undefined : visible.length}
               />
             )}
 

@@ -62,7 +62,7 @@ export const HeaderSearch = styled.span`
 `;
 
 /** Split primary button: main action + chevron that opens the New menu. */
-export const SplitGroup = styled.div`
+export const SplitGroup = styled.div<{ readonly $secondary?: boolean }>`
   display: inline-flex;
 
   @media (max-width: ${MOBILE}) {
@@ -76,7 +76,9 @@ export const SplitGroup = styled.div`
   & > button:last-child {
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
-    border-left: 1px solid ${({ theme }) => theme.color.indigo[400]};
+    /* Outlined halves share the first half's right border as the divider. */
+    border-left: ${({ theme, $secondary }) =>
+      $secondary === true ? '0' : `1px solid ${theme.color.indigo[400]}`};
   }
 `;
 
@@ -155,6 +157,8 @@ export const NeedsGrid = styled.div`
     margin: 0 -${({ theme }) => theme.space[4]};
     padding: 0 ${({ theme }) => theme.space[4]};
     scroll-snap-type: x proximity;
+    /* Snap the first card to the 16px page gutter, not the screen edge. */
+    scroll-padding-inline: ${({ theme }) => theme.space[4]};
   }
 `;
 
@@ -175,11 +179,11 @@ export const NeedCard = styled.div`
     padding: 10px 10px 10px 12px;
     scroll-snap-align: start;
 
-    /* The icon-only action is a 36px square on the phone card. */
+    /* The icon-only action is a 44px touch target on the phone card. */
     & > button:last-child {
-      width: 36px;
-      height: 36px;
-      min-height: 36px;
+      width: calc(${({ theme }) => theme.space[10]} + ${({ theme }) => theme.space[1]});
+      height: calc(${({ theme }) => theme.space[10]} + ${({ theme }) => theme.space[1]});
+      min-height: calc(${({ theme }) => theme.space[10]} + ${({ theme }) => theme.space[1]});
       border-radius: ${({ theme }) => theme.radius.md};
     }
   }
@@ -792,12 +796,6 @@ export const RowActions = styled.div`
 `;
 
 /** Mobile: the result count at the end of the Filter / Recent / Select row. */
-export const ResultCount = styled.span`
-  font-size: ${({ theme }) => theme.font.size.caption};
-  color: ${({ theme }) => theme.color.fg[3]};
-  font-variant-numeric: tabular-nums;
-`;
-
 export const SrOnly = styled.span`
   ${visuallyHidden}
 `;
@@ -971,20 +969,21 @@ export const MobileActionBar = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 40;
+  /* Covers the bottom tab bar (same 80px + safe area) while selecting. */
+  z-index: ${({ theme }) => theme.z.sticky};
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   background: ${({ theme }) => theme.color.bg.surface};
   border-top: 1px solid ${({ theme }) => theme.color.border[1]};
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: calc(${({ theme }) => theme.space[4]} + env(safe-area-inset-bottom));
 
   button {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    min-height: 56px;
+    gap: ${({ theme }) => theme.space[1]};
+    min-height: ${({ theme }) => theme.space[16]};
     border: 0;
     background: none;
     cursor: pointer;
