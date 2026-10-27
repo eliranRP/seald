@@ -3,6 +3,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { needsSignInToApprove } from '@/features/approvals/signInFreshness';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { Button } from '@/components/Button';
 import { ApprovalFrame } from '@/features/approvals/ApprovalFrame';
 import { ApprovalOutcome } from '@/features/approvals/ApprovalOutcome';
 import { ApprovalsNotFound } from '@/features/approvals/ApprovalsNotFound';
