@@ -7,9 +7,17 @@ export const MenuAnchor = styled.div`
   align-items: center;
 `;
 
-export const MenuSurface = styled.div<{ $align: 'start' | 'end' }>`
+export const MenuSurface = styled.div<{ $align: 'start' | 'end'; $up: boolean }>`
   position: absolute;
-  top: calc(100% + 4px);
+  ${({ $up, theme }) =>
+    $up
+      ? css`
+          top: auto;
+          bottom: calc(100% + ${theme.space[1]});
+        `
+      : css`
+          top: calc(100% + ${theme.space[1]});
+        `}
   ${({ $align }) =>
     $align === 'end'
       ? css`
@@ -28,7 +36,8 @@ export const MenuSurface = styled.div<{ $align: 'start' | 'end' }>`
   border-radius: ${({ theme }) => theme.radius.md};
   box-shadow: ${({ theme }) => theme.shadow.lg};
   ${drop}
-  transform-origin: ${({ $align }) => ($align === 'end' ? 'top right' : 'top left')};
+  transform-origin: ${({ $align, $up }) =>
+    `${$up ? 'bottom' : 'top'} ${$align === 'end' ? 'right' : 'left'}`};
 `;
 
 export const MenuHeader = styled.div`

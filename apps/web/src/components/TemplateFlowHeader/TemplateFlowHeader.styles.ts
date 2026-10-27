@@ -1,4 +1,5 @@
 import styled, { css } from 'styled-components';
+import { visuallyHidden } from '@/styles/mixins';
 
 const MOBILE = '@media (max-width: 640px)';
 
@@ -68,11 +69,11 @@ export const ModePill = styled.span`
   font-size: ${({ theme }) => theme.font.size.caption};
   font-weight: ${({ theme }) => theme.font.weight.medium};
   white-space: nowrap;
+  /* Phone: the 375px bar has no room for a 115px chip next to the name
+     (it cut short the template name), so the mode stays for screen
+     readers only and the name gets the width. */
   ${MOBILE} {
-    order: 1;
-    border-color: ${({ theme }) => theme.color.ink[900]};
-    background: ${({ theme }) => theme.color.ink[900]};
-    color: ${({ theme }) => theme.color.fgOnAccent};
+    ${visuallyHidden}
   }
 `;
 

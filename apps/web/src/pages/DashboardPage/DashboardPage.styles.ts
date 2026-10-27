@@ -479,7 +479,19 @@ export const TableShell = styled.div`
   background: ${({ theme }) => theme.color.bg.surface};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
   border-radius: ${({ theme }) => theme.radius.lg};
-  overflow: hidden;
+  /* No overflow clipping: a row menu must be free to open past the card.
+     The first and last rows take the card's corners instead, so a row
+     background never pokes past them. */
+  & > :first-child,
+  & > :first-child > :first-child {
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+  }
+  & > :last-child,
+  & > :last-child > :last-child {
+    border-bottom-left-radius: inherit;
+    border-bottom-right-radius: inherit;
+  }
 
   /* Once anything is selected, every row shows its checkbox. */
   &:has(input[type='checkbox']:checked) [data-testid='doc-row'] > input[type='checkbox'] {

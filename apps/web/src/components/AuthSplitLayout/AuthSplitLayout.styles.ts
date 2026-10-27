@@ -75,16 +75,13 @@ export const Body = styled.div`
 `;
 
 /**
- * Legal links, dot-separated (canvas `.meta` row, gap 8). On a phone the
- * text is 12px and each link is a 44px target with no underline.
+ * Legal links (canvas `.meta` row). Desktop: one line, dot-separated, the
+ * dot drawn by `li + li::before` so it is never a stray item of its own. Phone:
+ * the row wraps, so no dots at all (a wrapped line would start or end on one);
+ * each link is a 12px, 44px-tall target with its own padding as the gap.
  */
 export const FootRow = styled.footer`
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  padding-top: 24px;
+  padding-top: ${({ theme }) => theme.space[6]};
   font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[3]};
 
@@ -95,7 +92,6 @@ export const FootRow = styled.footer`
   }
 
   @media ${TABLET} {
-    gap: 0;
     font-size: ${({ theme }) => theme.font.size.xs};
 
     & a,
@@ -103,7 +99,7 @@ export const FootRow = styled.footer`
       display: inline-flex;
       align-items: center;
       min-height: 44px;
-      padding: 0 8px;
+      padding: 0 ${({ theme }) => theme.space[2]};
       text-decoration: none;
     }
   }
@@ -116,6 +112,36 @@ export const FootRow = styled.footer`
     outline: 2px solid ${({ theme }) => theme.color.accent.base};
     outline-offset: 2px;
     border-radius: ${({ theme }) => theme.radius.xxs};
+  }
+`;
+
+export const FootList = styled.ul`
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  & > li {
+    display: inline-flex;
+    align-items: center;
+    gap: ${({ theme }) => theme.space[2]};
+  }
+
+  & > li + li::before {
+    /* Empty alt text: the dot is decoration, not read aloud. */
+    content: '·' / '';
+  }
+
+  @media ${TABLET} {
+    gap: 0;
+
+    & > li + li::before {
+      content: none;
+    }
   }
 `;
 

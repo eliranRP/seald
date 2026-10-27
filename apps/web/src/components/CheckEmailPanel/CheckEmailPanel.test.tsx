@@ -60,9 +60,15 @@ describe('CheckEmailPanel', () => {
 
   it('counts the resend cooldown down from 0:30 and unlocks at zero', async () => {
     const { getByRole } = setup();
-    expect(getByRole('button', { name: 'Resend in 0:30' })).toBeDisabled();
+    expect(getByRole('button', { name: 'Resend in 0:30' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
     await tick(10);
-    expect(getByRole('button', { name: 'Resend in 0:20' })).toBeDisabled();
+    expect(getByRole('button', { name: 'Resend in 0:20' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
     await tick(20);
     expect(getByRole('button', { name: 'Resend link' })).toBeEnabled();
   });
@@ -75,7 +81,10 @@ describe('CheckEmailPanel', () => {
     });
     expect(onResend).toHaveBeenCalledTimes(1);
     expect(document.body).toHaveTextContent('New link sent');
-    expect(getByRole('button', { name: 'Resend in 0:30' })).toBeDisabled();
+    expect(getByRole('button', { name: 'Resend in 0:30' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
     // Confirmation toasts stay up 4s (UX rules: feedback-and-states § 9).
     await tick(3);
     expect(document.body).toHaveTextContent('New link sent');
@@ -90,7 +99,10 @@ describe('CheckEmailPanel', () => {
       fireEvent.click(getByRole('button', { name: 'Resend link' }));
     });
     expect(getByRole('alert')).toHaveTextContent('Too many tries. Wait 60 s.');
-    expect(getByRole('button', { name: 'Resend in 0:60' })).toBeDisabled();
+    expect(getByRole('button', { name: 'Resend in 0:60' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
   });
 
   it('shows a generic error and keeps Resend usable when the send fails', async () => {

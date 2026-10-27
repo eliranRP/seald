@@ -102,6 +102,9 @@ export function CheckEmailPanel(props: CheckEmailPanelProps) {
           variant="ghost"
           size="sm"
           disabled={resendOff}
+          disabledReason={
+            busy ? 'Sending a new link' : 'A new link can be sent when the timer ends'
+          }
           onClick={() => void handleResend()}
         >
           {resendLabel}

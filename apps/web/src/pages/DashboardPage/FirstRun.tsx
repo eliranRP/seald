@@ -20,7 +20,7 @@ export interface FirstRunProps {
 /** Brand-new account: the three steps and a drop zone, no table. */
 export function FirstRun({ onUpload, onTemplate }: FirstRunProps) {
   return (
-    <FirstRunBlock aria-label="Get started">
+    <FirstRunBlock aria-label="Get started" data-page-primary>
       <FirstRunTitle>Send your first document</FirstRunTitle>
       <Steps aria-hidden>
         <Step>

@@ -70,3 +70,36 @@ export const touchTarget = css`
     }
   }
 `;
+/**
+ * Native `<select>` / `<input>` styling that matches the shared TextField:
+ * hairline `border[1]`, 12px radius, 14px text (16px on phones so iOS never
+ * zooms), 40px tall (44px on phones), indigo focus ring. Use it for native
+ * controls that cannot be a TextField (selects, number inputs).
+ */
+export const nativeControl = css`
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 ${({ theme }) => theme.space[3]};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background-color: ${({ theme }) => theme.color.paper};
+  color: ${({ theme }) => theme.color.fg[1]};
+  font-family: ${({ theme }) => theme.font.sans};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-weight: ${({ theme }) => theme.font.weight.regular};
+  outline: none;
+  &:focus-visible {
+    border-color: ${({ theme }) => theme.color.indigo[500]};
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+  &:disabled {
+    background-color: ${({ theme }) => theme.color.bg.app};
+    color: ${({ theme }) => theme.color.fg[4]};
+    cursor: not-allowed;
+  }
+  @media (max-width: 640px) {
+    min-height: 44px;
+    font-size: ${({ theme }) => theme.font.size.body};
+  }
+`;

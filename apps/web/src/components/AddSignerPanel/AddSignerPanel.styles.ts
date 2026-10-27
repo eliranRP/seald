@@ -90,10 +90,18 @@ export const RecentInitials = styled.span`
   }
 `;
 
+/** Two equal columns that can shrink below their content (minmax 0), with
+ *  12px side padding so "New email" fits the 320px rail. */
 export const ButtonRow = styled.div`
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: ${({ theme }) => theme.space[2]};
+
+  & > button {
+    min-width: 0;
+    padding-left: ${({ theme }) => theme.space[3]};
+    padding-right: ${({ theme }) => theme.space[3]};
+  }
 `;
 
 export const FormCard = styled.form`

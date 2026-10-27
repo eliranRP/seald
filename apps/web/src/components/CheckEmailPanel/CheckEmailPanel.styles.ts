@@ -48,8 +48,17 @@ export const ResendRow = styled.div`
   gap: 4px;
 `;
 
-/** Ghost actions: 32px on desktop, 44px touch targets on a phone. */
+/**
+ * Ghost actions: 32px on desktop, 44px touch targets on a phone. The resend
+ * countdown stays focusable (aria-disabled) and readable: full opacity in the
+ * muted ink instead of the default 50% fade, so it keeps >= 4.5:1.
+ */
 export const TouchButton = styled(Button)`
+  &&[aria-disabled='true']:not([aria-busy='true']) {
+    opacity: 1;
+    color: ${({ theme }) => theme.color.fg[3]};
+  }
+
   @media ${TABLET} {
     && {
       min-height: 44px;

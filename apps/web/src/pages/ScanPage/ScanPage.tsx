@@ -76,7 +76,7 @@ function PhoneScan({ code }: { readonly code: string }): JSX.Element {
         </Wait>
       );
     case 'ready':
-      return <ScanCapture onComplete={send} />;
+      return <ScanCapture onComplete={send} title="Scan for your computer" />;
     case 'sent':
       return (
         <StatePage

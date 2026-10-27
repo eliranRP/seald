@@ -14,7 +14,15 @@ function isPlainClick(event: MouseEvent<HTMLAnchorElement>): boolean {
  * two destinations · raised "New" button · two destinations.
  */
 export const MobileNav = forwardRef<HTMLElement, MobileNavProps>((props, ref) => {
-  const { items, activeId, onNavigate, onNew, newLabel = 'New document', ...rest } = props;
+  const {
+    items,
+    activeId,
+    onNavigate,
+    onNew,
+    newLabel = 'New document',
+    calm = false,
+    ...rest
+  } = props;
 
   const renderLink = (item: MobileNavItem): ReactNode => (
     <MobileNavLink
@@ -35,7 +43,12 @@ export const MobileNav = forwardRef<HTMLElement, MobileNavProps>((props, ref) =>
   return (
     <MobileNavRoot ref={ref} aria-label="Main" {...rest}>
       {items.slice(0, 2).map(renderLink)}
-      <MobileNavNew type="button" aria-label={newLabel} onClick={onNew}>
+      <MobileNavNew
+        type="button"
+        aria-label={newLabel}
+        data-calm={calm ? 'true' : undefined}
+        onClick={onNew}
+      >
         <Icon icon={Plus} size={20} />
       </MobileNavNew>
       {items.slice(2).map(renderLink)}
