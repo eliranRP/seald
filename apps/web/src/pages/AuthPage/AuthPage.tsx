@@ -12,6 +12,9 @@ import { useAuth } from '@/providers/AuthProvider';
 type Phase = 'form' | 'sending' | 'sent';
 
 const GOOGLE_ERROR = "Google sign-in didn't finish. Try again.";
+// The callback watchdog fires for a magic link as well as for Google, so it
+// names neither: what happened, then the way out.
+const TIMEOUT_ERROR = "Sign-in didn't finish. Continue with Google or email yourself a new link.";
 const SEND_ERROR = "We couldn't send the link. Try again.";
 const GUEST_ERROR = "We couldn't start a guest session. Please sign in to continue.";
 const RATE_LIMIT_ERROR = `Too many tries. Wait ${RATE_LIMIT_WAIT_S} s.`;
@@ -124,8 +127,11 @@ export function AuthPage() {
         text: 'That sign-in link expired. Send a new one.',
       };
     }
-    if ((queryError === 'oauth' || queryError === 'oauth_timeout') && !dismissedQueryError) {
+    if (queryError === 'oauth' && !dismissedQueryError) {
       return { tone: 'error', icon: AlertCircle, text: GOOGLE_ERROR };
+    }
+    if (queryError === 'oauth_timeout' && !dismissedQueryError) {
+      return { tone: 'error', icon: ClockAlert, text: TIMEOUT_ERROR };
     }
     if (prefill) {
       return { tone: 'info', icon: ShieldCheck, text: 'Save your signed document to your account' };

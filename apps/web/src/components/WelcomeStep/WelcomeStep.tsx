@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ArrowRight, CheckCircle2 } from 'lucide-react';
 import { AuthFormColumn, AuthTitle } from '../AuthSplitLayout';
@@ -8,15 +8,16 @@ import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 import { Icon } from '../Icon';
 import { TextField } from '../TextField';
 import type { WelcomeStepProps } from './WelcomeStep.types';
-import { Form, TermsBox, TermsRow, Verified } from './WelcomeStep.styles';
+import { Form, TermsBox, TermsError, TermsField, TermsRow, Verified } from './WelcomeStep.styles';
 
 const MIN_NAME = 2;
 
 /**
  * L3 widget: the one extra step for a new account after its first sign-in.
- * Collects the full name and the Terms / Privacy acceptance; "Create
- * account" stays disabled until the name has 2+ characters and the box is
- * ticked. Existing users never see it.
+ * Collects the full name and the Terms / Privacy acceptance. "Create
+ * account" stays live (forms § 5): a click with a short name or the box not
+ * ticked shows an inline message under each blocker and focuses the first; the
+ * messages clear live as each one is fixed. Existing users never see it.
  */
 export function WelcomeStep(props: WelcomeStepProps) {
   const { email, initialName = '', onSubmit } = props;
@@ -24,15 +25,26 @@ export function WelcomeStep(props: WelcomeStepProps) {
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [attempted, setAttempted] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const agreeRef = useRef<HTMLInputElement>(null);
   const agreeId = useId();
+  const agreeErrorId = `${agreeId}-err`;
   // The board's submit is 44px on desktop and 48px on a phone.
   const mobile = useIsMobileViewport();
 
-  const ready = name.trim().length >= MIN_NAME && agreed;
+  const nameOk = name.trim().length >= MIN_NAME;
+  const nameError = attempted && !nameOk ? 'Enter your full name' : undefined;
+  const termsError = attempted && !agreed ? 'Tick the box to accept the Terms' : undefined;
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
-    if (!ready || busy) return;
+    if (busy) return;
+    if (!nameOk || !agreed) {
+      setAttempted(true);
+      (nameOk ? agreeRef : nameRef).current?.focus();
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -52,33 +64,44 @@ export function WelcomeStep(props: WelcomeStepProps) {
       </Verified>
       <Form noValidate onSubmit={(e) => void handleSubmit(e)}>
         <TextField
-          aria-label="Full name"
-          placeholder="Hannah Wills"
+          ref={nameRef}
+          label="Full name"
           autoComplete="name"
           value={name}
           disabled={busy}
+          error={nameError}
           onChange={setName}
         />
-        <TermsRow>
-          <TermsBox
-            id={agreeId}
-            type="checkbox"
-            checked={agreed}
-            disabled={busy}
-            aria-label="I agree to the Terms and Privacy Policy"
-            onChange={(e) => setAgreed(e.target.checked)}
-          />
-          <span>
-            <label htmlFor={agreeId}>I agree to the </label>
-            <a href="/legal/terms" target="_blank" rel="noopener noreferrer">
-              Terms
-            </a>{' '}
-            and{' '}
-            <a href="/legal/privacy" target="_blank" rel="noopener noreferrer">
-              Privacy Policy
-            </a>
-          </span>
-        </TermsRow>
+        <TermsField>
+          <TermsRow>
+            <TermsBox
+              ref={agreeRef}
+              id={agreeId}
+              type="checkbox"
+              checked={agreed}
+              disabled={busy}
+              aria-label="I agree to the Terms and Privacy Policy"
+              aria-invalid={termsError ? true : undefined}
+              aria-describedby={termsError ? agreeErrorId : undefined}
+              onChange={(e) => setAgreed(e.target.checked)}
+            />
+            <span>
+              <label htmlFor={agreeId}>I agree to the </label>
+              <a href="/legal/terms" target="_blank" rel="noopener noreferrer">
+                Terms
+              </a>{' '}
+              and{' '}
+              <a href="/legal/privacy" target="_blank" rel="noopener noreferrer">
+                Privacy Policy
+              </a>
+            </span>
+          </TermsRow>
+          {termsError ? (
+            <TermsError id={agreeErrorId} role="alert">
+              {termsError}
+            </TermsError>
+          ) : null}
+        </TermsField>
         {error ? <Banner tone="error">{error}</Banner> : null}
         <Button
           type="submit"
@@ -86,7 +109,6 @@ export function WelcomeStep(props: WelcomeStepProps) {
           fullWidth
           iconRight={ArrowRight}
           loading={busy}
-          disabled={!ready}
         >
           Create account
         </Button>

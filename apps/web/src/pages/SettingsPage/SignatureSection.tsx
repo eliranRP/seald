@@ -83,6 +83,8 @@ export function SignatureSection() {
   const [saved, setSaved] = useState(false);
   const [failed, setFailed] = useState(false);
   const [uploadError, setUploadError] = useState(false);
+  // Set when Save is pressed with nothing to save; cleared by the next edit.
+  const [missing, setMissing] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const base = draftFrom(settings.data, user?.name ?? '');
@@ -91,8 +93,14 @@ export function SignatureSection() {
   const image = imageOf(draft);
   const typedName = draft.typed.trim();
   const incomplete = draft.type === 'typed' ? typedName === '' : image === null;
+  const missingCopy: Record<SettingsSignatureType, string> = {
+    typed: 'Type your name to create a typed signature.',
+    drawn: 'Draw your signature in the box first.',
+    uploaded: 'Choose an image of your signature first.',
+  };
 
   function change(next: Partial<Draft>): void {
+    setMissing(false);
     setEdit({ ...draft, ...next });
   }
 
@@ -108,6 +116,10 @@ export function SignatureSection() {
   }
 
   function save(): void {
+    if (incomplete) {
+      setMissing(true);
+      return;
+    }
     setFailed(false);
     update.mutate(
       {
@@ -145,9 +157,14 @@ export function SignatureSection() {
             <SigPad>
               <SigInk>{draft.typed || ' '}</SigInk>
             </SigPad>
+            <Eyebrow as="label" htmlFor="settings-typed-signature">
+              Typed signature
+            </Eyebrow>
             <NameInput
+              id="settings-typed-signature"
               type="text"
-              aria-label="Typed signature"
+              dir="auto"
+              autoComplete="name"
               value={draft.typed}
               maxLength={80}
               onChange={(e) => change({ typed: e.target.value })}
@@ -198,13 +215,16 @@ export function SignatureSection() {
         ) : null}
 
         <Stack $gap={8}>
-          <Eyebrow>Initials</Eyebrow>
+          <Eyebrow as="label" htmlFor="settings-initials">
+            Initials
+          </Eyebrow>
           <SigPad $small>
             <SigInk $small>{draft.initials || ' '}</SigInk>
           </SigPad>
           <NameInput
+            id="settings-initials"
             type="text"
-            aria-label="Initials"
+            dir="auto"
             value={draft.initials}
             maxLength={6}
             style={{ maxWidth: 200 }}
@@ -216,13 +236,29 @@ export function SignatureSection() {
 
       {dirty ? (
         <DirtyBar role="region" aria-label="Unsaved changes">
-          <Meta>{failed ? "Couldn't save. Try again." : 'Unsaved changes'}</Meta>
+          {missing || failed ? (
+            <FieldError role="alert">
+              {missing
+                ? missingCopy[draft.type]
+                : "Couldn't save your signature. Check your connection and try again."}
+            </FieldError>
+          ) : (
+            <Meta>Unsaved changes</Meta>
+          )}
           <Spacer />
-          <Button variant="secondary" onClick={() => setEdit(null)}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setEdit(null);
+              setMissing(false);
+              setFailed(false);
+            }}
+          >
             Cancel
           </Button>
-          <Button variant="primary" loading={update.isPending} disabled={incomplete} onClick={save}>
-            Save
+          {/* Stays pressable: a press with nothing to save says what is missing. */}
+          <Button variant="primary" loading={update.isPending} onClick={save}>
+            Save signature
           </Button>
         </DirtyBar>
       ) : null}

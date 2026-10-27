@@ -37,10 +37,37 @@ const Shell = styled.div`
   display: flex;
   flex-direction: column;
   height: 100vh;
+  /* Dynamic viewport on phones: with plain 100vh, iOS Safari's toolbar
+     covers the bottom of the shell, and with it the MobileNav. */
+  height: 100dvh;
   overflow: hidden;
   background: ${({ theme }) => theme.color.bg.app};
   font-family: ${({ theme }) => theme.font.sans};
   color: ${({ theme }) => theme.color.fg[1]};
+`;
+
+/**
+ * "Skip to content" link: the first Tab stop, hidden until focused, so
+ * keyboard users can jump past the top bar (UX rules:
+ * visual-system-and-accessibility § 8).
+ */
+const SkipLink = styled.a`
+  position: fixed;
+  top: ${({ theme }) => theme.space[2]};
+  left: ${({ theme }) => theme.space[2]};
+  z-index: ${({ theme }) => theme.z.toast};
+  padding: ${({ theme }) => `${theme.space[3]} ${theme.space[4]}`};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  background: ${({ theme }) => theme.color.ink[900]};
+  color: ${({ theme }) => theme.color.fgOnAccent};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  text-decoration: none;
+  translate: 0 calc(-100% - ${({ theme }) => theme.space[4]});
+  &:focus-visible,
+  &:focus {
+    translate: 0 0;
+  }
 `;
 
 const Content = styled.main`
@@ -54,6 +81,10 @@ const Content = styled.main`
      Signers step with picker open) scroll naturally; pages with their
      own inner scroll (DocumentPage canvas, signing flows) are unaffected. */
   overflow-y: auto;
+  /* Focus target of the skip link; it never shows a ring of its own. */
+  &:focus {
+    outline: none;
+  }
   /* Re-keyed per pathname (see AppShell) so every navigation replays the
      v2 screen-enter motion on the main column. */
   ${screenEnter}
@@ -96,6 +127,16 @@ const ShellFooter = styled.footer`
     outline: 2px solid ${({ theme }) => theme.color.indigo[500]};
     outline-offset: 2px;
     border-radius: 2px;
+  }
+
+  /* 12px text links are tiny targets; pad them to 44px on touch. */
+  @media (pointer: coarse) {
+    a,
+    button {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+    }
   }
 `;
 
@@ -209,6 +250,16 @@ export function AppShell() {
 
   return (
     <Shell>
+      <SkipLink
+        href="#main-content"
+        onClick={(event) => {
+          // Focus <main> directly: a bare hash would push a history entry.
+          event.preventDefault();
+          document.getElementById('main-content')?.focus();
+        }}
+      >
+        Skip to content
+      </SkipLink>
       <OfflineBar />
       {focused ? null : (
         <NavBar
@@ -226,7 +277,7 @@ export function AppShell() {
           rightSlot={mode === 'authed' && isApprovalsEnabled() ? <ApprovalsBell /> : undefined}
         />
       )}
-      <Content key={location.pathname}>
+      <Content key={location.pathname} id="main-content" tabIndex={-1}>
         {/* Keyed by pathname so navigating to a different route remounts
             the boundary and clears any prior caught error — otherwise a
             crashed page would persist its fallback after the user navigates

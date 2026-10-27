@@ -14,7 +14,7 @@ export const Stack = styled.div`
 
 export const Intro = styled.p`
   margin: 0;
-  font-size: ${({ theme }) => theme.font.size.body};
+  font-size: ${({ theme }) => theme.font.size.bodyMd};
   line-height: ${({ theme }) => theme.font.lineHeight.relaxed};
   color: ${({ theme }) => theme.color.fg[2]};
 `;
@@ -203,4 +203,32 @@ export const TitleRow = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: ${({ theme }) => theme.space[3]};
+`;
+
+/**
+ * A way back from a dead end ("Pick an automation first."), drawn like a
+ * secondary button so it reads as the next step, not a stray browser link.
+ */
+export const BackLink = styled(Link)`
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 ${({ theme }) => theme.space[4]};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.color.paper};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[1]};
+  text-decoration: none;
+
+  &:hover {
+    background: ${({ theme }) => theme.color.bg.subtle};
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.color.indigo[500]};
+    outline-offset: 2px;
+  }
 `;

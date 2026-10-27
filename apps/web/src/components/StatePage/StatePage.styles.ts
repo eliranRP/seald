@@ -6,7 +6,9 @@ export const Root = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: ${({ theme }) => theme.space[4]};
+  /* 8px inside the title + description group; the icon / code and the
+     actions add their own margin so the groups separate (hierarchy § 5). */
+  gap: ${({ theme }) => theme.space[2]};
   box-sizing: border-box;
   width: 100%;
   max-width: 440px;
@@ -30,6 +32,7 @@ export const Code = styled.div`
   line-height: 1;
   letter-spacing: -0.02em;
   color: ${({ theme }) => theme.color.ink[200]};
+  margin-bottom: ${({ theme }) => theme.space[2]};
 `;
 
 const TONES: Record<StatePageTone, ReturnType<typeof css>> = {
@@ -57,6 +60,7 @@ export const IconCircle = styled.div<{ $tone: StatePageTone }>`
   justify-content: center;
   width: 72px;
   height: 72px;
+  margin-bottom: ${({ theme }) => theme.space[2]};
   border-radius: 50%;
   ${({ $tone }) => TONES[$tone]}
 `;
@@ -72,10 +76,11 @@ export const Title = styled.h1`
   color: ${({ theme }) => theme.color.fg[1]};
 `;
 
-/** `.meta`. */
+/** The page's only explanation: 14px UI body, not a 13px caption. */
 export const Description = styled.p`
   margin: 0;
-  font-size: ${({ theme }) => theme.font.size.caption};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  line-height: ${({ theme }) => theme.font.lineHeight.normal};
   color: ${({ theme }) => theme.color.fg[3]};
 `;
 
@@ -85,4 +90,5 @@ export const Body = styled.div`
   align-items: center;
   gap: ${({ theme }) => theme.space[4]};
   width: 100%;
+  margin-top: ${({ theme }) => theme.space[4]};
 `;

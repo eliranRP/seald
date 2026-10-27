@@ -33,7 +33,7 @@ describe('DeclineSheet', () => {
     await user.click(terms);
     expect(terms).toHaveAttribute('aria-pressed', 'true');
     await user.type(getByRole('textbox', { name: 'Note to Eliran (optional)' }), 'Too broad');
-    await user.click(getByRole('button', { name: 'Decline' }));
+    await user.click(getByRole('button', { name: 'Decline to sign' }));
     expect(onConfirm).toHaveBeenCalledWith('Terms: Too broad');
   });
 
@@ -43,7 +43,7 @@ describe('DeclineSheet', () => {
     const { getByRole } = renderWithTheme(
       <DeclineSheet open onClose={() => {}} senderName={null} onConfirm={onConfirm} />,
     );
-    await user.click(getByRole('button', { name: 'Decline' }));
+    await user.click(getByRole('button', { name: 'Decline to sign' }));
     expect(onConfirm).toHaveBeenCalledWith(undefined);
   });
 
@@ -61,7 +61,7 @@ describe('DeclineSheet', () => {
     );
     expect(getByRole('alert')).toHaveTextContent('Could not decline.');
     expect(await axe(container)).toHaveNoViolations();
-    await user.click(getByRole('button', { name: 'Cancel' }));
+    await user.click(getByRole('button', { name: 'Keep signing' }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

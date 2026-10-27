@@ -51,6 +51,9 @@ function EditContactForm({ contact, contacts, onClose, onSave }: FormProps): JSX
   const [busy, setBusy] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [tried, setTried] = useState(false);
+  // Validate a field once the user leaves it (or tries to save), never mid-typing.
+  const [nameTouched, setNameTouched] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
 
   const trimmedName = name.trim();
   const trimmedEmail = email.trim().toLowerCase();
@@ -59,8 +62,10 @@ function EditContactForm({ contact, contacts, onClose, onSave }: FormProps): JSX
   let emailError: string | undefined;
   if (owner) emailError = `${owner.name} already uses this email`;
   else if (serverError) emailError = serverError;
-  else if (tried && !isEmailShape(trimmedEmail)) emailError = 'Enter a valid email address.';
-  const nameError = tried && trimmedName.length === 0 ? 'Enter a name.' : undefined;
+  else if ((tried || emailTouched) && !isEmailShape(trimmedEmail))
+    emailError = 'Enter a valid email address, like name@company.com.';
+  const nameError =
+    (tried || nameTouched) && trimmedName.length === 0 ? 'Enter a name.' : undefined;
 
   const save = (): void => {
     if (busy) return;
@@ -99,7 +104,7 @@ function EditContactForm({ contact, contacts, onClose, onSave }: FormProps): JSX
             Cancel
           </Button>
           <Button variant="primary" loading={busy} onClick={save}>
-            Save
+            Save contact
           </Button>
         </>
       }
@@ -109,6 +114,7 @@ function EditContactForm({ contact, contacts, onClose, onSave }: FormProps): JSX
         value={name}
         autoFocus
         onChange={setName}
+        onBlur={() => setNameTouched(true)}
         onKeyDown={onEnter}
         error={nameError}
       />
@@ -120,6 +126,7 @@ function EditContactForm({ contact, contacts, onClose, onSave }: FormProps): JSX
           setEmail(next);
           setServerError(null);
         }}
+        onBlur={() => setEmailTouched(true)}
         onKeyDown={onEnter}
         error={emailError}
       />

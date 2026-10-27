@@ -142,7 +142,7 @@ export function IntegrationsSection() {
             <AccountLine key={account.id}>
               <Avatar name={account.email} size={36} />
               <Grow>
-                <AccountEmail>{account.email}</AccountEmail>
+                <AccountEmail title={account.email}>{account.email}</AccountEmail>
                 <Meta as="div">
                   Connected {formatConnected(account.connectedAt)} ·{' '}
                   {formatUsed(account.lastUsedAt)}

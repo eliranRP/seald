@@ -161,6 +161,14 @@ describe('ApproveDetailPage', () => {
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
   });
 
+  it('a load failure offers Try again, which loads the card in place', async () => {
+    getMock.mockRejectedValueOnce(httpError(500)).mockResolvedValue({ data: fakeDetail() });
+    renderCard();
+    expect(await screen.findByRole('alert')).toHaveTextContent('could not load this request');
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('heading', { name: 'Send for signature' })).toBeInTheDocument();
+  });
+
   it('sends a signed-out visitor to sign-in with ?next= set to this card', async () => {
     renderCard(undefined, { auth: { user: null } });
     expect(await screen.findByTestId('where')).toHaveTextContent(

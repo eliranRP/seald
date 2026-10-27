@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { CollapsibleRail } from '@/components/CollapsibleRail';
 
 const MOBILE = '@media (max-width: 640px)';
 
@@ -30,6 +31,7 @@ export const Body = styled.div`
 export const Workspace = styled.div`
   display: flex;
   flex: 1 1 auto;
+  min-width: 0;
   min-height: 0;
   background: ${({ theme }) => theme.color.ink[100]};
   user-select: none;
@@ -41,6 +43,24 @@ export const Workspace = styled.div`
  * `CanvasScroll` below so the toolbar + thumb strip stay pinned at all zoom
  * levels instead of drifting off-screen with the zoomed canvas.
  */
+/**
+ * Template editor rails. On phones only one rail is open at a time and it
+ * takes the whole width (the canvas hides behind it) instead of two fixed
+ * 240px + 320px panels overflowing a 375px screen.
+ */
+export const TemplateRail = styled(CollapsibleRail)<{ readonly $fill?: boolean }>`
+  ${({ $fill }) =>
+    $fill === true
+      ? `
+    && {
+      flex: 1 1 auto;
+      width: auto;
+      min-width: 0;
+    }
+  `
+      : ''}
+`;
+
 export const Center = styled.div<{ readonly $hidden?: boolean }>`
   position: relative;
   flex: 1 1 auto;
@@ -104,6 +124,10 @@ export const RailSlot = styled.div`
   display: flex;
   padding: ${({ theme }) => `0 ${theme.space[3]} 0 0`};
   z-index: 14;
+  /* Phones: no room beside the paper; the page toolbar pages through. */
+  ${MOBILE} {
+    display: none;
+  }
 `;
 
 /**
@@ -131,6 +155,12 @@ export const CenterHeader = styled.div`
   align-items: center;
   width: 100%;
   padding: 0 ${({ theme }) => theme.space[6]};
+  /* Phones: just the page toolbar; Cancel in the header already goes back. */
+  ${MOBILE} {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    padding: 0 ${({ theme }) => theme.space[2]};
+  }
 `;
 
 export const CenterHeaderSide = styled.div`
@@ -138,6 +168,9 @@ export const CenterHeaderSide = styled.div`
   display: inline-flex;
   align-items: center;
   gap: ${({ theme }) => theme.space[2]};
+  ${MOBILE} {
+    display: none;
+  }
 
   /* Right-side slot uses justify-self: end so the (currently empty)
      reserved spot mirrors the back button on the opposite edge — keeps
@@ -153,22 +186,40 @@ export const RightRailInner = styled.div`
   height: 100%;
 `;
 
+/**
+ * Everything but Send scrolls here. Children never shrink: a flex child with
+ * `min-height: 0` (the placed-fields list) would otherwise collapse to 0px
+ * and spill over its neighbors instead of the rail scrolling.
+ */
 export const RightRailScroll = styled.div`
   flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
   padding: ${({ theme }) => theme.space[4]};
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.space[4]};
+  && > * {
+    flex-shrink: 0;
+  }
 `;
 
+/** Pinned under the scroll: only the Send status and button. */
 export const RightRailFooter = styled.div`
+  flex-shrink: 0;
   border-top: 1px solid ${({ theme }) => theme.color.border[1]};
 `;
 
-/** The toggle itself has no padding; the rail supplies the inset, including under the help text. */
-export const ReminderSlot = styled.div`
-  padding: ${({ theme }) => theme.space[3]} ${({ theme }) => theme.space[4]};
+/**
+ * Send options (expiry and reminders, date format, language, the reminder
+ * switch) as separate groups: 24px between groups, tighter inside each.
+ */
+export const SendOptions = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[6]};
+  padding-top: ${({ theme }) => theme.space[4]};
+  border-top: 1px solid ${({ theme }) => theme.color.border[1]};
 `;
 
 /**
@@ -180,6 +231,9 @@ export const ReminderSlot = styled.div`
 export const BannerSlot = styled.div`
   padding: ${({ theme }) => `${theme.space[3]} ${theme.space[8]} 0`};
   background: ${({ theme }) => theme.color.bg.app};
+  ${MOBILE} {
+    padding: ${({ theme }) => `${theme.space[3]} ${theme.space[3]} 0`};
+  }
 `;
 
 /* ---------- Template-mode right rail ---------- */
@@ -294,7 +348,9 @@ export const TemplatePrimaryButton = styled.button`
  */
 export const SaveAsTemplateRow = styled.div`
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: ${({ theme }) => theme.space[3]};
   padding: ${({ theme }) => theme.space[3]} ${({ theme }) => theme.space[4]};
   border-top: 1px solid ${({ theme }) => theme.color.border[1]};
 `;
@@ -306,7 +362,9 @@ export const SaveAsTemplateButton = styled.button`
   background: transparent;
   border: 1px dashed ${({ theme }) => theme.color.border[2]};
   border-radius: ${({ theme }) => theme.radius.md};
+  flex-shrink: 0;
   padding: 8px 14px;
+  white-space: nowrap;
   font-size: ${({ theme }) => theme.font.size.caption};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: ${({ theme }) => theme.color.fg[2]};
@@ -316,10 +374,22 @@ export const SaveAsTemplateButton = styled.button`
     border-color: ${({ theme }) => theme.color.indigo[500]};
     color: ${({ theme }) => theme.color.indigo[700]};
   }
-  &:disabled {
+  &[aria-disabled='true'] {
     opacity: 0.55;
     cursor: not-allowed;
   }
+  &[aria-disabled='true']:hover {
+    border-color: ${({ theme }) => theme.color.border[2]};
+    color: ${({ theme }) => theme.color.fg[2]};
+  }
+`;
+
+/** Why "Save as template" is unavailable (shown next to it, not hidden in a tooltip). */
+export const SaveAsTemplateHint = styled.span`
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.fg[3]};
 `;
 
 /**
@@ -460,6 +530,16 @@ export const PreparePanel = styled.aside<{ readonly $hidden?: boolean }>`
   background: ${({ theme }) => theme.color.paper};
   border-right: 1px solid ${({ theme }) => theme.color.border[1]};
   user-select: text;
+  /* Scroll, never squash: the placed-fields list (min-height: 0) would
+     otherwise collapse and draw over "Save as template". */
+  && > * {
+    flex-shrink: 0;
+  }
+  /* Inside the rail the row sits on the rail's own 20px inset. */
+  & > ${SaveAsTemplateRow} {
+    padding-left: 0;
+    padding-right: 0;
+  }
 
   ${MOBILE} {
     flex: 1 1 auto;

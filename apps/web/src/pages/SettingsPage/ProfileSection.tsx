@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { supabase } from '@/lib/supabase/supabaseClient';
 import { Avatar } from '@/components/Avatar';
@@ -10,6 +10,7 @@ import {
   BadgeMark,
   DirtyBar,
   EmailLine,
+  EmailValue,
   Eyebrow,
   FieldError,
   Meta,
@@ -42,6 +43,9 @@ export function ProfileSection() {
   const [edited, setEdited] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [failed, setFailed] = useState(false);
+  // The length check waits until the field is left or Save is pressed.
+  const [touched, setTouched] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const savedName = settings.data?.display_name ?? user?.name ?? '';
   const draft = edited ?? savedName;
@@ -49,15 +53,21 @@ export function ProfileSection() {
   const dirty = edited !== null && trimmed !== savedName;
   const tooShort = trimmed.length < NAME_MIN;
   const provider = providerOf(session?.user.app_metadata);
+  const showTooShort = dirty && touched && tooShort;
 
   function save(): void {
-    if (tooShort) return;
+    if (tooShort) {
+      setTouched(true);
+      inputRef.current?.focus();
+      return;
+    }
     setFailed(false);
     update.mutate(
       { display_name: trimmed },
       {
         onSuccess: () => {
           setEdited(null);
+          setTouched(false);
           setSaved(true);
           // Best effort: keep the auth profile name in step for the avatar menu.
           void supabase.auth.updateUser({ data: { name: trimmed } }).catch(() => undefined);
@@ -77,23 +87,29 @@ export function ProfileSection() {
               Full name
             </Eyebrow>
             <NameInput
+              ref={inputRef}
               id="settings-full-name"
               type="text"
+              dir="auto"
               value={draft}
               maxLength={NAME_MAX}
               autoComplete="name"
-              aria-invalid={dirty && tooShort ? true : undefined}
+              aria-invalid={showTooShort ? true : undefined}
+              aria-describedby={showTooShort ? 'settings-full-name-error' : undefined}
+              onBlur={() => setTouched(true)}
               onChange={(e) => setEdited(e.target.value)}
             />
-            {dirty && tooShort ? (
-              <FieldError role="alert">Use at least {NAME_MIN} characters.</FieldError>
+            {showTooShort ? (
+              <FieldError id="settings-full-name-error" role="alert">
+                Enter at least {NAME_MIN} characters for your name.
+              </FieldError>
             ) : null}
           </Stack>
         </ProfileHead>
         <Stack $gap={8}>
           <Eyebrow>Email</Eyebrow>
           <EmailLine>
-            <Meta>{user?.email ?? ''}</Meta>
+            <EmailValue title={user?.email ?? undefined}>{user?.email ?? ''}</EmailValue>
             {provider === 'google' ? (
               <Badge tone="neutral" dot={false}>
                 <BadgeMark>
@@ -108,13 +124,25 @@ export function ProfileSection() {
 
       {dirty ? (
         <DirtyBar role="region" aria-label="Unsaved changes">
-          <Meta>{failed ? "Couldn't save. Try again." : 'Unsaved changes'}</Meta>
+          <Meta role={failed ? 'alert' : undefined}>
+            {failed
+              ? "Couldn't save your name. Check your connection and try again."
+              : 'Unsaved changes'}
+          </Meta>
           <Spacer />
-          <Button variant="secondary" onClick={() => setEdited(null)}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setEdited(null);
+              setTouched(false);
+              setFailed(false);
+            }}
+          >
             Cancel
           </Button>
-          <Button variant="primary" loading={update.isPending} disabled={tooShort} onClick={save}>
-            Save
+          {/* Stays pressable: a press with a short name points at the field instead. */}
+          <Button variant="primary" loading={update.isPending} onClick={save}>
+            Save name
           </Button>
         </DirtyBar>
       ) : null}

@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { mobileInputText } from '@/styles/mixins';
 import { DialogSectionedCard } from '../DialogPrimitives';
 
 export const Card = styled(DialogSectionedCard)`
@@ -90,6 +91,7 @@ export const Select = styled.select`
   background: ${({ theme }) => theme.color.paper};
   font-family: inherit;
   font-size: ${({ theme }) => theme.font.size.bodySm};
+  ${mobileInputText}
   color: ${({ theme }) => theme.color.fg[1]};
   &:focus-visible {
     outline: none;

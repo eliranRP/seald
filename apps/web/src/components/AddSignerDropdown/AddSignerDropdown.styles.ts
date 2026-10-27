@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { mobileInputText } from '@/styles/mixins';
 
 export const Root = styled.div`
   position: absolute;
@@ -26,6 +27,7 @@ export const SearchInput = styled.input`
   border-radius: ${({ theme }) => theme.radius.sm};
   font-size: ${({ theme }) => theme.font.size.caption};
   font-family: ${({ theme }) => theme.font.sans};
+  ${mobileInputText}
   color: ${({ theme }) => theme.color.fg[1]};
   background: ${({ theme }) => theme.color.bg.surface};
   outline: none;

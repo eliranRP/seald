@@ -1,11 +1,12 @@
-import { Bell, CheckCircle2, Clock, Lock, PenLine, XCircle, type LucideIcon } from 'lucide-react';
+import { Bell, CheckCircle2, Clock, PenLine, XCircle, type LucideIcon } from 'lucide-react';
 import { DEFAULT_USER_SETTINGS, type ExpiryDefaultDays, type ReminderDefault } from 'shared';
 import { Icon } from '@/components/Icon';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { Switch } from '@/components/Switch';
 import {
   Eyebrow,
-  Lock as LockMark,
+  FieldError,
+  Meta,
   Row,
   RowIcon,
   RowLabel,
@@ -13,6 +14,7 @@ import {
   RowsCard,
   Section,
   Spacer,
+  Stack,
 } from './SettingsPage.styles';
 import { useUpdateUserSettings, useUserSettings } from './userSettingsApi';
 
@@ -24,9 +26,9 @@ const REMINDER_OPTIONS = [
 ] as const satisfies ReadonlyArray<{ value: ReminderDefault; label: string }>;
 
 const EXPIRY_OPTIONS = [
-  { value: '7', label: '7' },
-  { value: '14', label: '14' },
-  { value: '30', label: '30' },
+  { value: '7', label: '7 days' },
+  { value: '14', label: '14 days' },
+  { value: '30', label: '30 days' },
   { value: '60', label: '60 days' },
 ] as const;
 
@@ -44,6 +46,12 @@ const ROWS: ReadonlyArray<SwitchRow> = [
   // "Daily summary" stays hidden until the daily-summary email exists; the
   // `notify.daily_summary` preference is kept in the API for it.
 ];
+
+function autosaveCopy(pending: boolean, saved: boolean): string {
+  if (pending) return 'Saving…';
+  if (saved) return 'Saved';
+  return 'Changes save as you make them.';
+}
 
 /**
  * Notifications and the two defaults Prepare and Use template start from.
@@ -74,12 +82,12 @@ export function NotificationsSection() {
             <RowIcon>
               <Icon icon={row.icon} size={14} />
             </RowIcon>
-            <RowLabel>{row.label}</RowLabel>
-            {row.locked ? (
-              <LockMark title="Always on">
-                <Icon icon={Lock} size={12} label="Always on" />
-              </LockMark>
-            ) : null}
+            {/* "Always on" is printed, not a hover-only lock, so a phone user
+                learns why the switch does not move. */}
+            <Stack $gap={2}>
+              <RowLabel>{row.label}</RowLabel>
+              {row.locked ? <Meta>Always on</Meta> : null}
+            </Stack>
             <Spacer />
             <Switch
               label={row.label}
@@ -126,6 +134,15 @@ export function NotificationsSection() {
           </RowSegmented>
         </Row>
       </RowsCard>
+
+      {/* Autosave is honest: say when a change is saving, saved, or put back. */}
+      {update.isError ? (
+        <FieldError role="alert">
+          Couldn&apos;t save that change, so it was put back. Check your connection and try again.
+        </FieldError>
+      ) : (
+        <Meta role="status">{autosaveCopy(update.isPending, update.isSuccess)}</Meta>
+      )}
     </Section>
   );
 }

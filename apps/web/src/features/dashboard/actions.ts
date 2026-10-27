@@ -4,6 +4,7 @@ import {
   deleteEnvelope,
   getEnvelopeDownloadUrl,
   remindEnvelopeSigner,
+  setEnvelopeArchived,
 } from '@/features/envelopes';
 import { patchEnvelope } from '@/features/envelopes/envelopesApi';
 import { apiClient } from '@/lib/api/apiClient';
@@ -93,6 +94,24 @@ export async function removeEnvelopes(
       else if (env.status === 'awaiting_others' || env.status === 'sealing') {
         await cancelEnvelope(env.id);
       } else continue;
+      ok += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+  return { ok, failed };
+}
+
+/** Archive (or, with `archived` false, restore) each envelope. */
+export async function archiveEnvelopes(
+  envelopes: ReadonlyArray<EnvelopeListItem>,
+  archived: boolean,
+): Promise<ActionSummary> {
+  let ok = 0;
+  let failed = 0;
+  for (const env of envelopes) {
+    try {
+      await setEnvelopeArchived(env.id, archived);
       ok += 1;
     } catch {
       failed += 1;

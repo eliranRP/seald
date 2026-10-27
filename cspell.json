@@ -528,7 +528,11 @@
     "deutan",
     "protan",
     "describedby",
-    "pooler"
+    "pooler",
+    "unarchive",
+    "unarchiving",
+    "unarchived",
+    "tabbables"
   ],
   "ignoreRegExpList": [
     "Base64",

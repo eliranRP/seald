@@ -29,7 +29,6 @@ interface KindSpec {
   readonly tone: NeedTone;
   readonly icon: LucideIcon;
   readonly label: string;
-  readonly variant: 'primary' | 'secondary';
   readonly buttonIcon: LucideIcon;
 }
 
@@ -38,22 +37,19 @@ const KINDS: Readonly<Record<NeedsKind, KindSpec>> = {
     tone: 'red',
     icon: TriangleAlert,
     label: 'Fix email',
-    variant: 'primary',
     buttonIcon: Pencil,
   },
-  you: { tone: 'indigo', icon: PenLine, label: 'Sign', variant: 'primary', buttonIcon: PenLine },
+  you: { tone: 'indigo', icon: PenLine, label: 'Sign', buttonIcon: PenLine },
   others: {
     tone: 'amber',
     icon: Clock,
     label: 'Remind',
-    variant: 'secondary',
     buttonIcon: Bell,
   },
   declined: {
     tone: 'red',
     icon: XCircle,
     label: 'Revise',
-    variant: 'secondary',
     buttonIcon: Pencil,
   },
 };
@@ -135,7 +131,8 @@ function CardView({ card, mobile, onOpen, onAct, onFixEmail }: CardViewProps) {
       ) : (
         <Button
           size="sm"
-          variant={spec.variant}
+          // The page's one primary is "New document"; card actions stay secondary.
+          variant="secondary"
           iconLeft={spec.buttonIcon}
           iconOnly={mobile}
           aria-label={mobile ? spec.label : undefined}

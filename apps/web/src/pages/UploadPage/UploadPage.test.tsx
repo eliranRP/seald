@@ -212,25 +212,29 @@ describe('UploadPage', () => {
       expect(onFileSelected).toHaveBeenCalledWith(docx);
     });
 
-    it('rejects a PNG with "PDF or Word only", the file name, and Choose another', () => {
+    it('rejects a PNG saying what is wrong and how to fix it, with the file name and Choose another file', () => {
       const onFileSelected = vi.fn();
       renderPage({ allowWord: true, showSources: true, onFileSelected });
       const input = screen.getByLabelText('Choose file') as HTMLInputElement;
       fireEvent.change(input, { target: { files: [makeFile('Invoice.png', 'image/png', 10)] } });
       expect(onFileSelected).not.toHaveBeenCalled();
-      expect(screen.getByText('PDF or Word only')).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "This file type isn't supported. Upload a PDF or Word file.",
+      );
       expect(screen.getByText('Invoice.png')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /choose another/i })).toBeInTheDocument();
     });
 
-    it('rejects a big file with "Max 25 MB" and offers Drive', () => {
+    it('rejects a big file naming the limit and the fix, and offers Drive', () => {
       const onPickDrive = vi.fn();
       renderPage({ allowWord: true, showSources: true, onPickDrive });
       const input = screen.getByLabelText('Choose file') as HTMLInputElement;
       fireEvent.change(input, {
         target: { files: [makeFile('Scanned contract.pdf', 'application/pdf', 41 * 1024 * 1024)] },
       });
-      expect(screen.getByText('Max 25 MB')).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'This file is larger than 25 MB. Please choose a smaller file.',
+      );
       fireEvent.click(screen.getByRole('button', { name: /try google drive/i }));
       expect(onPickDrive).toHaveBeenCalledTimes(1);
     });
@@ -279,7 +283,7 @@ describe('UploadPage', () => {
         onRetryConversion,
         onCancelAnalysis: vi.fn(),
       });
-      expect(screen.getByText(/couldn.t convert/i)).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent(/couldn.t convert this file to pdf/i);
       fireEvent.click(screen.getByRole('button', { name: /retry/i }));
       expect(onRetryConversion).toHaveBeenCalledTimes(1);
       expect(screen.getByRole('button', { name: /upload another/i })).toBeInTheDocument();

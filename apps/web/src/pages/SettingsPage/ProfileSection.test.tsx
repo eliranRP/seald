@@ -33,7 +33,7 @@ describe('ProfileSection', () => {
     renderWithProviders(<ProfileSection />);
     expect(await screen.findByDisplayValue('Eliran Azulay')).toBeInTheDocument();
     expect(screen.getByText('jamie@seald.app')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save name' })).not.toBeInTheDocument();
   });
 
   it('shows the Google badge only for a Google sign-in', async () => {
@@ -51,7 +51,7 @@ describe('ProfileSection', () => {
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.getByDisplayValue('Eliran Azulay')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save name' })).not.toBeInTheDocument();
   });
 
   it('Save patches the name, updates the auth profile and shows Saved', async () => {
@@ -61,14 +61,14 @@ describe('ProfileSection', () => {
     const input = await screen.findByDisplayValue('Eliran Azulay');
     await user.clear(input);
     await user.type(input, '  Eliran A. ');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Save name' }));
 
     await waitFor(() =>
       expect(patchMock).toHaveBeenCalledWith('/me/settings', { display_name: 'Eliran A.' }),
     );
     expect(await screen.findByText('Saved')).toBeInTheDocument();
     expect(updateUser).toHaveBeenCalledWith({ data: { name: 'Eliran A.' } });
-    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save name' })).not.toBeInTheDocument();
   });
 
   it('blocks Save for a name under 2 characters', async () => {
@@ -77,8 +77,29 @@ describe('ProfileSection', () => {
     const input = await screen.findByDisplayValue('Eliran Azulay');
     await user.clear(input);
     await user.type(input, 'E');
+    // No error while typing; it shows once the field is left.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await user.tab();
     expect(screen.getByRole('alert')).toHaveTextContent('at least 2');
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    // Save stays pressable: pressing it sends nothing and puts focus back on the field.
+    await user.click(screen.getByRole('button', { name: 'Save name' }));
+    expect(patchMock).not.toHaveBeenCalled();
+    expect(input).toHaveFocus();
+    // Fixing the name clears the error live.
+    await user.type(input, 'l');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('pressing Save with a short name shows the error without a blur first', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ProfileSection />);
+    const input = await screen.findByDisplayValue('Eliran Azulay');
+    await user.clear(input);
+    await user.type(input, 'E');
+    await user.click(screen.getByRole('button', { name: 'Save name' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('at least 2');
+    expect(patchMock).not.toHaveBeenCalled();
   });
 
   it('says so when the save fails and keeps the bar', async () => {
@@ -88,8 +109,10 @@ describe('ProfileSection', () => {
     const input = await screen.findByDisplayValue('Eliran Azulay');
     await user.clear(input);
     await user.type(input, 'New Name');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
-    expect(await screen.findByText("Couldn't save. Try again.")).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save name' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Couldn't save your name. Check your connection and try again.",
+    );
     expect(updateUser).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import type { RotateSecretResponse } from 'shared';
 import { Button } from '@/components/Button';
 import { Disclosure } from '@/components/Disclosure';
@@ -17,6 +17,7 @@ import { RunHistory } from './RunHistory';
 import { TestEvent } from './TestEvent';
 import {
   Actions,
+  BackLink,
   Facts,
   Intro,
   Notice,
@@ -77,7 +78,7 @@ export function AutomationDetail({ id, listPath, integrationsPath }: AutomationD
     return (
       <Stack>
         <Intro role="status">We couldn&apos;t find that automation.</Intro>
-        <Link to={listPath}>Back to automations</Link>
+        <BackLink to={listPath}>Back to automations</BackLink>
       </Stack>
     );
   }

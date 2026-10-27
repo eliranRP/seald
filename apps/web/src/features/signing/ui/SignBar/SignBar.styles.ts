@@ -26,7 +26,10 @@ export const Bar = styled.div`
   }
 `;
 
-/** Desktop: bar, count, note in a row. Mobile: a 104px column, count on top. */
+/**
+ * Desktop: bar, count, note in a row. Mobile: "0 of 1 required" on one line
+ * (the count alone would not say what it counts), the bar under it.
+ */
 export const Progress = styled.div`
   display: flex;
   align-items: center;
@@ -36,10 +39,16 @@ export const Progress = styled.div`
 
   @media (max-width: 640px) {
     flex: none;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 6px;
-    width: 104px;
+    display: grid;
+    grid-template-columns: auto auto;
+    grid-template-areas:
+      'count note'
+      'track track';
+    justify-content: start;
+    align-items: baseline;
+    column-gap: ${({ theme }) => theme.space[1]};
+    row-gap: ${({ theme }) => theme.space[2]};
+    min-width: 104px;
   }
 `;
 
@@ -47,6 +56,7 @@ export const Track = styled.div`
   width: 200px;
 
   @media (max-width: 640px) {
+    grid-area: track;
     width: auto;
   }
 `;
@@ -59,13 +69,13 @@ export const Count = styled.span`
   white-space: nowrap;
 
   @media (max-width: 640px) {
-    order: -1;
+    grid-area: count;
     font-size: ${({ theme }) => theme.font.size.caption};
     line-height: ${({ theme }) => theme.font.lineHeight.normal};
   }
 `;
 
-export const Note = styled.span<{ readonly $required?: boolean }>`
+export const Note = styled.span`
   display: inline-flex;
   align-items: center;
   gap: ${({ theme }) => theme.space[1]};
@@ -74,8 +84,8 @@ export const Note = styled.span<{ readonly $required?: boolean }>`
   white-space: nowrap;
 
   @media (max-width: 640px) {
-    display: ${({ $required }) => ($required ? 'none' : 'inline-flex')};
-    font-size: ${({ theme }) => theme.font.size.xs};
+    grid-area: note;
+    font-size: ${({ theme }) => theme.font.size.caption};
   }
 `;
 

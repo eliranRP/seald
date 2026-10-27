@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { Send } from 'lucide-react';
 import type { BulkBatch } from 'shared';
 import { Button } from '@/components/Button';
@@ -35,6 +36,15 @@ export function PreviewStep({
   const ready = plannedCount(batch);
   const problems = batch.counts.invalid;
   const plural = (n: number): string => (n === 1 ? '' : 's');
+  const reasonId = useId();
+  // A disabled Send must say why (the column notice already explains itself).
+  let blockedReason: string | null = null;
+  if (!batch.confirmable && batch.column_errors.length === 0) {
+    blockedReason =
+      ready === 0
+        ? 'Nothing to send yet: every row has a problem. Fix them in your file and upload it again.'
+        : 'This preview can no longer be sent. Choose the file again to make a new one.';
+  }
 
   return (
     <Section aria-labelledby="bulk-preview-title">
@@ -84,12 +94,14 @@ export function PreviewStep({
           {error}
         </Notice>
       ) : null}
+      {blockedReason ? <Intro id={reasonId}>{blockedReason}</Intro> : null}
       <Actions>
         <Button
           variant="primary"
           iconLeft={Send}
           loading={confirming}
           disabled={!batch.confirmable}
+          aria-describedby={blockedReason ? reasonId : undefined}
           onClick={onConfirm}
         >
           {`Send ${String(ready)} envelope${plural(ready)}`}

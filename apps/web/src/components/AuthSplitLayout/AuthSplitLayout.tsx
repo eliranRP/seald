@@ -9,6 +9,7 @@ import {
   Benefits,
   Body,
   FootLinkButton,
+  FootList,
   FootRow,
   Logo,
   LogoMark,
@@ -51,21 +52,29 @@ export const AuthSplitLayout = forwardRef<HTMLDivElement, AuthSplitLayoutProps>(
         </Logo>
         <Body>{children}</Body>
         <FootRow aria-label="Legal and accessibility">
-          <a href="/legal/terms">Terms</a>
-          <span aria-hidden="true">·</span>
-          <a href="/legal/privacy">Privacy</a>
-          <span aria-hidden="true">·</span>
-          <a href="/legal/accessibility">Accessibility</a>
-          <span aria-hidden="true">·</span>
-          <a href="/legal/responsible-disclosure">Report a vulnerability</a>
-          <span aria-hidden="true">·</span>
-          <FootLinkButton
-            type="button"
-            data-testid="footer-manage-cookies"
-            onClick={handleManageCookies}
-          >
-            Manage cookie preferences
-          </FootLinkButton>
+          <FootList>
+            <li>
+              <a href="/legal/terms">Terms</a>
+            </li>
+            <li>
+              <a href="/legal/privacy">Privacy</a>
+            </li>
+            <li>
+              <a href="/legal/accessibility">Accessibility</a>
+            </li>
+            <li>
+              <a href="/legal/responsible-disclosure">Report a vulnerability</a>
+            </li>
+            <li>
+              <FootLinkButton
+                type="button"
+                data-testid="footer-manage-cookies"
+                onClick={handleManageCookies}
+              >
+                Manage cookie preferences
+              </FootLinkButton>
+            </li>
+          </FootList>
         </FootRow>
       </Main>
       {hidePanel ? null : (

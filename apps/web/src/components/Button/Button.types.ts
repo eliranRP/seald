@@ -21,5 +21,13 @@ export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
    * and name it with `aria-label`; children are optional.
    */
   readonly iconOnly?: boolean | undefined;
+  /**
+   * Why the button is disabled ("Add a signer first"). With `disabled`, the
+   * button stays focusable (`aria-disabled` instead of the native
+   * attribute), shows the reason as a tooltip and exposes it to screen
+   * readers via `aria-describedby`, so users learn what is missing instead
+   * of meeting a dead control. Ignored when `disabled` is false.
+   */
+  readonly disabledReason?: string | undefined;
   readonly children?: ReactNode;
 }

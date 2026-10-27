@@ -7,7 +7,7 @@ import { StatePage } from '@/components/StatePage';
 import { PublicHeader } from '@/layout/PublicHeader';
 
 export interface MaintenancePageProps {
-  /** Minutes the API said maintenance would last; "About 15 min" when unknown. */
+  /** Minutes the API said maintenance would last; "Back in about 15 min" when unknown. */
   readonly etaMinutes?: number | null | undefined;
 }
 
@@ -26,8 +26,13 @@ export function MaintenancePage({ etaMinutes }: MaintenancePageProps): JSX.Eleme
     <>
       <OfflineBar />
       <PublicHeader />
-      <StatePage icon={Settings} tone="neutral" title="Back soon">
-        <InfoChip icon={Clock}>{`About ${String(minutes)} min`}</InfoChip>
+      <StatePage
+        icon={Settings}
+        tone="neutral"
+        title="Back soon"
+        description="Seald is down for planned maintenance. Your documents are safe, and this page reloads by itself when we're back."
+      >
+        <InfoChip icon={Clock}>{`Back in about ${String(minutes)} min`}</InfoChip>
         {statusUrl ? (
           // `.btn.btn-ghost` link (44px), as on the System maintenance board.
           <ButtonRoot

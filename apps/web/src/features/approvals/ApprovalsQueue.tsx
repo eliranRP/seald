@@ -82,6 +82,14 @@ const Alert = styled.p`
   color: ${({ theme }) => theme.color.danger[700]};
 `;
 
+/** The load error and its one way out, kept together. */
+const ErrorBox = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: ${({ theme }) => theme.space[3]};
+`;
+
 const STATUS_TONE: Readonly<Record<ApprovalStatus, BadgeTone>> = {
   pending: 'amber',
   done: 'emerald',
@@ -211,7 +219,18 @@ export function ApprovalsQueue() {
       />
       {query.isPending ? <Meta role="status">Loading approvals…</Meta> : null}
       {query.isError ? (
-        <Alert role="alert">We could not load your approvals. Reload the page to try again.</Alert>
+        <ErrorBox>
+          <Alert role="alert">We could not load your approvals.</Alert>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              query.refetch().catch(() => undefined);
+            }}
+          >
+            Try again
+          </Button>
+        </ErrorBox>
       ) : null}
       {query.isSuccess && items.length === 0 ? (
         <EmptyState>

@@ -14,9 +14,12 @@ import { SegmentedControl } from '@/components/SegmentedControl';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { useContactsQuery } from '@/features/contacts/useContacts';
 import type { EnvelopeSigner } from '@/features/envelopes';
+import { EMAIL_HINT, emailOk } from './envelopeView';
 import {
   FieldBox,
+  FieldHint,
   MetaLine,
+  Muted,
   PickList,
   PickRow,
   PickWho,
@@ -38,10 +41,6 @@ export interface ReplaceSignerDialogProps {
 
 type Tab = 'contacts' | 'email';
 
-function emailOk(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
-}
-
 function ReplaceForm(props: ReplaceSignerDialogProps & { readonly signer: EnvelopeSigner }) {
   const { signer, takenEmails, busy, onCancel, onReplace } = props;
   const contactsQuery = useContactsQuery(true);
@@ -49,7 +48,10 @@ function ReplaceForm(props: ReplaceSignerDialogProps & { readonly signer: Envelo
   const [query, setQuery] = useState('');
   const [pickedId, setPickedId] = useState<string | null>(null);
   const [email, setEmail] = useState('');
+  // Errors show once the field is left or Replace is pressed, then update live.
+  const [touched, setTouched] = useState(false);
   const groupName = useId();
+  const hintId = useId();
   const first = signer.name.split(/\s+/)[0] ?? signer.name;
   const taken = useMemo(() => new Set(takenEmails.map((e) => e.toLowerCase())), [takenEmails]);
   const contacts = useMemo(() => {
@@ -60,9 +62,14 @@ function ReplaceForm(props: ReplaceSignerDialogProps & { readonly signer: Envelo
   }, [contactsQuery.data, query, taken]);
   const picked = contacts.find((c) => c.id === pickedId) ?? null;
   const typedTaken = taken.has(email.trim().toLowerCase());
-  const canSubmit = !busy && (tab === 'contacts' ? picked !== null : emailOk(email) && !typedTaken);
+  let emailError: string | null = null;
+  if (typedTaken) emailError = 'Already on this envelope. Enter a different email.';
+  else if (touched && !emailOk(email)) emailError = EMAIL_HINT;
+  const pickError = touched && tab === 'contacts' && picked === null;
 
   const submit = (): void => {
+    setTouched(true);
+    if (busy || typedTaken) return;
     if (tab === 'contacts' && picked) {
       onReplace({ name: picked.name, email: picked.email });
     } else if (tab === 'email' && emailOk(email)) {
@@ -84,7 +91,10 @@ function ReplaceForm(props: ReplaceSignerDialogProps & { readonly signer: Envelo
             aria-label="Signer source"
             block
             value={tab}
-            onChange={setTab}
+            onChange={(next) => {
+              setTab(next);
+              setTouched(false);
+            }}
             options={[
               { value: 'contacts', label: 'From contacts', icon: Users },
               { value: 'email', label: 'New email', icon: UserPlus },
@@ -114,17 +124,22 @@ function ReplaceForm(props: ReplaceSignerDialogProps & { readonly signer: Envelo
                     />
                     <Avatar name={c.name} size={32} />
                     <PickWho>
-                      <SignerName>{c.name}</SignerName>
-                      <SignerEmail>{c.email}</SignerEmail>
+                      <SignerName dir="auto" title={c.name}>
+                        {c.name}
+                      </SignerName>
+                      <SignerEmail title={c.email}>{c.email}</SignerEmail>
                     </PickWho>
                   </PickRow>
                 ))}
                 {contacts.length === 0 ? (
-                  <SignerEmail>
-                    {contactsQuery.isPending ? 'Loading contacts' : 'No contacts found'}
-                  </SignerEmail>
+                  <Muted>
+                    {contactsQuery.isPending
+                      ? 'Loading contacts…'
+                      : 'No contacts found. Try another search, or use New email.'}
+                  </Muted>
                 ) : null}
               </PickList>
+              {pickError ? <FieldHint role="alert">Pick a contact to send to.</FieldHint> : null}
             </Stack>
           ) : (
             <Stack>
@@ -132,14 +147,21 @@ function ReplaceForm(props: ReplaceSignerDialogProps & { readonly signer: Envelo
                 <Mail size={16} aria-hidden />
                 <input
                   type="email"
+                  inputMode="email"
+                  autoComplete="email"
                   placeholder="name@company.com"
                   aria-label="New signer email"
+                  aria-invalid={emailError !== null || undefined}
+                  aria-describedby={emailError !== null ? hintId : undefined}
                   value={email}
+                  onBlur={() => setTouched(email.trim() !== '' || touched)}
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </FieldBox>
-              {typedTaken ? (
-                <SignerEmail role="alert">Already on this envelope.</SignerEmail>
+              {emailError !== null ? (
+                <FieldHint id={hintId} role="alert">
+                  {emailError}
+                </FieldHint>
               ) : null}
             </Stack>
           )}
@@ -153,7 +175,8 @@ function ReplaceForm(props: ReplaceSignerDialogProps & { readonly signer: Envelo
         <Button variant="ghost" onClick={onCancel}>
           Cancel
         </Button>
-        <Button iconLeft={Send} disabled={!canSubmit} loading={busy} onClick={submit}>
+        {/* Stays pressable: a press with something missing says what to fix. */}
+        <Button iconLeft={Send} loading={busy} onClick={submit}>
           Replace &amp; send
         </Button>
       </DialogFoot>

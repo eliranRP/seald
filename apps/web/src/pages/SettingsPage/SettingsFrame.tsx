@@ -19,6 +19,21 @@ const DesktopPage = styled.div`
   max-width: 1280px;
   margin: 0 auto;
   padding: ${({ theme }) => `${theme.space[8]} ${theme.space[12]} ${theme.space[16]}`};
+
+  /* A phone that lands on the desktop route keeps the app's 16px gutter. */
+  @media (max-width: 640px) {
+    padding: ${({ theme }) => `${theme.space[6]} ${theme.space[4]} ${theme.space[20]}`};
+  }
+`;
+
+/**
+ * The breadcrumb and title share the 720px column the panels use, so the
+ * page has one left edge.
+ */
+const DesktopHead = styled.div`
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
 `;
 
 const MobilePage = styled.div`
@@ -127,14 +142,16 @@ export function SettingsFrame({ variant, title, backTo, children }: SettingsFram
   }
   return (
     <DesktopPage>
-      {backTo ? (
-        <Crumbs aria-label="Breadcrumb">
-          <CrumbLink to={backTo}>Settings</CrumbLink>
-          <span aria-hidden>/</span>
-          <span aria-current="page">{title}</span>
-        </Crumbs>
-      ) : null}
-      <DesktopTitle>{title}</DesktopTitle>
+      <DesktopHead>
+        {backTo ? (
+          <Crumbs aria-label="Breadcrumb">
+            <CrumbLink to={backTo}>Settings</CrumbLink>
+            <span aria-hidden>/</span>
+            <span aria-current="page">{title}</span>
+          </Crumbs>
+        ) : null}
+        <DesktopTitle>{title}</DesktopTitle>
+      </DesktopHead>
       {children}
     </DesktopPage>
   );

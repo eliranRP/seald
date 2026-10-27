@@ -28,6 +28,8 @@ export interface ToastProps extends HTMLAttributes<HTMLDivElement> {
   /**
    * Auto-dismiss after this many ms (calls `onClose`). The timer pauses
    * while the pointer or focus is inside the toast. Omit for a sticky toast.
+   * Clamped to at least 4000ms; ignored for `tone="error"` with `onClose`
+   * (errors stay until dismissed).
    */
   readonly duration?: number | undefined;
   /**

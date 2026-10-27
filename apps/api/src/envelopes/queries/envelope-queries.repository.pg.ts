@@ -32,6 +32,7 @@ interface EnvelopeRow {
   short_code: string;
   sent_at: Date | null;
   updated_at: Date;
+  archived_at: Date | null;
   cursor_updated_at: string;
 }
 
@@ -107,6 +108,9 @@ export class EnvelopeQueriesPgRepository extends EnvelopeQueriesRepository {
          where d.envelope_id = e.id
            and lower(d.source_drive_file_name) like ${pattern} escape '\\')`);
     }
+    if (f.archived !== undefined) {
+      where.push(f.archived ? sql`e.archived_at is not null` : sql`e.archived_at is null`);
+    }
     if (f.signer !== undefined) {
       const pattern = likeContains(f.signer);
       where.push(sql`exists (
@@ -122,7 +126,7 @@ export class EnvelopeQueriesPgRepository extends EnvelopeQueriesRepository {
     }
 
     const result = await sql<EnvelopeRow>`
-      select e.id, e.title, e.status, e.short_code, e.sent_at, e.updated_at,
+      select e.id, e.title, e.status, e.short_code, e.sent_at, e.updated_at, e.archived_at,
              ${CURSOR_TS} as cursor_updated_at
         from public.envelopes e
        where ${sql.join(where, sql` and `)}
@@ -159,26 +163,23 @@ export class EnvelopeQueriesPgRepository extends EnvelopeQueriesRepository {
         short_code: r.short_code,
         sent_at: toIso(r.sent_at),
         updated_at: new Date(r.updated_at).toISOString(),
+        archived_at: toIso(r.archived_at),
         cursor_updated_at: r.cursor_updated_at,
-        signers: (signersBy.get(r.id) ?? []).map(
-          (s): SearchSignerRow => ({
-            id: s.id,
-            name: s.name,
-            email: s.email,
-            viewed_at: toIso(s.viewed_at),
-            signed_at: toIso(s.signed_at),
-            declined_at: toIso(s.declined_at),
-            access_token_sent_at: toIso(s.access_token_sent_at),
-          }),
-        ),
-        documents: (docsBy.get(r.id) ?? []).map(
-          (d): SearchDocumentRow => ({
-            id: d.id,
-            ord: d.ord,
-            title: d.title,
-            original_pages: d.original_pages,
-          }),
-        ),
+        signers: (signersBy.get(r.id) ?? []).map((s): SearchSignerRow => ({
+          id: s.id,
+          name: s.name,
+          email: s.email,
+          viewed_at: toIso(s.viewed_at),
+          signed_at: toIso(s.signed_at),
+          declined_at: toIso(s.declined_at),
+          access_token_sent_at: toIso(s.access_token_sent_at),
+        })),
+        documents: (docsBy.get(r.id) ?? []).map((d): SearchDocumentRow => ({
+          id: d.id,
+          ord: d.ord,
+          title: d.title,
+          original_pages: d.original_pages,
+        })),
       })),
     };
   }

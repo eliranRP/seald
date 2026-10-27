@@ -400,20 +400,26 @@ describe('VerifyPage compare a copy', () => {
 });
 
 describe('VerifyPage entry', () => {
-  it('renders the entry page with no code and enables Verify at 13 characters', async () => {
+  it('renders the entry page and explains a short code instead of disabling Verify', async () => {
     renderAt('/verify');
 
     expect(screen.getByRole('heading', { name: 'Verify a document' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /copy link/i })).not.toBeInTheDocument();
     const verify = screen.getByRole('button', { name: 'Verify' });
-    expect(verify).toBeDisabled();
-
-    const field = screen.getByLabelText('Verification code');
-    fireEvent.change(field, { target: { value: CODE.slice(0, 12) } });
-    expect(verify).toBeDisabled();
-    fireEvent.change(field, { target: { value: CODE } });
     expect(verify).toBeEnabled();
+
+    // The label stays visible above the field, not only as a placeholder.
+    const field = screen.getByLabelText('Verification code');
+    expect(screen.getByText('Verification code', { selector: 'label' })).toBeVisible();
+    fireEvent.change(field, { target: { value: CODE.slice(0, 12) } });
+    fireEvent.click(verify);
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter all 13 characters (12 so far).');
+    expect(field).toHaveAttribute('aria-invalid', 'true');
+    expect(field).toHaveFocus();
     expect(get).not.toHaveBeenCalled();
+
+    fireEvent.change(field, { target: { value: CODE } });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('keeps the code case and strips spaces from a pasted code', () => {
@@ -458,20 +464,21 @@ describe('VerifyPage entry', () => {
 
     await userEvent.upload(screen.getByLabelText('Choose the sealed PDF'), pdf());
 
-    expect(await screen.findByText('No sealed document matches this file.')).toBeInTheDocument();
+    expect(await screen.findByText(/No sealed document matches this file\./)).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Use the signed PDF you downloaded');
   });
 
   it('lands on the entry page with the field marked when the code is unknown', async () => {
     get.mockRejectedValueOnce(Object.assign(new Error('envelope_not_found'), { status: 404 }));
     renderAt('/verify/missingcode01');
 
-    expect(await screen.findByText('No document with this code')).toBeInTheDocument();
+    expect(await screen.findByText(/No document with this code/)).toBeInTheDocument();
     const field = screen.getByLabelText('Verification code');
     expect(field).toHaveValue('missingcode01');
     expect(field).toHaveAttribute('aria-invalid', 'true');
 
     fireEvent.change(field, { target: { value: 'missingcode0' } });
-    expect(screen.queryByText('No document with this code')).not.toBeInTheDocument();
+    expect(screen.queryByText(/No document with this code/)).not.toBeInTheDocument();
   });
 });
 
@@ -482,12 +489,20 @@ describe('VerifyPage loading and errors', () => {
     expect(screen.getByLabelText(/loading verification/i)).toHaveAttribute('aria-busy', 'true');
   });
 
-  it('shows a generic error with the message for non-404 failures', async () => {
-    get.mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 500 }));
+  it('shows human copy, never the raw server text, for non-404 failures', async () => {
+    get.mockRejectedValueOnce(Object.assign(new Error('Internal Server Error'), { status: 500 }));
     renderAt(`/verify/${CODE}`);
     expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong');
-    expect(screen.getByText('boom')).toBeInTheDocument();
+    expect(screen.queryByText('Internal Server Error')).not.toBeInTheDocument();
+    expect(screen.getByText(/Try again in a moment/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
+  });
+
+  it('reads a request that never reached the server as a connection problem', async () => {
+    get.mockRejectedValueOnce(new Error('Network Error'));
+    renderAt(`/verify/${CODE}`);
+    expect(await screen.findByText(/Check your connection and try again/)).toBeInTheDocument();
+    expect(screen.queryByText('Network Error')).not.toBeInTheDocument();
   });
 
   it('shows the default error copy when the failure has no message', async () => {

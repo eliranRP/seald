@@ -32,12 +32,18 @@ describe('ConsentBar', () => {
     expect(getByText(/I can open and download a PDF on this device\./)).toBeInTheDocument();
   });
 
-  it('enables Start only once the box is checked', async () => {
+  it('starts only once the box is checked, and says why before that', async () => {
     const onStart = vi.fn();
     const user = userEvent.setup();
     const { getByRole, rerender } = renderWithTheme(<ConsentBar {...base} onStart={onStart} />);
-    expect(getByRole('button', { name: 'Start' })).toBeDisabled();
+    const start = getByRole('button', { name: 'Start' });
+    expect(start).toBeEnabled();
+    await user.click(start);
+    expect(onStart).not.toHaveBeenCalled();
+    expect(getByRole('alert')).toHaveTextContent('Tick the box to agree, then press Start.');
+    expect(getByRole('checkbox')).toHaveFocus();
     rerender(<ConsentBar {...base} agreed onStart={onStart} />);
+    expect(() => getByRole('alert')).toThrow();
     await user.click(getByRole('button', { name: 'Start' }));
     expect(onStart).toHaveBeenCalledTimes(1);
   });

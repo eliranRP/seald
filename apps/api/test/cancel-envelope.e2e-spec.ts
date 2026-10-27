@@ -246,4 +246,29 @@ describe('Envelopes — sender cancel (e2e)', () => {
     expect(res.status).toBe(409);
     expect(res.body).toEqual({ error: 'envelope_terminal' });
   });
+
+  it('archives and unarchives a sent envelope for its owner only', async () => {
+    const { envId } = await buildSentEnvelope();
+    const stranger = await request(app.getHttpServer())
+      .post(`/envelopes/${envId}/archive`)
+      .set(auth(tokenB));
+    expect(stranger.status).toBe(404);
+
+    const archived = await request(app.getHttpServer())
+      .post(`/envelopes/${envId}/archive`)
+      .set(auth(tokenA))
+      .expect(200);
+    expect(archived.body.archived_at).toEqual(expect.any(String));
+    expect(archived.body.status).toBe('awaiting_others');
+
+    const list = await request(app.getHttpServer()).get('/envelopes').set(auth(tokenA)).expect(200);
+    const item = list.body.items.find((e: { id: string }) => e.id === envId);
+    expect(item.archived_at).toEqual(expect.any(String));
+
+    const restored = await request(app.getHttpServer())
+      .post(`/envelopes/${envId}/unarchive`)
+      .set(auth(tokenA))
+      .expect(200);
+    expect(restored.body.archived_at).toBeNull();
+  });
 });
