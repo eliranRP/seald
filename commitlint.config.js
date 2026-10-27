@@ -1,6 +1,10 @@
 export default {
   extends: ['@commitlint/config-conventional'],
-  // Dependabot commit bodies carry long release-note/URL lines that trip
-  // body-max-line-length. Its subject is still linted via the PR title check.
-  ignores: [(message) => /^Signed-off-by: dependabot\[bot\]/m.test(message)],
+  // Dependabot-only exemptions (everyone else keeps the full ruleset):
+  // - its commit bodies carry long release-note/URL lines (body-max-line-length)
+  // - it always capitalizes "Bump" after our prefix (subject-case)
+  ignores: [
+    (message) => /^Signed-off-by: dependabot\[bot\]/m.test(message),
+    (message) => /^(chore\(deps(-dev)?\)|ci): Bump /.test(message),
+  ],
 };
