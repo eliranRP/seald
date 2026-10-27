@@ -124,6 +124,8 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
     excluded: 'owner_in_app_only',
     note: 'Undo toast in the app, 10 s after Send; an agent has cancel and update instead.',
   },
+  'POST /envelopes/:id/archive': { planned: 'step-16' },
+  'POST /envelopes/:id/unarchive': { planned: 'step-16' },
   'POST /envelopes/:id/signers/:signer_id/remind': { tool: 'envelopes_remind' },
   'POST /envelopes/:id/signers': { tool: 'envelopes_add_signer' },
   'DELETE /envelopes/:id/signers/:signer_id': { tool: 'envelopes_remove_signer' },
