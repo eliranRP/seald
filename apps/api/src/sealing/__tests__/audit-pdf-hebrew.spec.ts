@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Envelope, EnvelopeEvent } from '../../envelopes/envelope.entity';
@@ -13,6 +14,8 @@ import { buildAuditPdf } from '../audit-pdf';
  */
 const HEBREW_TITLE = 'לחצנים למיכלי הדחה';
 
+const nodeRequire = createRequire(__filename);
+
 describe('audit PDF with Hebrew text', () => {
   let fonts = '';
   let text = '';
@@ -23,11 +26,9 @@ describe('audit PDF with Hebrew text', () => {
       ...input,
       envelope: { ...input.envelope, title: `signed_(1) ${HEBREW_TITLE}` },
     });
-    const dir = mkdtempSync(join(tmpdir(), 'audit-pdf-hebrew-'));
-    const path = join(dir, 'audit.pdf');
-    writeFileSync(path, pdf);
-    fonts = spawnSync('pdffonts', [path], { encoding: 'utf8' }).stdout;
-    text = spawnSync('pdftotext', ['-raw', path, '-'], { encoding: 'utf8' }).stdout;
+    // The subset font's name sits in the uncompressed font dictionaries.
+    fonts = pdf.toString('latin1');
+    text = extractPdfText(pdf);
   }, 120_000);
 
   it('embeds the Hebrew fallback font', () => {
@@ -154,4 +155,38 @@ function makeInput(opts: {
     timestampApplied: opts.timestampApplied ?? opts.cmsSealApplied ?? opts.sealed,
     publicUrl: 'https://seald.example',
   };
+}
+
+/** Page text through pdfjs (a dependency already), so CI needs no poppler. */
+function extractPdfText(pdf: Buffer): string {
+  const dir = mkdtempSync(join(tmpdir(), 'audit-pdf-hebrew-'));
+  const pdfPath = join(dir, 'audit.pdf');
+  const scriptPath = join(dir, 'extract.mjs');
+  const pdfjs = nodeRequire.resolve('pdfjs-dist/legacy/build/pdf.mjs');
+  writeFileSync(pdfPath, pdf);
+  writeFileSync(
+    scriptPath,
+    `import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+const pdfjs = await import(pathToFileURL(${JSON.stringify(pdfjs)}).href);
+const data = new Uint8Array(readFileSync(process.argv[2]));
+const doc = await pdfjs.getDocument({ data, verbosity: 0 }).promise;
+const parts = [];
+for (let i = 1; i <= doc.numPages; i++) {
+  const page = await doc.getPage(i);
+  const content = await page.getTextContent();
+  parts.push(content.items.map((item) => (item.str ? item.str : '')).join(' '));
+}
+process.stdout.write(parts.join('\\n'));
+`,
+  );
+  const result = spawnSync(process.execPath, [scriptPath, pdfPath], {
+    encoding: 'utf8',
+    maxBuffer: 8 * 1024 * 1024,
+  });
+  rmSync(dir, { recursive: true, force: true });
+  if (result.status !== 0) {
+    throw new Error(result.stderr || `pdfjs exited ${result.status ?? 'null'}`);
+  }
+  return result.stdout;
 }
