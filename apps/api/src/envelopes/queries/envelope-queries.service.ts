@@ -29,6 +29,7 @@ export interface SearchInput {
   readonly date_to?: string;
   readonly template_id?: string;
   readonly drive_file_name?: string;
+  readonly archived?: boolean;
   readonly limit?: number;
   readonly cursor?: string;
 }
@@ -108,6 +109,7 @@ export class EnvelopeQueriesService {
       ...(input.drive_file_name !== undefined
         ? { drive_file_name: input.drive_file_name.toLowerCase() }
         : {}),
+      ...(input.archived !== undefined ? { archived: input.archived } : {}),
       limit,
       cursor,
     });

@@ -36,6 +36,8 @@ export interface SearchFilters {
   readonly template_id?: string;
   /** Lower-cased substring of a document's Drive source name (migration 0029). */
   readonly drive_file_name?: string;
+  /** true: only archived; false: only not archived; absent: both (migration 0051). */
+  readonly archived?: boolean;
   readonly limit: number;
   readonly cursor: UpdatedAtCursor | null;
 }
@@ -66,6 +68,8 @@ export interface SearchEnvelopeRow {
   readonly sent_at: string | null;
   /** ISO, millisecond precision, for the wire. */
   readonly updated_at: string;
+  /** When the owner archived it; null when not archived (migration 0051). */
+  readonly archived_at: string | null;
   /** Exact `updated_at` (microseconds) for the keyset. */
   readonly cursor_updated_at: string;
   readonly signers: ReadonlyArray<SearchSignerRow>;
