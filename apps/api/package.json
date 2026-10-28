@@ -21,7 +21,7 @@
     "flush:emails": "ts-node --transpile-only scripts/flush-emails.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.32.1",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@nestjs/common": "^11.1.21",
     "@nestjs/core": "^11.1.21",
     "@nestjs/platform-express": "^11.1.21",
