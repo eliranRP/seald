@@ -491,8 +491,11 @@ jobs:
             pnpm exec commitlint --from "$RANGE_FROM" --to "$RANGE_TO" --verbose
           fi
 
+      # Dependabot titles keep a capitalized "Bump" whatever commit-message
+      # prefix is configured, which fails subject-case. Its commits are
+      # already skipped by the ignores in commitlint.config.js.
       - name: Lint pull request title
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]'
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: printf '%s\n' "$PR_TITLE" | pnpm exec commitlint --verbose
