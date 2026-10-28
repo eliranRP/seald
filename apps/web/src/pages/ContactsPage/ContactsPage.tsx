@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
-import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { EmptyState } from '@/components/EmptyState';
 import { Icon } from '@/components/Icon';
 import { MenuButton } from '@/components/Menu';
@@ -35,7 +34,6 @@ import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 import { relativeAgo } from '@/lib/relativeAgo';
 import { useAppState } from '@/providers/AppStateProvider';
 import {
-  AvatarStack,
   BulkBar,
   BulkClear,
   BulkLabel,
@@ -70,7 +68,8 @@ import {
 
 type SortKey = 'last_sent' | 'name';
 const SORT_STORAGE_KEY = 'seald.contacts.sort';
-const UNDO_MS = 6000;
+/** Delete acts at once; Undo stays on screen this long (rule: undo over confirm). */
+const UNDO_MS = 10000;
 const SKELETON_ROWS = 6;
 
 function readSort(): SortKey {
@@ -111,6 +110,8 @@ function matches(c: AddSignerContact, q: string): boolean {
   return c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q);
 }
 
+const EMPTY_HINT = 'People you send documents to are saved here, so you can pick them in one tap.';
+
 function docsLabel(n: number): string {
   return `${String(n)} ${n === 1 ? 'document' : 'documents'}`;
 }
@@ -125,7 +126,8 @@ interface ToastState {
  * Contacts (`/signers`): the people you send documents to. Search, sort by
  * last sent or name, a table whose documents count links to the Documents
  * list filtered to that person, a hover Send action, add-many by pasted list,
- * and select-many delete with Undo. On phones the table becomes a list and
+ * and select-many delete. Delete acts at once and offers Undo (contacts are
+ * soft-deleted), so there is no "Are you sure?" step. On phones the table becomes a list and
  * the row actions open a bottom sheet.
  */
 export function ContactsPage(): JSX.Element {
@@ -143,7 +145,6 @@ export function ContactsPage(): JSX.Element {
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<AddSignerContact | null>(null);
-  const [deleting, setDeleting] = useState<ReadonlyArray<AddSignerContact> | null>(null);
   const [sheetFor, setSheetFor] = useState<AddSignerContact | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
 
@@ -175,13 +176,13 @@ export function ContactsPage(): JSX.Element {
     setSelectMode(false);
   }, []);
   useEffect(() => {
-    if (selectedCount === 0 || deleting !== null) return undefined;
+    if (selectedCount === 0) return undefined;
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') clearSelection();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedCount, deleting, clearSelection]);
+  }, [selectedCount, clearSelection]);
 
   const toggleSort = (): void => {
     const next: SortKey = sort === 'last_sent' ? 'name' : 'last_sent';
@@ -218,26 +219,38 @@ export function ContactsPage(): JSX.Element {
     });
   };
 
-  const confirmDelete = (): void => {
-    if (!deleting) return;
-    const ids = deleting.map((c) => c.id);
-    const count = ids.length;
-    setDeleting(null);
+  /** Put soft-deleted contacts back; a failed restore offers Undo again. */
+  const undoDelete = (ids: ReadonlyArray<string>): void => {
+    setToast(null);
+    restoreContacts.mutate(ids, {
+      onError: () =>
+        setToast({
+          tone: 'error',
+          title: 'Could not restore. Check your connection and try again.',
+          undo: () => undoDelete(ids),
+        }),
+    });
+  };
+
+  /** Delete now; the toast's Undo restores the soft-deleted rows. */
+  const deleteNow = (targets: ReadonlyArray<AddSignerContact>): void => {
+    if (targets.length === 0) return;
+    const ids = targets.map((c) => c.id);
+    const only = targets.length === 1 ? targets[0] : undefined;
     setSheetFor(null);
     clearSelection();
     deleteContacts.mutate(ids, {
       onSuccess: () =>
         setToast({
           tone: 'success',
-          title: count === 1 ? 'Contact deleted' : `${String(count)} contacts deleted`,
-          undo: () => {
-            setToast(null);
-            restoreContacts.mutate(ids, {
-              onError: () => setToast({ tone: 'error', title: 'Could not undo the delete' }),
-            });
-          },
+          title: only ? `${only.name} deleted` : `${String(ids.length)} contacts deleted`,
+          undo: () => undoDelete(ids),
         }),
-      onError: () => setToast({ tone: 'error', title: 'Could not delete. Try again.' }),
+      onError: () =>
+        setToast({
+          tone: 'error',
+          title: 'Could not delete. Check your connection and try again.',
+        }),
     });
   };
 
@@ -249,7 +262,7 @@ export function ContactsPage(): JSX.Element {
       label: 'Delete',
       icon: Trash2,
       danger: true,
-      onSelect: () => setDeleting([c]),
+      onSelect: () => deleteNow([c]),
     },
   ];
 
@@ -260,11 +273,6 @@ export function ContactsPage(): JSX.Element {
 
   /** Dialogs and the toast, shared by the desktop and phone layouts. */
   const renderOverlays = (): JSX.Element => {
-    const count = deleting?.length ?? 0;
-    const title =
-      count === 1
-        ? `Delete ${deleting?.[0]?.name ?? 'contact'}?`
-        : `Delete ${String(count)} contacts?`;
     return (
       <>
         <AddContactsDialog
@@ -280,27 +288,12 @@ export function ContactsPage(): JSX.Element {
           onClose={() => setEditing(null)}
           onSave={(patch) => updateContact(editing?.id ?? '', patch)}
         />
-        <ConfirmDeleteDialog
-          open={deleting !== null}
-          title={title}
-          note="They stay on sent documents."
-          deleteLabel={count > 1 ? `Delete ${String(count)}` : 'Delete'}
-          onCancel={() => setDeleting(null)}
-          onConfirm={confirmDelete}
-        >
-          {count > 1 ? (
-            <AvatarStack aria-hidden>
-              {(deleting ?? []).slice(0, 5).map((c) => (
-                <Avatar key={c.id} name={c.name} size={32} />
-              ))}
-            </AvatarStack>
-          ) : null}
-        </ConfirmDeleteDialog>
         {toast ? (
           <Toast
             title={toast.title}
             tone={toast.tone}
-            duration={UNDO_MS}
+            /* Errors stay until dismissed; successes (with Undo) time out. */
+            {...(toast.tone === 'error' ? {} : { duration: UNDO_MS })}
             onClose={() => setToast(null)}
             {...(toast.undo ? { action: { label: 'Undo', onClick: toast.undo } } : {})}
           />
@@ -414,7 +407,9 @@ export function ContactsPage(): JSX.Element {
                   Add contacts
                 </Button>
               }
-            />
+            >
+              {EMPTY_HINT}
+            </EmptyState>
           ) : null}
 
           {noMatches ? (
@@ -441,8 +436,8 @@ export function ContactsPage(): JSX.Element {
                 >
                   <Avatar name={c.name} size={36} />
                   <MobileName>
-                    <Ellipsis>{c.name}</Ellipsis>
-                    <Quiet>{c.email}</Quiet>
+                    <Ellipsis title={c.name}>{c.name}</Ellipsis>
+                    <Quiet title={c.email}>{c.email}</Quiet>
                   </MobileName>
                   <MobileMeta>
                     {(c.docsCount ?? 0) === 1 ? '1 doc' : `${String(c.docsCount ?? 0)} docs`}
@@ -456,15 +451,14 @@ export function ContactsPage(): JSX.Element {
         {selectMode ? (
           <BulkBar role="toolbar" aria-label="Selection actions">
             <BulkLabel>{`${String(selectedCount)} selected`}</BulkLabel>
-            <BulkClear variant="ghost" size="sm" onClick={clearSelection}>
+            <BulkClear variant="ghost" onClick={clearSelection}>
               Clear
             </BulkClear>
             <Button
               variant="danger"
-              size="sm"
               iconLeft={Trash2}
               disabled={selectedCount === 0}
-              onClick={() => setDeleting(contacts.filter((c) => selected.has(c.id)))}
+              onClick={() => deleteNow(contacts.filter((c) => selected.has(c.id)))}
             >
               {selectedCount > 0 ? `Delete ${String(selectedCount)}` : 'Delete'}
             </Button>
@@ -477,8 +471,8 @@ export function ContactsPage(): JSX.Element {
               <SheetHead>
                 <Avatar name={sheetFor.name} size={36} />
                 <MobileName>
-                  <Ellipsis>{sheetFor.name}</Ellipsis>
-                  <Quiet>{sheetFor.email}</Quiet>
+                  <Ellipsis title={sheetFor.name}>{sheetFor.name}</Ellipsis>
+                  <Quiet title={sheetFor.email}>{sheetFor.email}</Quiet>
                 </MobileName>
               </SheetHead>
               <SheetActions>
@@ -510,8 +504,7 @@ export function ContactsPage(): JSX.Element {
                   fullWidth
                   iconLeft={Trash2}
                   onClick={() => {
-                    setDeleting([sheetFor]);
-                    setSheetFor(null);
+                    deleteNow([sheetFor]);
                   }}
                 >
                   Delete
@@ -540,7 +533,7 @@ export function ContactsPage(): JSX.Element {
           <Spacer />
           {isEmpty || loading ? null : (
             <Button variant="primary" iconLeft={UserPlus} onClick={() => setAdding(true)}>
-              Add
+              Add contacts
             </Button>
           )}
         </HeaderRow>
@@ -575,7 +568,9 @@ export function ContactsPage(): JSX.Element {
                   Add contacts
                 </Button>
               }
-            />
+            >
+              {EMPTY_HINT}
+            </EmptyState>
           </Table>
         ) : (
           <Table role="table" aria-label="Contacts" aria-busy={loading || undefined}>
@@ -624,9 +619,11 @@ export function ContactsPage(): JSX.Element {
                       </Cell>
                       <NameCell role="cell">
                         <Avatar name={c.name} size={32} />
-                        <Ellipsis>{c.name}</Ellipsis>
+                        <Ellipsis title={c.name}>{c.name}</Ellipsis>
                       </NameCell>
-                      <Quiet role="cell">{c.email}</Quiet>
+                      <Quiet role="cell" title={c.email}>
+                        {c.email}
+                      </Quiet>
                       <Cell role="cell">
                         {docs > 0 ? (
                           <DocsLink
@@ -697,7 +694,7 @@ export function ContactsPage(): JSX.Element {
             variant="danger"
             size="sm"
             iconLeft={Trash2}
-            onClick={() => setDeleting(contacts.filter((c) => selected.has(c.id)))}
+            onClick={() => deleteNow(contacts.filter((c) => selected.has(c.id)))}
           >
             {`Delete ${String(selectedCount)}`}
           </Button>

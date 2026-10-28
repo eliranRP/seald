@@ -211,6 +211,7 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
       completed_at: e.completed_at,
       expires_at: e.expires_at,
       tags: [...(e.tags ?? [])],
+      archived_at: e.archived_at ?? null,
       created_at: e.created_at,
       updated_at: e.updated_at,
       signers: e.signers.map((s) => ({
@@ -289,6 +290,14 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
       ...(reminders_enabled !== undefined ? { reminders_enabled } : {}),
       updated_at: new Date().toISOString(),
     };
+    this.envelopes.set(envelope_id, next);
+    return next;
+  }
+
+  async setArchived(owner_id: string, envelope_id: string, archived: boolean) {
+    const e = await this.findByIdForOwner(owner_id, envelope_id);
+    if (!e) return null;
+    const next: Envelope = { ...e, archived_at: archived ? new Date().toISOString() : null };
     this.envelopes.set(envelope_id, next);
     return next;
   }
@@ -943,6 +952,25 @@ describe('EnvelopesService', () => {
       const e = await svc.createDraft(OWNER, { title: 'X' });
       repo.envelopes.set(e.id, { ...repo.envelopes.get(e.id)!, status: 'completed' });
       await expect(svc.deleteDraft(OWNER, e.id)).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
+  describe('setArchived', () => {
+    it('archives a sealed envelope without touching its status, then unarchives it', async () => {
+      const e = await svc.createDraft(OWNER, { title: 'X' });
+      repo.envelopes.set(e.id, { ...repo.envelopes.get(e.id)!, status: 'completed' });
+      const archived = await svc.setArchived(OWNER, e.id, true);
+      expect(archived.archived_at).toEqual(expect.any(String));
+      expect(archived.status).toBe('completed');
+      const restored = await svc.setArchived(OWNER, e.id, false);
+      expect(restored.archived_at).toBeNull();
+    });
+
+    it('404 for an envelope the caller does not own', async () => {
+      const e = await svc.createDraft(OWNER, { title: 'X' });
+      await expect(svc.setArchived('someone-else', e.id, true)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 

@@ -141,6 +141,16 @@ describe('AuthCallbackPage — provider redirects', () => {
       expect(screen.getByRole('heading', { name: /sign-in landing/i })).toBeInTheDocument();
     });
 
+    it('still bounces to /signin when loading settles with no session', async () => {
+      renderAt('/auth/callback', { auth: { user: null, loading: false } });
+      expect(screen.getByRole('status')).toBeInTheDocument();
+      await act(async () => {
+        vi.advanceTimersByTime(10_000);
+        await Promise.resolve();
+      });
+      expect(screen.getByRole('heading', { name: /sign-in landing/i })).toBeInTheDocument();
+    });
+
     it('clears the watchdog when loading settles before the 10s mark', async () => {
       await act(async () => {
         renderAt('/auth/callback', {

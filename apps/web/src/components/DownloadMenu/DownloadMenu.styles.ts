@@ -210,8 +210,8 @@ export const ItemDesc = styled.div`
 
 export const ItemMeta = styled.div`
   font-family: ${({ theme }) => theme.font.mono};
-  font-size: 10px;
-  color: ${({ theme }) => theme.color.fg[4]};
+  font-size: ${({ theme }) => theme.font.size.badge};
+  color: ${({ theme }) => theme.color.fg[3]};
   margin-top: 2px;
 `;
 
@@ -225,8 +225,8 @@ export const Footer = styled.div`
   padding: 8px 8px 2px;
   border-top: 1px solid ${({ theme }) => theme.color.border[1]};
   margin-top: 4px;
-  font-size: 10px;
-  color: ${({ theme }) => theme.color.fg[4]};
+  font-size: ${({ theme }) => theme.font.size.badge};
+  color: ${({ theme }) => theme.color.fg[3]};
   line-height: 1.5;
   display: flex;
   gap: ${({ theme }) => theme.space[2]};

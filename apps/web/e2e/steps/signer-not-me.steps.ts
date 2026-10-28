@@ -14,7 +14,7 @@ When(
     await signingFillPage.openNotMe();
     await page
       .getByRole('dialog')
-      .getByRole('button', { name: /^cancel$/i })
+      .getByRole('button', { name: /^keep signing$/i })
       .click();
   },
 );

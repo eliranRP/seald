@@ -8,7 +8,7 @@ import { isAwaitingYou } from '@/features/dashboardFilters';
  * page fetches the full list once, so counts and tabs stay exact.
  */
 
-export type DashboardTab = 'all' | 'you' | 'others' | 'sealed' | 'drafts' | 'stopped';
+export type DashboardTab = 'all' | 'you' | 'others' | 'sealed' | 'drafts' | 'stopped' | 'archived';
 export const DASHBOARD_TABS: ReadonlyArray<DashboardTab> = [
   'all',
   'you',
@@ -16,18 +16,22 @@ export const DASHBOARD_TABS: ReadonlyArray<DashboardTab> = [
   'sealed',
   'drafts',
   'stopped',
+  'archived',
 ];
+
+/** Archived documents live only under the Archived tab (migration 0051). */
+export function isArchived(env: EnvelopeListItem): boolean {
+  return env.archived_at != null;
+}
+
+/** A draft can be deleted; a request still out for signature can be cancelled. */
+export function canRemove(env: EnvelopeListItem): boolean {
+  return env.status === 'draft' || env.status === 'awaiting_others' || env.status === 'sealing';
+}
 
 /** Row status: the design's `badge-*` family plus `sealing`. */
 export type RowStatus =
-  | 'you'
-  | 'others'
-  | 'sealing'
-  | 'sealed'
-  | 'declined'
-  | 'expired'
-  | 'canceled'
-  | 'draft';
+  'you' | 'others' | 'sealing' | 'sealed' | 'declined' | 'expired' | 'canceled' | 'draft';
 
 export type DatePreset = 'any' | 'today' | '7d' | '30d' | 'month';
 export const DATE_PRESETS: ReadonlyArray<DatePreset> = ['any', 'today', '7d', '30d', 'month'];
@@ -75,7 +79,7 @@ export function rowStatus(env: EnvelopeListItem, viewerEmail: string | null): Ro
   }
 }
 
-export function tabOf(status: RowStatus): Exclude<DashboardTab, 'all'> {
+export function tabOf(status: RowStatus): Exclude<DashboardTab, 'all' | 'archived'> {
   switch (status) {
     case 'you':
       return 'you';
@@ -98,14 +102,22 @@ export function tabCounts(
   viewerEmail: string | null,
 ): Record<DashboardTab, number> {
   const counts: Record<DashboardTab, number> = {
-    all: items.length,
+    all: 0,
     you: 0,
     others: 0,
     sealed: 0,
     drafts: 0,
     stopped: 0,
+    archived: 0,
   };
-  for (const env of items) counts[tabOf(rowStatus(env, viewerEmail))] += 1;
+  for (const env of items) {
+    if (isArchived(env)) {
+      counts.archived += 1;
+    } else {
+      counts.all += 1;
+      counts[tabOf(rowStatus(env, viewerEmail))] += 1;
+    }
+  }
   return counts;
 }
 
@@ -167,11 +179,12 @@ export function applyView(
   viewerEmail: string | null,
   now: Date,
 ): EnvelopeListItem[] {
-  const kept = items.filter(
-    (env) =>
-      (filters.tab === 'all' || tabOf(rowStatus(env, viewerEmail)) === filters.tab) &&
-      matchesFilters(env, filters, now),
-  );
+  const inTab = (env: EnvelopeListItem): boolean => {
+    if (filters.tab === 'archived') return isArchived(env);
+    if (isArchived(env)) return false;
+    return filters.tab === 'all' || tabOf(rowStatus(env, viewerEmail)) === filters.tab;
+  };
+  const kept = items.filter((env) => inTab(env) && matchesFilters(env, filters, now));
   return sortItems(kept, filters.sort);
 }
 
@@ -330,6 +343,9 @@ export function needsYouCards(
   const byRecent = sortItems(items, 'recent');
   for (const env of byRecent) {
     const status = rowStatus(env, viewerEmail);
+    // Archiving files a document away, so it stops asking for attention,
+    // except when the viewer still has to sign it.
+    if (isArchived(env) && status !== 'you') continue;
     const age = formatAge(env.sent_at ?? env.updated_at, now);
     const badSigner =
       env.status === 'awaiting_others' ? env.signers.find(isBouncedSigner) : undefined;

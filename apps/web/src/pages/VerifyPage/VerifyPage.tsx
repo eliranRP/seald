@@ -283,7 +283,17 @@ export function VerifyPage() {
         </Shell>
       );
     }
-    return <VerifyError message={query.error?.message} onRetry={onRetry} />;
+    // Never the raw transport text ("Network Error", a status phrase): say
+    // what happened and what to do (feedback § 6).
+    const offline = status === undefined;
+    return (
+      <VerifyError
+        message={
+          offline ? "We couldn't reach Seald. Check your connection and try again." : undefined
+        }
+        onRetry={onRetry}
+      />
+    );
   }
   return <VerifyContent data={query.data} matchedFile={matchedFile} />;
 }

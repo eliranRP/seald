@@ -17,7 +17,7 @@ test.describe('system states', () => {
     await page.goto('/this-page-does-not-exist');
     await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
     await expect(page).toHaveURL(/\/this-page-does-not-exist$/);
-    await expect(page.getByRole('button', { name: 'Go to seald.co' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Go to the Seald home page' })).toBeVisible();
   });
 
   test('the offline bar appears and then reports back online', async ({ page, context }) => {

@@ -220,7 +220,7 @@ describe('App routing', { timeout: 20000 }, () => {
 
   it('Contacts page opens the add dialog', async () => {
     renderApp(['/signers']);
-    fireEvent.click(await screen.findByRole('button', { name: /^add$/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^add contacts$/i }));
     expect(screen.getByRole('dialog', { name: /^add contacts$/i })).toBeInTheDocument();
   });
 

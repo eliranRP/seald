@@ -178,6 +178,9 @@ export const GhostButton = styled.button`
     outline: none;
     box-shadow: ${({ theme }) => theme.shadow.focus};
   }
+  @media (pointer: coarse) {
+    height: 44px;
+  }
 `;
 
 export const PrimaryButton = styled.button`
@@ -198,5 +201,8 @@ export const PrimaryButton = styled.button`
   &:focus-visible {
     outline: none;
     box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+  @media (pointer: coarse) {
+    height: 44px;
   }
 `;

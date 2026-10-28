@@ -3,14 +3,14 @@ import { fadeIn, pop } from '@/styles/motion';
 
 /**
  * Shared modal backdrop — full-screen overlay with centered flex layout.
- * Used by all dialog/modal components across the app. The default background
- * opacity (0.48) matches the design system; override via styled() if a
- * specific dialog needs a lighter/darker scrim.
+ * Used by all dialog/modal components across the app. The scrim is the
+ * shared `theme.color.overlay` token; override via styled() if a specific
+ * dialog needs a lighter/darker scrim.
  */
 export const DialogBackdrop = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(11, 18, 32, 0.48);
+  background: ${({ theme }) => theme.color.overlay};
   z-index: ${({ theme }) => theme.z.modal};
   display: flex;
   align-items: center;

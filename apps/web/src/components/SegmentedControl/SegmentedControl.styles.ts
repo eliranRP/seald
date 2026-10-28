@@ -63,4 +63,7 @@ export const Segment = styled.button<{
     opacity: 0.5;
     cursor: not-allowed;
   }
+  @media (pointer: coarse) {
+    min-height: 44px;
+  }
 `;

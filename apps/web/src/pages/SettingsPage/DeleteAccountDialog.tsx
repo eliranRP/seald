@@ -10,7 +10,13 @@ import {
   DialogFooter,
   DialogTitle,
 } from '@/components/DialogPrimitives';
-import { DialogCenter, DialogIconBubble, NameInput } from './SettingsPage.styles';
+import {
+  ConfirmLabel,
+  DialogCenter,
+  DialogIconBubble,
+  FieldError,
+  NameInput,
+} from './SettingsPage.styles';
 
 /** The exact word the user types to arm the delete button. */
 export const DELETE_CONFIRM_WORD = 'DELETE';
@@ -19,6 +25,8 @@ export interface DeleteAccountDialogProps {
   readonly open: boolean;
   /** True while the delete request runs. */
   readonly deleting: boolean;
+  /** Why the last delete failed, shown in the dialog. */
+  readonly error?: string | null | undefined;
   readonly onCancel: () => void;
   readonly onConfirm: () => void;
 }
@@ -31,12 +39,14 @@ export interface DeleteAccountDialogProps {
 export function DeleteAccountDialog({
   open,
   deleting,
+  error = null,
   onCancel,
   onConfirm,
 }: DeleteAccountDialogProps) {
   const [text, setText] = useState('');
   const titleId = useId();
   const descId = useId();
+  const fieldId = useId();
   useEscapeKey(onCancel, open && !deleting);
 
   if (!open) return null;
@@ -57,17 +67,23 @@ export function DeleteAccountDialog({
           </DialogIconBubble>
           <DialogTitle id={titleId}>Delete your account?</DialogTitle>
           <DialogDescription id={descId}>
-            Documents and contacts are erased. Sealed PDFs you sent stay with signers.
+            Documents and contacts are erased. Sealed PDFs you sent stay with signers. This
+            can&apos;t be undone.
           </DialogDescription>
+          {/* A visible label says what arms the button; the placeholder is only an example. */}
+          <ConfirmLabel htmlFor={fieldId}>Type {DELETE_CONFIRM_WORD} to confirm</ConfirmLabel>
           <NameInput
+            id={fieldId}
             type="text"
-            placeholder={`Type ${DELETE_CONFIRM_WORD}`}
-            aria-label={`Type ${DELETE_CONFIRM_WORD} to confirm`}
+            placeholder={DELETE_CONFIRM_WORD}
             autoComplete="off"
+            autoCapitalize="characters"
+            spellCheck={false}
             autoFocus
             value={text}
             onChange={(e) => setText(e.target.value)}
           />
+          {error ? <FieldError role="alert">{error}</FieldError> : null}
         </DialogCenter>
         <DialogFooter>
           <Button variant="secondary" onClick={onCancel} disabled={deleting}>

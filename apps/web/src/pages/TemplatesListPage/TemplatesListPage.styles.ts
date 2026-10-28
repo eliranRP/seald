@@ -110,6 +110,10 @@ export const SearchField = styled.label`
   ${MOBILE} {
     max-width: none;
     height: 44px;
+    /* 16px or iOS zooms the page on focus. */
+    input {
+      font-size: ${({ theme }) => theme.font.size.body};
+    }
   }
 `;
 

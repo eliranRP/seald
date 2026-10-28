@@ -244,6 +244,16 @@ export const Eyebrow = styled.span<{
   text-transform: uppercase;
   color: ${({ theme, $danger }) => ($danger ? theme.color.danger[700] : theme.color.fg[3])};
 
+  /* Desktop: the label hugs its own card (8px) and a later group starts
+     32px under the card above, so the groups read apart. */
+  @media (min-width: 641px) {
+    margin-bottom: -${({ theme }) => theme.space[2]};
+
+    &:not(:first-child) {
+      margin-top: ${({ theme }) => theme.space[4]};
+    }
+  }
+
   ${MOBILE} {
     display: ${({ $mobileHidden }) => ($mobileHidden ? 'none' : 'inline')};
     margin: ${({ $mobileGroup }) => ($mobileGroup ? '8px 0 -8px' : '0')};
@@ -296,6 +306,8 @@ export const RowSegmented = styled.div`
     & [role='radio'] {
       flex: 1;
       height: 44px;
+      padding: 0 ${({ theme }) => theme.space[2]};
+      white-space: nowrap;
     }
   }
 `;
@@ -375,6 +387,16 @@ export const EmailLine = styled.div`
   }
 `;
 
+/** The read-only address: one line, ellipsis for a long one (full text in `title`). */
+export const EmailValue = styled.span`
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.fg[3]};
+`;
+
 /** Badge content with a leading mark, 6px apart (canvas `.badge` gap). */
 export const BadgeMark = styled.span`
   display: inline-flex;
@@ -401,8 +423,14 @@ export const NameInput = styled.input`
   font-size: ${({ theme }) => theme.font.size.bodySm};
   color: ${({ theme }) => theme.color.fg[1]};
 
+  /* 16px on a phone so iOS does not zoom into the field on focus. */
   ${MOBILE} {
     height: 44px;
+    font-size: ${({ theme }) => theme.font.size.body};
+  }
+
+  &[aria-invalid='true'] {
+    border-color: ${({ theme }) => theme.color.danger[500]};
   }
 
   &:focus-visible {
@@ -592,21 +620,32 @@ export const AccountLine = styled.div`
   padding-top: ${({ theme }) => theme.space[4]};
   border-top: 1px solid ${({ theme }) => theme.color.ink[150]};
 
+  /* Phones: avatar + text on the first line, the action on its own line
+     under the text, so a long address never shares its width with it. */
   ${MOBILE} {
+    flex-wrap: wrap;
     min-height: 56px;
     padding-top: ${({ theme }) => theme.space[3]};
 
+    & > :nth-child(2) {
+      flex-basis: calc(100% - 36px - ${({ theme }) => theme.space[3]});
+    }
+
     & > button {
       min-height: 44px;
+      margin-left: calc(36px + ${({ theme }) => theme.space[3]});
     }
   }
 `;
 
+/** One line; a long address ends in an ellipsis (full text in `title`), never breaks mid-word. */
 export const AccountEmail = styled.div`
   font-size: ${({ theme }) => theme.font.size.bodySm};
   font-weight: ${({ theme }) => theme.font.weight.medium};
   color: ${({ theme }) => theme.color.fg[1]};
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `;
 
 export const Grow = styled.div`
@@ -663,11 +702,6 @@ export const IndexLink = styled(NavLink)`
   }
 `;
 
-export const Lock = styled.span`
-  display: inline-flex;
-  color: ${({ theme }) => theme.color.fg[3]};
-`;
-
 export const DialogIconBubble = styled.span<{ $bad?: boolean }>`
   display: inline-flex;
   align-items: center;
@@ -677,6 +711,15 @@ export const DialogIconBubble = styled.span<{ $bad?: boolean }>`
   border-radius: 50%;
   background: ${({ theme, $bad }) => ($bad ? theme.color.danger[50] : theme.color.bg.subtle)};
   color: ${({ theme, $bad }) => ($bad ? theme.color.danger[700] : theme.color.fg[2])};
+`;
+
+/** Visible label over the type-to-confirm field. */
+export const ConfirmLabel = styled.label`
+  align-self: stretch;
+  text-align: left;
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  color: ${({ theme }) => theme.color.fg[2]};
 `;
 
 export const DialogCenter = styled.div`

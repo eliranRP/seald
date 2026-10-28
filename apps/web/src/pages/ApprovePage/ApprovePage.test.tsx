@@ -244,9 +244,14 @@ describe('ApprovePage', () => {
   });
 
   it('shows a retry message when the preview cannot be reached', async () => {
-    postMock.mockRejectedValue(new Error('approval_request_failed'));
+    postMock.mockRejectedValueOnce(new Error('approval_request_failed'));
     renderPage();
     expect(await screen.findByRole('alert')).toHaveTextContent('could not load');
+    // The error has an exit: Try again previews once more, in place.
+    postMock.mockReturnValue(ok(fakeCard()));
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('button', { name: 'Deny' })).toBeInTheDocument();
+    expect(postMock).toHaveBeenCalledTimes(2);
   });
 
   it('pre-focuses Deny for ?intent=deny without acting', async () => {

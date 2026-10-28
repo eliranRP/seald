@@ -1,4 +1,5 @@
 import styled, { css, type DefaultTheme } from 'styled-components';
+import { touchTarget } from '@/styles/mixins';
 import { pressable } from '@/styles/motion';
 import type { ButtonSize, ButtonVariant } from './Button.types';
 
@@ -26,6 +27,8 @@ const sizeStyles = (t: DefaultTheme, size: ButtonSize, iconOnly: boolean) => {
   return css`
     height: ${HEIGHT[size]};
     ${base}
+    /* sm is 32px: keep it drawn compact but give touch screens a 44px hit area. */
+    ${size === 'sm' && touchTarget}
     ${
       iconOnly &&
       css`
@@ -60,11 +63,11 @@ const variantStyles = (t: DefaultTheme, v: ButtonVariant) =>
       background: ${t.color.indigo[600]};
       color: ${t.color.fgOnAccent};
       border-color: ${t.color.indigo[600]};
-      &:hover:not(:disabled) {
+      &:hover:not(:disabled):not([aria-disabled='true']) {
         background: ${t.color.indigo[700]};
         border-color: ${t.color.indigo[700]};
       }
-      &:active:not(:disabled) {
+      &:active:not(:disabled):not([aria-disabled='true']) {
         background: ${t.color.indigo[800]};
         border-color: ${t.color.indigo[800]};
       }
@@ -73,7 +76,7 @@ const variantStyles = (t: DefaultTheme, v: ButtonVariant) =>
       background: ${t.color.paper};
       color: ${t.color.fg[1]};
       border-color: ${t.color.border[1]};
-      &:hover:not(:disabled) {
+      &:hover:not(:disabled):not([aria-disabled='true']) {
         background: ${t.color.bg.subtle};
       }
     `,
@@ -82,7 +85,7 @@ const variantStyles = (t: DefaultTheme, v: ButtonVariant) =>
       background: transparent;
       color: ${t.color.fg[2]};
       border-color: transparent;
-      &:hover:not(:disabled) {
+      &:hover:not(:disabled):not([aria-disabled='true']) {
         background: ${t.color.bg.subtle};
       }
     `,
@@ -91,7 +94,7 @@ const variantStyles = (t: DefaultTheme, v: ButtonVariant) =>
       background: ${t.color.danger[700]};
       color: ${t.color.fgOnAccent};
       border-color: ${t.color.danger[700]};
-      &:hover:not(:disabled) {
+      &:hover:not(:disabled):not([aria-disabled='true']) {
         background: ${t.color.danger[800]};
         border-color: ${t.color.danger[800]};
       }
@@ -101,7 +104,7 @@ const variantStyles = (t: DefaultTheme, v: ButtonVariant) =>
       background: ${t.color.ink[900]};
       color: ${t.color.fgOnAccent};
       border-color: ${t.color.ink[900]};
-      &:hover:not(:disabled) {
+      &:hover:not(:disabled):not([aria-disabled='true']) {
         background: ${t.color.ink[700]};
         border-color: ${t.color.ink[700]};
       }
@@ -136,6 +139,7 @@ export const ButtonRoot = styled.button<{
     box-shadow: ${({ theme }) => theme.shadow.focus};
   }
   &:disabled,
+  &[aria-disabled='true'],
   &[aria-busy='true'] {
     opacity: 0.5;
     cursor: not-allowed;

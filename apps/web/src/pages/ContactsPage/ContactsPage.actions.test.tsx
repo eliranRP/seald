@@ -118,7 +118,7 @@ describe('ContactsPage — add contacts', () => {
     const user = userEvent.setup();
     renderContacts();
     await screen.findByText('Hannah Wills');
-    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await user.click(screen.getByRole('button', { name: 'Add contacts' }));
     const dialog = screen.getByRole('dialog', { name: 'Add contacts' });
     expect(within(dialog).getByText(/paste a whole list/i)).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Add' })).toBeDisabled();
@@ -138,7 +138,7 @@ describe('ContactsPage — add contacts', () => {
     const user = userEvent.setup();
     renderContacts();
     await screen.findByText('Hannah Wills');
-    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await user.click(screen.getByRole('button', { name: 'Add contacts' }));
     const dialog = screen.getByRole('dialog', { name: 'Add contacts' });
     await user.type(within(dialog).getByRole('textbox', { name: 'Emails' }), 'solo@acme.co');
     await user.click(within(dialog).getByRole('button', { name: 'Add 1' }));
@@ -149,11 +149,11 @@ describe('ContactsPage — add contacts', () => {
     const user = userEvent.setup();
     renderContacts();
     await screen.findByText('Hannah Wills');
-    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await user.click(screen.getByRole('button', { name: 'Add contacts' }));
     await user.type(screen.getByRole('textbox', { name: 'Emails' }), 'about@bail.co ');
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog', { name: 'Add contacts' })).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await user.click(screen.getByRole('button', { name: 'Add contacts' }));
     expect(screen.queryByText('about@bail.co')).toBeNull();
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -176,7 +176,7 @@ describe('ContactsPage — edit', () => {
     expect(name).toHaveValue('Alex Reyes');
     await user.clear(name);
     await user.type(name, 'Alexandra Reyes');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save contact' }));
     expect(await screen.findByText('Alexandra Reyes')).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: 'Edit contact' })).toBeNull();
   });
@@ -189,7 +189,7 @@ describe('ContactsPage — edit', () => {
     await user.clear(email);
     await user.type(email, 'Maya@farow.co');
     expect(within(dialog).getByText('Maya Chen already uses this email')).toBeInTheDocument();
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save contact' }));
     expect(backend.rows.find((r) => r.id === 'c2')?.email).toBe('alex@quill.vc');
   });
 
@@ -201,7 +201,7 @@ describe('ContactsPage — edit', () => {
     const email = within(dialog).getByRole('textbox', { name: 'Email' });
     await user.clear(email);
     await user.type(email, 'free@quill.vc');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save contact' }));
     expect(
       await within(dialog).findByText('That email is already in use by another contact.'),
     ).toBeInTheDocument();
@@ -214,7 +214,7 @@ describe('ContactsPage — edit', () => {
     renderContacts();
     const dialog = await openEdit(user, 'Alex Reyes');
     await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), ' Jr');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save contact' }));
     expect(await within(dialog).findByText(/could not save this contact/i)).toBeInTheDocument();
   });
 
@@ -227,36 +227,36 @@ describe('ContactsPage — edit', () => {
     await user.clear(email);
     await user.type(email, 'nope{Enter}');
     expect(within(dialog).getByText('Enter a name.')).toBeInTheDocument();
-    expect(within(dialog).getByText('Enter a valid email address.')).toBeInTheDocument();
+    expect(
+      within(dialog).getByText('Enter a valid email address, like name@company.com.'),
+    ).toBeInTheDocument();
+  });
+
+  it('checks the email when the field loses focus, not while typing', async () => {
+    const user = userEvent.setup();
+    renderContacts();
+    const dialog = await openEdit(user, 'Alex Reyes');
+    const email = within(dialog).getByRole('textbox', { name: 'Email' });
+    await user.clear(email);
+    await user.type(email, 'nope');
+    expect(within(dialog).queryByText(/enter a valid email/i)).toBeNull();
+    await user.tab();
+    expect(within(dialog).getByText(/enter a valid email/i)).toBeInTheDocument();
   });
 });
 
 describe('ContactsPage — delete and undo', () => {
-  it('confirms a single delete, removes the row and Undo brings it back', async () => {
+  it('deletes at once without an "Are you sure?" step and Undo brings the row back', async () => {
     const user = userEvent.setup();
     renderContacts();
     await user.click(await screen.findByRole('button', { name: 'More for Alex Reyes' }));
     await user.click(screen.getByRole('menuitem', { name: 'Delete' }));
-    const dialog = screen.getByRole('alertdialog', { name: 'Delete Alex Reyes?' });
-    expect(within(dialog).getByText('They stay on sent documents.')).toBeInTheDocument();
-    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
 
     await waitFor(() => expect(screen.queryByText('Alex Reyes')).toBeNull());
-    const toast = await screen.findByText('Contact deleted');
-    expect(toast).toBeInTheDocument();
+    expect(await screen.findByText('Alex Reyes deleted')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Undo' }));
     expect(await screen.findByText('Alex Reyes')).toBeInTheDocument();
-  });
-
-  it('keeps the contact when the confirm is cancelled', async () => {
-    const user = userEvent.setup();
-    renderContacts();
-    await user.click(await screen.findByRole('button', { name: 'More for Alex Reyes' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Delete' }));
-    await user.click(screen.getByRole('button', { name: 'Keep' }));
-    expect(screen.queryByRole('alertdialog')).toBeNull();
-    expect(screen.getByText('Alex Reyes')).toBeInTheDocument();
-    expect(backend.rows).toHaveLength(3);
   });
 
   it('deletes the selected contacts together from the bulk bar', async () => {
@@ -266,8 +266,7 @@ describe('ContactsPage — delete and undo', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Select Hannah Wills' }));
     await user.click(screen.getByRole('checkbox', { name: 'Select Maya Chen' }));
     await user.click(screen.getByRole('button', { name: 'Delete 2' }));
-    const dialog = screen.getByRole('alertdialog', { name: 'Delete 2 contacts?' });
-    await user.click(within(dialog).getByRole('button', { name: 'Delete 2' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(await screen.findByText('2 contacts deleted')).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText('Hannah Wills')).toBeNull());
     expect(screen.queryByText('Maya Chen')).toBeNull();
@@ -275,16 +274,15 @@ describe('ContactsPage — delete and undo', () => {
     expect(screen.queryByRole('toolbar', { name: 'Bulk actions' })).toBeNull();
   });
 
-  it('puts the row back and says so when the server refuses the delete', async () => {
+  it('puts the row back and says how to recover when the server refuses the delete', async () => {
     const user = userEvent.setup();
     backend.failDelete = true;
     renderContacts();
     await user.click(await screen.findByRole('button', { name: 'More for Alex Reyes' }));
     await user.click(screen.getByRole('menuitem', { name: 'Delete' }));
-    await user.click(
-      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete' }),
-    );
-    expect(await screen.findByText('Could not delete. Try again.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Could not delete. Check your connection and try again.'),
+    ).toBeInTheDocument();
     expect(await screen.findByText('Alex Reyes')).toBeInTheDocument();
   });
 });

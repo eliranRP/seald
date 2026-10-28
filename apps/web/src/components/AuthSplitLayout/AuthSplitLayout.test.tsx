@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { fireEvent } from '@testing-library/react';
+import { fireEvent, within } from '@testing-library/react';
 import { axe } from 'vitest-axe';
 import { renderWithTheme } from '@/test/renderWithTheme';
 import { AuthSplitLayout } from './AuthSplitLayout';
@@ -19,17 +19,17 @@ describe('AuthSplitLayout', () => {
   });
 
   it('shows the product panel with its three benefits', () => {
-    const { getByRole, getAllByRole } = renderWithTheme(
+    const { getByRole } = renderWithTheme(
       <AuthSplitLayout>
         <div>form</div>
       </AuthSplitLayout>,
     );
-    expect(getByRole('complementary')).toBeInTheDocument();
-    expect(getAllByRole('listitem').map((li) => li.textContent)).toEqual([
-      'Sign in 1 minute',
-      'Sealed + tamper-proof',
-      'Track every signer',
-    ]);
+    const panel = getByRole('complementary');
+    expect(
+      within(panel)
+        .getAllByRole('listitem')
+        .map((li) => li.textContent),
+    ).toEqual(['Sign in 1 minute', 'Sealed + tamper-proof', 'Track every signer']);
   });
 
   it('hides the panel when hidePanel is set', () => {

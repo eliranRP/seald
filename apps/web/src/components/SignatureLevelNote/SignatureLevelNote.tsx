@@ -7,7 +7,7 @@ const Note = styled.p`
   background: ${({ theme }) => theme.color.ink[50]};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
   border-radius: ${({ theme }) => theme.radius.md};
-  font-size: ${({ theme }) => theme.font.size.micro};
+  font-size: ${({ theme }) => theme.font.size.xs};
   color: ${({ theme }) => theme.color.fg[3]};
   line-height: ${({ theme }) => theme.font.lineHeight.normal};
   text-align: left;

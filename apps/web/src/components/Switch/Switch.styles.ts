@@ -29,11 +29,14 @@ export const Input = styled.input`
   margin: 0;
   flex-shrink: 0;
   border-radius: ${({ theme }) => theme.radius.pill};
-  background: ${({ theme }) => theme.color.ink[300]};
+  /* Off track in ink-500: the white knob on ink-300 was ~1.5:1, so the
+     off state barely read. Track and knob share one 200ms ease-out
+     (UX rules: motion § 6). */
+  background: ${({ theme }) => theme.color.ink[500]};
   position: relative;
   cursor: inherit;
-  transition: background ${({ theme }) => theme.motion.durFast}
-    ${({ theme }) => theme.motion.easeStandard};
+  transition: background ${({ theme }) => theme.motion.durBase}
+    ${({ theme }) => theme.motion.easeOut};
 
   &::after {
     content: '';
@@ -45,8 +48,8 @@ export const Input = styled.input`
     border-radius: ${({ theme }) => theme.radius.pill};
     background: ${({ theme }) => theme.color.paper};
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);
-    transition: transform ${({ theme }) => theme.motion.durFast}
-      ${({ theme }) => theme.motion.easeStandard};
+    transition: transform ${({ theme }) => theme.motion.durBase}
+      ${({ theme }) => theme.motion.easeOut};
   }
 
   &:checked {

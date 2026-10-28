@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { mobileInputText } from '@/styles/mixins';
 
 export const Backdrop = styled.div`
   position: fixed;
@@ -94,6 +95,7 @@ export const Input = styled.input<{ readonly $invalid: boolean }>`
   background: ${({ theme }) => theme.color.paper};
   font-size: ${({ theme }) => theme.font.size.bodySm};
   font-family: ${({ theme }) => theme.font.sans};
+  ${mobileInputText}
   color: ${({ theme }) => theme.color.fg[1]};
   box-sizing: border-box;
   &::placeholder {

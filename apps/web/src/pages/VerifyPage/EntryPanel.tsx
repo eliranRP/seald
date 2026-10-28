@@ -10,6 +10,7 @@ import { fileProblem, lookupShortCodeByHash, sha256Hex } from '@/features/verify
 import {
   CodeForm,
   CodeInput,
+  CodeLabel,
   DropText,
   DropTitle,
   EntryDrop,
@@ -44,23 +45,34 @@ function cleanCode(raw: string): string {
 export function EntryPanel({ rejectedCode }: EntryPanelProps) {
   const navigate = useNavigate();
   const [code, setCode] = useState(rejectedCode ?? '');
-  const [codeError, setCodeError] = useState(rejectedCode !== undefined);
+  // `rejected`: the API found no document; `short`: Verify was pressed before
+  // all 13 characters were in. The button stays live and says what is missing
+  // instead of sitting disabled with no reason (forms § 5, feedback § 16).
+  const [codeError, setCodeError] = useState<'rejected' | 'short' | null>(
+    rejectedCode !== undefined ? 'rejected' : null,
+  );
   const [fileError, setFileError] = useState<string | null>(null);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const codeInput = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobileViewport();
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
-    if (code.length === CODE_LENGTH) navigate(`/verify/${encodeURIComponent(code)}`);
+    if (code.length === CODE_LENGTH) {
+      navigate(`/verify/${encodeURIComponent(code)}`);
+      return;
+    }
+    setCodeError('short');
+    codeInput.current?.focus();
   };
 
   const findByFile = async (file: File) => {
     setFileError(null);
     const problem = fileProblem(file);
     if (problem === 'not_pdf') {
-      setFileError('That is not a PDF. Drop the sealed PDF.');
+      setFileError('That is not a PDF. Choose the sealed PDF you downloaded.');
       return;
     }
     if (problem === 'too_large') {
@@ -78,8 +90,8 @@ export function EntryPanel({ rejectedCode }: EntryPanelProps) {
       const status = (err as { status?: unknown }).status;
       setFileError(
         status === 404
-          ? 'No sealed document matches this file.'
-          : 'Something went wrong. Try again in a moment.',
+          ? 'No sealed document matches this file. Use the signed PDF you downloaded from Seald, not the original.'
+          : 'We could not check this file right now. Try again in a moment.',
       );
     } finally {
       setBusy(false);
@@ -110,40 +122,42 @@ export function EntryPanel({ rejectedCode }: EntryPanelProps) {
         <EntryTitle>Verify a document</EntryTitle>
       </Verdict>
 
-      <CodeForm onSubmit={onSubmit}>
+      <CodeForm onSubmit={onSubmit} noValidate>
+        <CodeLabel htmlFor="verify-code">Verification code</CodeLabel>
         <CodeInput
+          ref={codeInput}
+          id="verify-code"
           type="text"
           inputMode="text"
           maxLength={CODE_LENGTH}
           autoComplete="off"
           autoCapitalize="off"
           spellCheck={false}
-          aria-label="Verification code"
-          aria-invalid={codeError}
-          aria-describedby="verify-code-help"
+          aria-invalid={codeError !== null}
+          aria-describedby={codeError ? 'verify-code-help verify-code-error' : 'verify-code-help'}
           placeholder="13-character code"
-          $error={codeError}
+          $error={codeError !== null}
           value={code}
           onChange={(e) => {
             setCode(cleanCode(e.target.value));
-            setCodeError(false);
+            setCodeError(null);
           }}
           onPaste={(e) => {
             e.preventDefault();
             setCode(cleanCode(e.clipboardData.getData('text')));
-            setCodeError(false);
+            setCodeError(null);
           }}
         />
         <Meta id="verify-code-help">Find the code in the PDF footer or scan its QR.</Meta>
         {codeError ? (
-          <InlineAlert role="alert">
+          <InlineAlert role="alert" id="verify-code-error">
             <Icon icon={AlertCircle} size={14} />
-            No document with this code
+            {codeError === 'rejected'
+              ? 'No document with this code. Check it against the PDF footer.'
+              : `Enter all ${String(CODE_LENGTH)} characters (${String(code.length)} so far).`}
           </InlineAlert>
         ) : null}
-        <VerifyButton type="submit" disabled={code.length !== CODE_LENGTH}>
-          Verify
-        </VerifyButton>
+        <VerifyButton type="submit">Verify</VerifyButton>
       </CodeForm>
 
       <OrRow aria-hidden>

@@ -96,42 +96,9 @@ interface ToastState {
   readonly tone: 'success' | 'error' | 'info';
 }
 
-/**
- * Map a raw send-flow error to user-friendly copy. The previous
- * implementation surfaced `err.message` directly, which exposed
- * internals like "fetch failed" / "AbortError" / stack traces to the
- * user. Map the common shapes we know about — network failures,
- * timeouts, abort — to friendlier text and fall back to a generic
- * "Something went wrong" line for everything else. Audit A ·
- * DocumentRoute L-21.
- */
-export function friendlySendError(err: unknown): string {
-  if (!(err instanceof Error)) return 'Unable to send the document. Please try again.';
-  const msg = err.message;
-  // Browser fetch / undici network failures.
-  if (
-    /failed to fetch|fetch failed|network ?error|NetworkError|ERR_NETWORK|ECONN|ENOTFOUND|getaddrinfo/i.test(
-      msg,
-    )
-  ) {
-    return "Couldn't reach the Seald servers. Check your connection and try again.";
-  }
-  // Axios / native timeout shapes.
-  if (/timeout|timed out|ETIMEDOUT/i.test(msg)) {
-    return 'The request timed out while sending. Try again in a moment.';
-  }
-  // Abort (user-cancelled or controller.abort()).
-  if (err.name === 'AbortError' || /abort(ed)?/i.test(msg)) {
-    return 'The send was cancelled before it finished. Try again.';
-  }
-  // Final fallback — never leak stack traces. If the message looks
-  // like internal noise (contains parentheses with line numbers, etc.),
-  // swap it for the generic copy.
-  if (/\bat\s+\w+\s+\(/.test(msg) || msg.length > 200) {
-    return 'Unable to send the document. Please try again.';
-  }
-  return msg;
-}
+import { friendlySendError, friendlyTemplateSaveError } from './friendlyErrors';
+
+export { friendlySendError };
 
 /**
  * Route wrapper around `DocumentPage`. Manages the in-memory draft (File +
@@ -573,8 +540,8 @@ export function DocumentRoute() {
     // toast on success either way.
     updateSourceTemplate().catch(() => {
       setToast({
-        title: 'Template update failed',
-        subtitle: 'Sending the document anyway.',
+        title: "Couldn't update the template",
+        subtitle: 'Your document is still being sent. Edit the template later to keep this layout.',
         tone: 'error',
       });
     });
@@ -613,9 +580,8 @@ export function DocumentRoute() {
         });
       } catch (err) {
         setToast({
-          title: 'Save failed',
-          subtitle:
-            err instanceof Error ? err.message : 'Failed to save template. Please try again.',
+          title: "Couldn't save the template",
+          subtitle: friendlyTemplateSaveError(err),
           tone: 'error',
         });
       }
@@ -627,12 +593,10 @@ export function DocumentRoute() {
     setSaveTplOpen(false);
   }, []);
 
-  // Auto-dismiss toasts after a few seconds — non-blocking confirmation,
-  // no user action required. Errors get the same auto-dismiss; the
-  // user can re-trigger the action and see another error toast if it
-  // recurs.
+  // Auto-dismiss success/info toasts after a few seconds. Errors stay
+  // until the user dismisses them (they need reading and acting on).
   useEffect(() => {
-    if (!toast) return undefined;
+    if (!toast || toast.tone === 'error') return undefined;
     const toastTimer = window.setTimeout(() => setToast(null), TOAST_AUTO_DISMISS_MS);
     return () => window.clearTimeout(toastTimer);
   }, [toast]);
@@ -821,6 +785,7 @@ export function DocumentRoute() {
           title={toast.title}
           {...(toast.subtitle ? { subtitle: toast.subtitle } : {})}
           tone={toast.tone}
+          onClose={() => setToast(null)}
         />
       ) : null}
       <ExitConfirmDialog

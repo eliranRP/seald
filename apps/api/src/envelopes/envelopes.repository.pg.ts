@@ -205,6 +205,7 @@ function toEnvelopeDomain(
     completed_at: toIso(envelope.completed_at),
     expires_at: toIsoRequired(envelope.expires_at),
     tags: [...(envelope.tags ?? [])],
+    archived_at: toIso(envelope.archived_at ?? null),
     reminders_enabled: envelope.reminders_enabled !== false,
     // Cadence columns (migration 0025) reach the wire only with the flag on,
     // so responses stay byte-identical while customReminders is dark.
@@ -268,6 +269,7 @@ function toListItem(row: EnvelopeRow, signerRows: ReadonlyArray<SignerRow>): Env
     completed_at: toIso(row.completed_at),
     expires_at: toIsoRequired(row.expires_at),
     tags: (row.tags ?? []) as ReadonlyArray<string>,
+    archived_at: toIso(row.archived_at ?? null),
     created_at: toIsoRequired(row.created_at),
     updated_at: toIsoRequired(row.updated_at),
     signers: signerRows.map((s) => ({
@@ -931,6 +933,21 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       .where('status', '=', 'draft')
       .executeTakeFirst();
     return (res?.numDeletedRows ?? 0n) > 0n;
+  }
+
+  async setArchived(
+    owner_id: string,
+    envelope_id: string,
+    archived: boolean,
+  ): Promise<Envelope | null> {
+    const res = await this.db
+      .updateTable('envelopes')
+      .set({ archived_at: archived ? new Date().toISOString() : null })
+      .where('owner_id', '=', owner_id)
+      .where('id', '=', envelope_id)
+      .executeTakeFirst();
+    if ((res?.numUpdatedRows ?? 0n) === 0n) return null;
+    return this.findByIdForOwner(owner_id, envelope_id);
   }
 
   async setOriginalFile(

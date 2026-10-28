@@ -12,13 +12,40 @@ export const Overrides = styled.details`
   font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[2]};
 
+  /* display:flex drops the native disclosure triangle, which made the closed
+     summary read as a heading over an empty group. Draw a chevron instead so
+     it reads as "tap to open" (right when closed, down when open). */
   & > summary {
     min-height: ${({ theme }) => theme.space[10]};
     display: flex;
     align-items: center;
+    gap: ${({ theme }) => theme.space[2]};
     cursor: pointer;
+    list-style: none;
     font-weight: ${({ theme }) => theme.font.weight.semibold};
     color: ${({ theme }) => theme.color.fg[1]};
+  }
+  & > summary::-webkit-details-marker {
+    display: none;
+  }
+  & > summary::before {
+    content: '';
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform ${({ theme }) => theme.motion.durFast}
+      ${({ theme }) => theme.motion.easeStandard};
+  }
+  &[open] > summary::before {
+    transform: rotate(45deg);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    & > summary::before {
+      transition: none;
+    }
   }
 `;
 

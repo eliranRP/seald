@@ -132,7 +132,7 @@ export interface RowSheetProps {
 export function RowSheet(props: RowSheetProps) {
   const { open, onClose, title, status, actions, onOpenDocument } = props;
   return (
-    <MWBottomSheet open={open} onClose={onClose} title="Row actions">
+    <MWBottomSheet open={open} onClose={onClose} title="Document actions">
       <SheetTitleRow>
         <DocThumb size={40} title={title} signed={status === 'sealed'} aria-hidden />
         <DocText>

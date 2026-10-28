@@ -44,6 +44,7 @@ export function toMcpEnvelope(envelope: Envelope): McpEnvelope {
     ...(envelope.reminder_max !== undefined ? { reminder_max: envelope.reminder_max } : {}),
     ...(envelope.date_format !== undefined ? { date_format: envelope.date_format } : {}),
     ...(envelope.timezone !== undefined ? { timezone: envelope.timezone } : {}),
+    ...(envelope.archived_at !== undefined ? { archived_at: envelope.archived_at } : {}),
   };
 }
 

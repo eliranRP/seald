@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Ban,
+  RotateCw,
   Bell,
   CheckCircle,
   ChevronLeft,
@@ -57,6 +58,7 @@ import {
 import { ReviewPlacement } from '@/features/agentActivity';
 import { useSaveEnvelopeToGdrive } from '@/features/gdriveExport';
 import { SigningOrderSteps } from '@/features/signers/signingOrder';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { useReminderToggle } from '@/hooks/useReminderToggle';
 import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 import { FocusedShell } from '@/layout/shellChrome';
@@ -76,8 +78,10 @@ import {
   Center,
   ChipsRow,
   DesktopOnly,
+  ErrorActions,
   HeadActions,
   HeadCode,
+  HeadTags,
   HeadMeta,
   HeadRow,
   HeadText,
@@ -143,6 +147,24 @@ function isThrottled(err: unknown): boolean {
   return status === 429;
 }
 
+function httpStatus(err: unknown): number | undefined {
+  if (typeof err !== 'object' || err === null) return undefined;
+  const status = (err as { status?: unknown }).status;
+  return typeof status === 'number' ? status : undefined;
+}
+
+/** The API client's own copy for a request that never reached the server. */
+const OFFLINE_COPY = "Couldn't reach the server. Check your connection and try again.";
+
+/**
+ * Error copy for a toast: what failed and what to do next. Raw API text
+ * (slugs, status text) never reaches the user; only the client's
+ * connection message is passed through, since it already says how to fix it.
+ */
+function friendlyError(err: unknown, fallback: string): string {
+  return err instanceof Error && err.message === OFFLINE_COPY ? OFFLINE_COPY : fallback;
+}
+
 /**
  * Sent-envelope detail. The signer tracker is the hero: one row per signer
  * with a Sent, Opened, Signed track and its actions (Remind, Fix email,
@@ -197,7 +219,7 @@ export function EnvelopeDetailPage() {
           await patchEnvelope(envelope.id, { reminders_enabled: enabled });
           await qc.invalidateQueries({ queryKey: envelopeKeys.detail(envelope.id) });
         } catch {
-          showError('Could not update reminders.');
+          showError('Could not update reminders. Check your connection and try again.');
           throw new Error('reminders_update_failed');
         }
       })();
@@ -216,7 +238,7 @@ export function EnvelopeDetailPage() {
           qc.invalidateQueries({ queryKey: envelopeKeys.lists() }),
         ]);
       } catch (err) {
-        showError(err instanceof Error ? err.message : 'Failed to update tags.');
+        showError(friendlyError(err, 'Could not save the tags. Try again in a moment.'));
       }
     },
     [envelope, qc, showError],
@@ -259,11 +281,11 @@ export function EnvelopeDetailPage() {
         }
       } catch (err) {
         if (win && !win.closed) win.close();
-        const msg = err instanceof Error ? err.message : 'Download failed.';
+        const msg = err instanceof Error ? err.message : '';
         showError(
           /file_not_ready/.test(msg)
-            ? `The ${friendly.toLowerCase()} has not been produced for this envelope yet.`
-            : msg,
+            ? `The ${friendly.toLowerCase()} has not been produced for this envelope yet. Try again in a minute.`
+            : friendlyError(err, `Could not open the ${friendly.toLowerCase()}. Try again.`),
         );
       }
     },
@@ -323,37 +345,6 @@ export function EnvelopeDetailPage() {
       try {
         if (kind === 'zip') {
           await openArtifact(undefined, 'Documents zip', { zip: true });
-        } else if (kind === 'bundle') {
-          // The sealed PDF opens in a tab (one user-gesture window) and the
-          // audit trail downloads as an anchor on this page, so there is no
-          // second window for a popup blocker to catch.
-          try {
-            const [sealed, audit] = await Promise.all([
-              getEnvelopeDownloadUrl(envelope.id, 'sealed'),
-              getEnvelopeDownloadUrl(envelope.id, 'audit'),
-            ]);
-            const sealedAnchor = document.createElement('a');
-            sealedAnchor.href = sealed.url;
-            sealedAnchor.target = '_blank';
-            sealedAnchor.rel = 'noopener noreferrer';
-            document.body.appendChild(sealedAnchor);
-            sealedAnchor.click();
-            sealedAnchor.remove();
-
-            const auditAnchor = document.createElement('a');
-            auditAnchor.href = audit.url;
-            auditAnchor.download = `audit-${envelope.id}.pdf`;
-            auditAnchor.rel = 'noopener noreferrer';
-            document.body.appendChild(auditAnchor);
-            auditAnchor.click();
-            auditAnchor.remove();
-            showOk('Sealed PDF opened in a new tab; audit trail downloaded.');
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Download failed.';
-            showError(
-              /file_not_ready/.test(msg) ? 'The sealed artifacts have not been produced yet.' : msg,
-            );
-          }
         } else if (kind === 'sealed') {
           await openArtifact('sealed', 'Sealed PDF');
         } else if (kind === 'audit') {
@@ -365,7 +356,7 @@ export function EnvelopeDetailPage() {
         setDownloadInFlight(null);
       }
     },
-    [envelope, openArtifact, handleSaveToGdrive, showError, showOk],
+    [envelope, openArtifact, handleSaveToGdrive],
   );
 
   // Per-document download (multi-document envelopes): the sealed PDF once sealed, else the original.
@@ -475,8 +466,14 @@ export function EnvelopeDetailPage() {
       showError('Could not send the reminders. Please try again.');
     } else if (sent === 0 && failed === 0) {
       showOk('Reminded in the last hour');
-    } else if (throttled > 0 || failed > 0) {
-      showOk(`${sent} sent · ${throttled + failed} throttled`);
+    } else if (failed > 0) {
+      // Some reminders did not go out: say so as an error, with the next step.
+      const parts = [`${sent} sent`];
+      if (throttled > 0) parts.push(`${throttled} reminded in the last hour`);
+      parts.push(`${failed} failed`);
+      showError(`${parts.join(' · ')}. Try again for the rest.`);
+    } else if (throttled > 0) {
+      showOk(`${sent} sent · ${throttled} throttled`);
     } else {
       showOk(sent === 1 ? 'Reminded 1 signer' : `Reminded ${sent} signers`);
     }
@@ -550,7 +547,9 @@ export function EnvelopeDetailPage() {
           navigate('/documents');
         },
         onError: (err) => {
-          showError(err instanceof Error ? err.message : 'Could not withdraw this envelope.');
+          showError(
+            friendlyError(err, 'Could not delete this draft. Refresh the page and try again.'),
+          );
         },
       });
       return;
@@ -558,10 +557,15 @@ export function EnvelopeDetailPage() {
     cancelEnvelope.mutate(envelope.id, {
       onSuccess: () => showOk('Envelope withdrawn. Signers were notified.'),
       onError: (err) => {
-        showError(err instanceof Error ? err.message : 'Could not withdraw this envelope.');
+        showError(
+          friendlyError(err, 'Could not withdraw this envelope. Refresh the page and try again.'),
+        );
       },
     });
   }, [envelope, deleteEnvelope, cancelEnvelope, qc, navigate, showError, showOk]);
+
+  const closeWithdraw = useCallback(() => setWithdrawOpen(false), []);
+  useEscapeKey(closeWithdraw, withdrawOpen);
 
   const mobileTop = (title: string, more: boolean) => (
     <MobileTop>
@@ -572,7 +576,9 @@ export function EnvelopeDetailPage() {
         aria-label="Back to documents"
         onClick={handleBack}
       />
-      <MobileTopTitle>{title}</MobileTopTitle>
+      <MobileTopTitle dir="auto" title={title || undefined}>
+        {title}
+      </MobileTopTitle>
       {more ? (
         <Button
           variant="ghost"
@@ -625,17 +631,41 @@ export function EnvelopeDetailPage() {
   }
 
   if (q.error || !envelope) {
+    // A 404 (or a missing envelope) is a dead link; anything else is a load
+    // failure the user can retry without leaving the page.
+    const status = httpStatus(q.error);
+    const notFound = !q.error || status === 404 || status === 403;
     return (
       <Wrap>
         <Inner>
           <Card>
-            <Title>Document not found</Title>
+            <Title>{notFound ? 'Document not found' : "Couldn't load this document"}</Title>
             <NotFoundHint>
-              We couldn&apos;t load this document. It may have been removed, or the link is stale.
+              {notFound
+                ? 'It may have been removed, or the link is out of date.'
+                : 'Check your connection, then try again.'}
             </NotFoundHint>
-            <Button variant="primary" iconLeft={ArrowLeft} onClick={handleBack}>
-              Back to documents
-            </Button>
+            <ErrorActions>
+              {notFound ? null : (
+                <Button
+                  variant="primary"
+                  iconLeft={RotateCw}
+                  loading={q.isRefetching}
+                  onClick={() => {
+                    void q.refetch();
+                  }}
+                >
+                  Try again
+                </Button>
+              )}
+              <Button
+                variant={notFound ? 'primary' : 'secondary'}
+                iconLeft={ArrowLeft}
+                onClick={handleBack}
+              >
+                Back to documents
+              </Button>
+            </ErrorActions>
           </Card>
         </Inner>
       </Wrap>
@@ -666,11 +696,13 @@ export function EnvelopeDetailPage() {
       : 'Auto-remind';
   const expiresText = formatShortDate(envelope.expires_at);
 
+  const isDraft = envelope.status === 'draft';
   const moreEntries: MenuEntry[] = canWithdraw
     ? [
         {
           id: 'withdraw',
-          label: 'Withdraw',
+          // A draft was never sent, so "withdraw" really deletes it: say so.
+          label: isDraft ? 'Delete draft' : 'Withdraw',
           icon: Ban,
           danger: true,
           onSelect: () => setWithdrawOpen(true),
@@ -687,6 +719,7 @@ export function EnvelopeDetailPage() {
       multiDoc={multiDoc}
       busy={downloadBusy}
       fullWidth={fullWidth}
+      asSheet={fullWidth}
       gdriveLastSaved={
         envelope.gdriveExport?.lastPushedAt
           ? `Saved ${formatShortDate(envelope.gdriveExport.lastPushedAt)}`
@@ -739,19 +772,24 @@ export function EnvelopeDetailPage() {
 
         <HeadRow>
           <HeadText>
-            <Title>{envelope.title}</Title>
+            <Title dir="auto">{envelope.title}</Title>
             <HeadMeta>
               <StatusBadge status={badge.status} {...(badge.label ? { label: badge.label } : {})} />
               <HeadCode>{envelope.short_code}</HeadCode>
               {envelope.original_pages !== null ? (
-                <DesktopOnly>{envelope.original_pages} pages</DesktopOnly>
+                <DesktopOnly>
+                  {`${envelope.original_pages} page${envelope.original_pages === 1 ? '' : 's'}`}
+                </DesktopOnly>
               ) : null}
               <span>Sent {formatShortDateOrDash(envelope.sent_at)}</span>
-              <TagEditor
-                layout="inline"
-                value={envelope.tags ?? []}
-                onChange={(next) => handleTagsChange(next)}
-              />
+              {/* Tags get their own line once there are any, so they never split across rows. */}
+              <HeadTags $ownRow={(envelope.tags ?? []).length > 0}>
+                <TagEditor
+                  layout="inline"
+                  value={envelope.tags ?? []}
+                  onChange={(next) => handleTagsChange(next)}
+                />
+              </HeadTags>
             </HeadMeta>
           </HeadText>
           <HeadActions>
@@ -918,20 +956,22 @@ export function EnvelopeDetailPage() {
       />
 
       {withdrawOpen ? (
-        <DialogBackdrop role="presentation" onClick={() => setWithdrawOpen(false)}>
+        <DialogBackdrop role="presentation" onClick={closeWithdraw}>
           <DialogCard
             role="alertdialog"
             aria-modal="true"
-            aria-label="Withdraw envelope"
+            aria-label={isDraft ? 'Delete draft' : 'Withdraw envelope'}
             onClick={(e) => e.stopPropagation()}
           >
             <Center>
               <WithdrawIcon>
                 <Ban size={24} aria-hidden />
               </WithdrawIcon>
-              <DialogTitle>Withdraw this envelope?</DialogTitle>
-              {envelope.status === 'draft' ? (
-                <Muted>This draft will be removed.</Muted>
+              <DialogTitle>
+                {isDraft ? 'Delete this draft?' : 'Withdraw this envelope?'}
+              </DialogTitle>
+              {isDraft ? (
+                <Muted>Nobody was sent this draft. It can&apos;t be restored once deleted.</Muted>
               ) : (
                 <>
                   <ChipsRow style={{ justifyContent: 'center' }}>
@@ -942,15 +982,17 @@ export function EnvelopeDetailPage() {
                   <Muted>
                     {`${pendingNames.length} signer${pendingNames.length === 1 ? '' : 's'} get a cancel email`}
                   </Muted>
+                  <Muted>Their signing links stop working. This can&apos;t be undone.</Muted>
                 </>
               )}
             </Center>
             <DialogFooter>
-              <Button variant="ghost" onClick={() => setWithdrawOpen(false)}>
-                Keep
+              {/* Focus lands on the safe choice; Enter never withdraws by accident. */}
+              <Button variant="ghost" onClick={closeWithdraw} autoFocus>
+                {isDraft ? 'Keep draft' : 'Keep envelope'}
               </Button>
-              <Button variant="danger" onClick={handleConfirmWithdraw} autoFocus>
-                Withdraw
+              <Button variant="danger" onClick={handleConfirmWithdraw}>
+                {isDraft ? 'Delete draft' : 'Withdraw envelope'}
               </Button>
             </DialogFooter>
           </DialogCard>
@@ -961,7 +1003,8 @@ export function EnvelopeDetailPage() {
         <Toast
           title={toast.text}
           tone={toast.kind === 'danger' ? 'error' : 'success'}
-          duration={TOAST_MS}
+          // Errors stay until dismissed; confirmations fade on their own.
+          {...(toast.kind === 'danger' ? {} : { duration: TOAST_MS })}
           onClose={() => setToast(null)}
         />
       ) : null}

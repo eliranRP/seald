@@ -74,16 +74,48 @@ describe('DirectLinkPage', () => {
     expect(screen.getByText(/ada@example.org/)).toBeInTheDocument();
   });
 
-  it('validates before sending', async () => {
+  it('validates before sending: marks every blocker and focuses the first', async () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(await screen.findByRole('button', { name: 'Email me the signing link' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Enter your name.');
-    await user.type(screen.getByRole('textbox', { name: /Your name/ }), 'Ada');
+    const nameField = screen.getByRole('textbox', { name: /Your name/ });
+    expect(nameField).toHaveAccessibleDescription('Enter your name.');
+    expect(screen.getByRole('textbox', { name: /Your email/ })).toHaveAccessibleDescription(
+      'Enter your email address.',
+    );
+    expect(nameField).toHaveFocus();
+    await user.type(nameField, 'Ada');
+    // Live once errored: the name error clears as soon as it is fixed.
+    expect(nameField).not.toHaveAccessibleDescription('Enter your name.');
     await user.type(screen.getByRole('textbox', { name: /Your email/ }), 'nope');
     await user.click(screen.getByRole('button', { name: 'Email me the signing link' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Enter a valid email address.');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Enter a full email address, like name@example.com.',
+    );
     expect(postMock).not.toHaveBeenCalled();
+  });
+
+  it('checks a field when it is left, not while it is first typed', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const emailField = await screen.findByRole('textbox', { name: /Your email/ });
+    await user.type(emailField, 'ada@');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await user.tab();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Enter a full email address');
+  });
+
+  it('offers a retry when the link could not be loaded', async () => {
+    const user = userEvent.setup();
+    getMock.mockRejectedValueOnce(httpError(500));
+    renderPage();
+    expect(
+      await screen.findByRole('heading', { name: 'Something went wrong' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(
+      await screen.findByRole('heading', { name: 'Consulting agreement' }),
+    ).toBeInTheDocument();
   });
 
   it('shows the same unavailable page for a missing, off or replaced link', async () => {
