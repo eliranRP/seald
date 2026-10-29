@@ -28,7 +28,7 @@
     "@nestjs/throttler": "^6.7.1",
     "@react-pdf/renderer": "^4.5.1",
     "@signpdf/placeholder-plain": "^3",
-    "@signpdf/signer-p12": "^3",
+    "@signpdf/signer-p12": "^4",
     "@signpdf/signpdf": "^3",
     "@signpdf/utils": "^3",
     "class-transformer": "^0.5.1",
