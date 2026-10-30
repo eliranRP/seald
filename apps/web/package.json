@@ -30,7 +30,7 @@
     "axios": "^1.20.0",
     "i18next": "^26.5.11",
     "jspdf": "^4.2.1",
-    "lucide-react": "1.61.0",
+    "lucide-react": "1.62.0",
     "pdf-lib": "^1.17",
     "pdfjs-dist": "^6.4.299",
     "qrcode": "^1.5",
