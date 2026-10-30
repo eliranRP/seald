@@ -31,11 +31,12 @@ updates:
         versions: [">=1.61.0"]
       - dependency-name: "playwright"
         versions: [">=1.61.0"]
-      # @react-pdf/renderer >= 4.7 pulls in @react-pdf/textkit 7, whose
-      # @react-pdf/hyphenate/en-us subpath jest can't resolve (breaks the
-      # sealing/audit-PDF suites). 4.6.x still uses textkit 6.
+      # @react-pdf/renderer >= 4.6 pulls in @react-pdf/textkit >= 6.4, which
+      # imports @react-pdf/hyphenate/en-us. hyphenate only exports an
+      # "import" condition, so jest's CJS resolver can't load it and the
+      # sealing/audit-PDF suites fail. Lift this with a jest migration.
       - dependency-name: "@react-pdf/renderer"
-        versions: [">=4.7.0"]
+        versions: [">=4.6.0"]
 
   - package-ecosystem: github-actions
     directory: /
