@@ -195,8 +195,8 @@ importers:
         specifier: ^10.1.1
         version: 10.1.1(@types/node@20.16.10)
       '@stryker-mutator/jest-runner':
-        specifier: ^9.6.1
-        version: 9.6.1(@stryker-mutator/core@10.1.1(@types/node@20.16.10))
+        specifier: ^10.1.1
+        version: 10.1.1(@stryker-mutator/core@10.1.1(@types/node@20.16.10))
       '@types/express':
         specifier: ^5.0.6
         version: 5.0.6
@@ -274,7 +274,7 @@ importers:
     dependencies:
       '@astrojs/check':
         specifier: ^0.9.12
-        version: 0.9.12(@emnapi/runtime@1.11.1)(prettier@3.9.10)(typescript@5.6.3)
+        version: 0.9.12(@emnapi/runtime@1.11.3)(prettier@3.9.10)(typescript@5.6.3)
       astro:
         specifier: ~7.4.2
         version: 7.4.2(@types/node@25.7.0)(esbuild@0.28.2)(jiti@2.6.1)(terser@5.46.2)(yaml@2.9.1)
@@ -3369,10 +3369,6 @@ packages:
     resolution: {integrity: sha512-3s/ECsrD1Tf1WEB7amBk0HxjN7zgkabKvmqnI2C831rTNszJ6o2HoV9PVxtElDEWxb2+t4iavK5x25G+DTUOUA==}
     engines: {node: '>=22.0.0'}
 
-  '@stryker-mutator/api@9.6.1':
-    resolution: {integrity: sha512-g8VNoFWQWbx0pdal3Vt8jVCZW+v3sc3gi94iI0GVtVgUGTqphAjJF6EAruPTx0lqvtonsaAxn5TD36hcG1d6Wg==}
-    engines: {node: '>=20.0.0'}
-
   '@stryker-mutator/core@10.1.1':
     resolution: {integrity: sha512-4xJAOCw9utJMLyrTk9gINi434tBxnyuwt8lU/InyoKagKd2/zh/2ui7ncWoD0qZeJrxClYzblg8iUh5ewBAB3Q==}
     engines: {node: '>=22.0.0'}
@@ -3382,17 +3378,14 @@ packages:
     resolution: {integrity: sha512-Vyude2i8LhDciLV1q6J55KtdA7gZpRuMfZcBcmWV6hLHAvWocoPKnCKc5BlZt1mwGWkX3Olc0457I7Ue6F1WEg==}
     engines: {node: '>=22.0.0'}
 
-  '@stryker-mutator/jest-runner@9.6.1':
-    resolution: {integrity: sha512-nIrIndfWwdweYkIcxJmyBTpl84nrXs9AE6A8vzEwwzUGvDb9kVvwBPfpEajtdAkjwPceH0pPuVrPkotvqcgYqQ==}
-    engines: {node: '>=20.0.0'}
+  '@stryker-mutator/jest-runner@10.1.1':
+    resolution: {integrity: sha512-/Zsog+SkmuiS6ouA3WDM+ab/7lIkplCwlGslIBhSXP0L1L89mZ6JUVAyj3vAqTXhn+T6UKizzL8jCOTelpwqRQ==}
+    engines: {node: '>=22.0.0'}
     peerDependencies:
-      '@stryker-mutator/core': 9.6.1
+      '@stryker-mutator/core': 10.1.1
 
   '@stryker-mutator/util@10.1.1':
     resolution: {integrity: sha512-Z0zDzsmhoSykE1gT3DvD1knFxySgNMfBlpSSs1j87kWvjEMfeMqfLOk0bqEPRg/rTFIUNSEXLZapxePUhZmfZA==}
-
-  '@stryker-mutator/util@9.6.1':
-    resolution: {integrity: sha512-Lk/ALVctJjFv1vvwR+CFoKzDCWvsBlq7flDUnmnpuwTrGbm156EdZD1Jjq4o8KdOap0ezUZqQNE9OAI1m2+pUQ==}
 
   '@supabase/auth-js@2.118.0':
     resolution: {integrity: sha512-xWfPXyhS2KDSfAneMtI6p/tBnbdiz/5vaRKXEqUfzfC9WCniKr2Ds5o5G7RIGig0bom4z6wUY9zaV07WDVTfnQ==}
@@ -7017,14 +7010,8 @@ packages:
   mutation-testing-elements@3.8.4:
     resolution: {integrity: sha512-5CF1SNa7at5ZH33vEr+21wNebTSrtNIVvnzaUlxortHajOrIPaSLczIWvg6sI/fsExekQ7jookwf2cHftkckqQ==}
 
-  mutation-testing-metrics@3.7.3:
-    resolution: {integrity: sha512-B8QrP0ZomErzTPNlhrzKWPNBln+3afwBZPHv0Q7N8wZZTYxMptzb/Gdm3ExXVmioVYrtZAtsDs7W/T/b2AixOQ==}
-
   mutation-testing-metrics@3.8.4:
     resolution: {integrity: sha512-DZcmndJBH6nrNs3tpiB3OcMVq9KkG2cHCpJSnDxSxPwi9qrafRmoec40xjhkbzOoX1n7/4UkDqg5tIj4A6nvCw==}
-
-  mutation-testing-report-schema@3.7.3:
-    resolution: {integrity: sha512-BHm3MYq+ckO+t5CtlG8zpqxc75rdJCkxVlE+fGuGJM3F7tNCQ/OW2N+TQVHN3BHsYa84+BFc6g3AwDYkUsw2MA==}
 
   mutation-testing-report-schema@3.8.4:
     resolution: {integrity: sha512-s4G71R6Lt/PpZ0cqeglIcgyBdzLM8E+SeCHZAPg1wkSsPtRBa4XfPzAozYKdiJk/TLbNEEb7En9t0/bveuPuxA==}
@@ -7615,10 +7602,6 @@ packages:
     engines: {node: '>=10.13.0'}
     hasBin: true
 
-  qs@6.16.1:
-    resolution: {integrity: sha512-5Px6J7rfHBAGUhNQ3es4YzcOdBBw0SDcVtThJml4RdnKw4tKs2epA0kPZ+K8X+WiHktT93RHVcQ/3ym5aTCgtg==}
-    engines: {node: '>=0.6'}
-
   qs@6.17.1:
     resolution: {integrity: sha512-jd3COkaKVgGUW+ZHyEHCG9bH7RoaaiWuMgzsIBjUMVjLAaWGWpoUAVwljVvBHxRu/2qEHnadLGZrkutYUBPQJA==}
     engines: {node: '>=0.6'}
@@ -7956,16 +7939,6 @@ packages:
 
   semver@6.3.1:
     resolution: {integrity: sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==}
-    hasBin: true
-
-  semver@7.7.4:
-    resolution: {integrity: sha512-vFKC2IEtQnVhpT78h1Yp8wzwrf8CM+MzKMHGJZfBtzhZNycRFnXsHk6E5TxIkkMsgNS7mdX3AGB7x2QM2di4lA==}
-    engines: {node: '>=10'}
-    hasBin: true
-
-  semver@7.8.0:
-    resolution: {integrity: sha512-AcM7dV/5ul4EekoQ29Agm5vri8JNqRyj39o0qpX6vDF2GZrtutZl5RwgD1XnZjiTAfncsJhMI48QQH3sN87YNA==}
-    engines: {node: '>=10'}
     hasBin: true
 
   semver@7.8.5:
@@ -9333,16 +9306,16 @@ snapshots:
       '@csstools/css-tokenizer': 3.0.4
       lru-cache: 10.4.3
 
-  '@astrojs/astro2tsx@0.1.3(@emnapi/runtime@1.11.1)':
+  '@astrojs/astro2tsx@0.1.3(@emnapi/runtime@1.11.3)':
     dependencies:
       '@emnapi/core': 1.11.3
-      '@napi-rs/wasm-runtime': 1.2.4(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.1)
+      '@napi-rs/wasm-runtime': 1.2.4(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)
     transitivePeerDependencies:
       - '@emnapi/runtime'
 
-  '@astrojs/check@0.9.12(@emnapi/runtime@1.11.1)(prettier@3.9.10)(typescript@5.6.3)':
+  '@astrojs/check@0.9.12(@emnapi/runtime@1.11.3)(prettier@3.9.10)(typescript@5.6.3)':
     dependencies:
-      '@astrojs/language-server': 2.17.3(@emnapi/runtime@1.11.1)(prettier@3.9.10)(typescript@5.6.3)
+      '@astrojs/language-server': 2.17.3(@emnapi/runtime@1.11.3)(prettier@3.9.10)(typescript@5.6.3)
       chokidar: 5.0.0
       kleur: 4.1.5
       typescript: 5.6.3
@@ -9414,9 +9387,9 @@ snapshots:
       unified: 11.0.5
       yaml: 2.9.1
 
-  '@astrojs/language-server@2.17.3(@emnapi/runtime@1.11.1)(prettier@3.9.10)(typescript@5.6.3)':
+  '@astrojs/language-server@2.17.3(@emnapi/runtime@1.11.3)(prettier@3.9.10)(typescript@5.6.3)':
     dependencies:
-      '@astrojs/astro2tsx': 0.1.3(@emnapi/runtime@1.11.1)
+      '@astrojs/astro2tsx': 0.1.3(@emnapi/runtime@1.11.3)
       '@astrojs/yaml2ts': 0.2.4
       '@volar/kit': 2.4.28(typescript@5.6.3)
       '@volar/language-core': 2.4.28
@@ -10461,11 +10434,11 @@ snapshots:
   '@emnapi/runtime@1.11.1':
     dependencies:
       tslib: 2.9.1
+    optional: true
 
   '@emnapi/runtime@1.11.3':
     dependencies:
       tslib: 2.9.1
-    optional: true
 
   '@emnapi/runtime@1.9.2':
     dependencies:
@@ -11408,18 +11381,11 @@ snapshots:
       '@tybys/wasm-util': 0.10.4
     optional: true
 
-  '@napi-rs/wasm-runtime@1.2.4(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.1)':
-    dependencies:
-      '@emnapi/core': 1.11.3
-      '@emnapi/runtime': 1.11.1
-      '@tybys/wasm-util': 0.10.4
-
   '@napi-rs/wasm-runtime@1.2.4(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)':
     dependencies:
       '@emnapi/core': 1.11.3
       '@emnapi/runtime': 1.11.3
       '@tybys/wasm-util': 0.10.4
-    optional: true
 
   '@napi-rs/wasm-runtime@1.2.6(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)':
     dependencies:
@@ -12255,13 +12221,6 @@ snapshots:
       tslib: 2.8.1
       typed-inject: 5.0.0
 
-  '@stryker-mutator/api@9.6.1':
-    dependencies:
-      mutation-testing-metrics: 3.7.3
-      mutation-testing-report-schema: 3.7.3
-      tslib: 2.8.1
-      typed-inject: 5.0.0
-
   '@stryker-mutator/core@10.1.1(@types/node@20.16.10)':
     dependencies:
       '@inquirer/prompts': 8.7.5(@types/node@20.16.10)
@@ -12310,17 +12269,15 @@ snapshots:
       tslib: 2.8.1
       weapon-regex: 2.0.6
 
-  '@stryker-mutator/jest-runner@9.6.1(@stryker-mutator/core@10.1.1(@types/node@20.16.10))':
+  '@stryker-mutator/jest-runner@10.1.1(@stryker-mutator/core@10.1.1(@types/node@20.16.10))':
     dependencies:
-      '@stryker-mutator/api': 9.6.1
+      '@stryker-mutator/api': 10.1.1
       '@stryker-mutator/core': 10.1.1(@types/node@20.16.10)
-      '@stryker-mutator/util': 9.6.1
-      semver: 7.7.4
+      '@stryker-mutator/util': 10.1.1
+      semver: 7.8.5
       tslib: 2.8.1
 
   '@stryker-mutator/util@10.1.1': {}
-
-  '@stryker-mutator/util@9.6.1': {}
 
   '@supabase/auth-js@2.118.0':
     dependencies:
@@ -14952,7 +14909,7 @@ snapshots:
       once: 1.4.0
       parseurl: 1.3.3
       proxy-addr: 2.0.8
-      qs: 6.16.1
+      qs: 6.17.1
       range-parser: 1.2.1
       router: 2.2.0
       send: 1.2.1
@@ -14985,7 +14942,7 @@ snapshots:
       once: 1.4.0
       parseurl: 1.3.3
       proxy-addr: 2.0.8
-      qs: 6.16.1
+      qs: 6.17.1
       range-parser: 1.2.1
       router: 2.2.0
       send: 1.2.1
@@ -16619,15 +16576,9 @@ snapshots:
 
   mutation-testing-elements@3.8.4: {}
 
-  mutation-testing-metrics@3.7.3:
-    dependencies:
-      mutation-testing-report-schema: 3.7.3
-
   mutation-testing-metrics@3.8.4:
     dependencies:
       mutation-testing-report-schema: 3.8.4
-
-  mutation-testing-report-schema@3.7.3: {}
 
   mutation-testing-report-schema@3.8.4: {}
 
@@ -17233,11 +17184,6 @@ snapshots:
       pngjs: 5.0.0
       yargs: 15.4.1
 
-  qs@6.16.1:
-    dependencies:
-      es-define-property: 1.0.1
-      side-channel: 1.1.1
-
   qs@6.17.1:
     dependencies:
       es-define-property: 1.0.1
@@ -17655,10 +17601,6 @@ snapshots:
       ajv-keywords: 5.1.0(ajv@8.20.0)
 
   semver@6.3.1: {}
-
-  semver@7.7.4: {}
-
-  semver@7.8.0: {}
 
   semver@7.8.5: {}
 
@@ -18096,7 +18038,7 @@ snapshots:
       formidable: 3.5.4
       methods: 1.1.2
       mime: 2.6.0
-      qs: 6.16.1
+      qs: 6.17.1
     transitivePeerDependencies:
       - supports-color
 
