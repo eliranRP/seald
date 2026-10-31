@@ -40,7 +40,7 @@
     "jpeg-js": "^0.4.4",
     "kysely": "^0.29.7",
     "multer": "^2.5.0",
-    "node-forge": "1.4.1",
+    "node-forge": "1.4.2",
     "pdf-lib": "^1.17",
     "pg": "^8.23.1",
     "pngjs": "^7",
