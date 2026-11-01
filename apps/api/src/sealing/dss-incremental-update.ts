@@ -147,7 +147,6 @@ export function appendDssIncrementalUpdate(input: IncrementalUpdateInput): Buffe
   const newSize = Math.max(trailer.size, nextObjNum);
   const xref = serializeXrefSubsection(appended, objectOffsets);
   chunks.push(xref);
-  cursor += xref.length;
 
   // Build the new trailer dict.
   const trailerDict = buildTrailerDict({

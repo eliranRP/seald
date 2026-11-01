@@ -53,9 +53,10 @@
   },
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
+    "@eslint/js": "^10.0.1",
     "@faker-js/faker": "^10.5.0",
-    "@nestjs/cli": "^11.0.24",
-    "@nestjs/schematics": "^11.0.0",
+    "@nestjs/cli": "^12.0.11",
+    "@nestjs/schematics": "^12.0.12",
     "@nestjs/testing": "^11.1.21",
     "@stryker-mutator/core": "^10.1.1",
     "@stryker-mutator/jest-runner": "^10.1.1",
@@ -69,12 +70,11 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "19.3.0",
     "@types/supertest": "^7.2.1",
-    "@typescript-eslint/eslint-plugin": "8.72.1",
-    "@typescript-eslint/parser": "8.72.1",
     "canvas": "^3.2.3",
     "esbuild": "0.28.2",
-    "eslint": "8.57.1",
+    "eslint": "10.14.0",
     "eslint-config-prettier": "10.1.8",
+    "globals": "^17.13.0",
     "jest": "^30.5.2",
     "pdfjs-dist": "6.4.299",
     "pg-mem": "^3.0.14",
@@ -82,6 +82,7 @@
     "supertest": "^7.3.1",
     "ts-jest": "^29.4.15",
     "ts-node": "^10.9.2",
-    "typescript": "5.6.3"
+    "typescript": "5.6.3",
+    "typescript-eslint": "^8.72.1"
   }
 }

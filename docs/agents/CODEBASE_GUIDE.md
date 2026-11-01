@@ -494,7 +494,7 @@ TypeScript (`tsconfig.base.json`): `strict`, `noUncheckedIndexedAccess`,
 are written `prop?: T | undefined`.
 
 Web ESLint (`apps/web/eslint.config.js`) runs at `--max-warnings=0`.
-API ESLint (`apps/api/.eslintrc.cjs`) runs the same syntax bans on
+API ESLint (`apps/api/eslint.config.cjs`) runs the same syntax bans on
 `src` and `test`. `docs/CONTRIBUTING.md` still describes a longer list;
 the items below that ESLint does not fail are review-only.
 

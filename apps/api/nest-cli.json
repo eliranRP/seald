@@ -5,8 +5,8 @@
   "compilerOptions": {
     "deleteOutDir": true,
     "assets": [
-      { "include": "email/templates/**/*", "outDir": "dist/src" },
-      { "include": "sealing/fonts/**/*.ttf", "outDir": "dist/src" }
+      { "include": "email/templates/**/*", "outDir": "dist" },
+      { "include": "sealing/fonts/**/*.ttf", "outDir": "dist" }
     ],
     "watchAssets": true
   }
