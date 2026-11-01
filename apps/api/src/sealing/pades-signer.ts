@@ -96,6 +96,7 @@ export class P12PadesSigner extends PadesSigner {
       } catch (err) {
         throw new Error(
           `P12PadesSigner: cannot read P12 at ${path}: ${err instanceof Error ? err.message : String(err)}`,
+          { cause: err },
         );
       }
     }
