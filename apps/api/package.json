@@ -29,7 +29,7 @@
     "@react-pdf/renderer": "^4.5.1",
     "@signpdf/placeholder-plain": "^3",
     "@signpdf/signer-p12": "^3",
-    "@signpdf/signpdf": "^3",
+    "@signpdf/signpdf": "^4",
     "@signpdf/utils": "^3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
