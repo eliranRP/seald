@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
-    "@nestjs/common": "^11.1.21",
+    "@nestjs/common": "^12.3.2",
     "@nestjs/core": "^11.1.21",
     "@nestjs/platform-express": "^11.1.21",
     "@nestjs/throttler": "^6.7.1",
