@@ -44,7 +44,8 @@ function tsrResponse(status: number): FakeResponse {
   return {
     ok: true,
     status: 200,
-    arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength),
+    // A copy owns a plain ArrayBuffer (a Buffer's .buffer may be shared).
+    arrayBuffer: async () => new Uint8Array(buf).buffer,
   };
 }
 function httpFailure(status: number): FakeResponse {
