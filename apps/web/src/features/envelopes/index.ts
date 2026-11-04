@@ -39,6 +39,7 @@ export {
   sendEnvelope,
   deleteEnvelope,
   cancelEnvelope,
+  setEnvelopeArchived,
   unsendEnvelope,
 } from './envelopesApi';
 export type {

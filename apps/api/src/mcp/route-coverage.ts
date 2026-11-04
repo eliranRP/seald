@@ -43,6 +43,8 @@ export const SHIPPED_STEPS = [
   'step-15',
   // WP-45 (D5): the approval-gated account, key and owner-signing tools.
   'WP-45',
+  // Archive (migration 0051): envelopes_archive / envelopes_unarchive.
+  'step-17',
 ] as const;
 
 export const EXCLUSION_REASONS = [
@@ -124,6 +126,8 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
     excluded: 'owner_in_app_only',
     note: 'Undo toast in the app, 10 s after Send; an agent has cancel and update instead.',
   },
+  'POST /envelopes/:id/archive': { tool: 'envelopes_archive' },
+  'POST /envelopes/:id/unarchive': { tool: 'envelopes_unarchive' },
   'POST /envelopes/:id/signers/:signer_id/remind': { tool: 'envelopes_remind' },
   'POST /envelopes/:id/signers': { tool: 'envelopes_add_signer' },
   'DELETE /envelopes/:id/signers/:signer_id': { tool: 'envelopes_remove_signer' },

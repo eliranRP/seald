@@ -95,7 +95,7 @@ export const Root = styled.button<RootProps>`
 export const FieldTag = styled.span`
   position: absolute;
   top: 50%;
-  right: calc(100% + 8px);
+  right: calc(100% + ${({ theme }) => theme.space[2]});
   transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
@@ -109,11 +109,13 @@ export const FieldTag = styled.span`
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   white-space: nowrap;
   pointer-events: none;
-  /* Mobile: the tag sits on top of the field's left edge (canvas Sign-M). */
+  /* Mobile: no room to the left, and above the field is where the PDF's own
+     label ("Signature") sits, so the tag hangs just below the field's left
+     edge, a space[1] gap away, covering neither the field nor its label. */
   @media (max-width: 640px) {
     right: auto;
     left: 0;
-    top: -26px;
+    top: calc(100% + ${({ theme }) => theme.space[1]});
     transform: none;
   }
 `;

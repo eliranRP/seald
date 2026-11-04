@@ -260,7 +260,12 @@ describe('AutomationDetail', () => {
       renderDetail();
 
       const form = await screen.findByRole('form', { name: 'Edit this automation' });
-      expect(within(form).getByRole('button', { name: 'Save' })).toBeDisabled();
+      // Save stays enabled; a click with nothing changed says what to change.
+      await user.click(within(form).getByRole('button', { name: 'Save' }));
+      expect(within(form).getByRole('status')).toHaveTextContent(
+        'Nothing to save yet. Change the name or the address first.',
+      );
+      expect(patchMock).not.toHaveBeenCalled();
       expect(within(form).getByRole('textbox', { name: 'Webhook address' })).toHaveAttribute(
         'placeholder',
         'Leave blank to keep hooks.example.com',

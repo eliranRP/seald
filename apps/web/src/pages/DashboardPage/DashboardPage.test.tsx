@@ -269,11 +269,61 @@ describe('DashboardPage', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select Offer letter — M. Chen' }));
     const bar = screen.getByRole('toolbar', { name: 'Bulk actions' });
     expect(within(bar).getByText('2 selected')).toBeInTheDocument();
-    for (const name of ['Remind', 'Download', 'Tag', 'Delete']) {
+    for (const name of ['Remind', 'Download', 'Tag', 'Archive']) {
       expect(within(bar).getByRole('button', { name })).toBeInTheDocument();
     }
     fireEvent.click(within(bar).getByRole('button', { name: 'Clear selection' }));
     expect(screen.queryByRole('toolbar', { name: 'Bulk actions' })).not.toBeInTheDocument();
+  });
+
+  it('never offers Delete for a sealed document; it can be archived instead', async () => {
+    renderHome();
+    await screen.findByRole('checkbox', { name: 'Select Offer letter — M. Chen' });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Offer letter — M. Chen' }));
+    const bar = screen.getByRole('toolbar', { name: 'Bulk actions' });
+    expect(within(bar).queryByRole('button', { name: /Delete|Cancel request|Remove/ })).toBeNull();
+    expect(within(bar).queryByRole('button', { name: 'Remind' })).toBeNull();
+    expect(within(bar).getByRole('button', { name: 'Archive' })).toBeInTheDocument();
+  });
+
+  it('offers Delete when every selected document is a draft', async () => {
+    renderHome();
+    await screen.findByRole('checkbox', { name: 'Select Vendor onboarding — Argus' });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Vendor onboarding — Argus' }));
+    const bar = screen.getByRole('toolbar', { name: 'Bulk actions' });
+    expect(within(bar).getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+  });
+
+  it('archives the selection with Undo, and lists archived documents under Archived', async () => {
+    mocks.items = seed().map((e) =>
+      (e as { id: string }).id === 'env-lease'
+        ? { ...(e as object), archived_at: new Date().toISOString() }
+        : e,
+    );
+    renderHome();
+    await screen.findByRole('checkbox', { name: 'Select Offer letter — M. Chen' });
+    // The archived lease is out of All and counted under Archived.
+    expect(screen.queryByText('Lease renewal — 44 Maple')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Archived/ })).toHaveTextContent('1');
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Offer letter — M. Chen' }));
+    fireEvent.click(
+      within(screen.getByRole('toolbar', { name: 'Bulk actions' })).getByRole('button', {
+        name: 'Archive',
+      }),
+    );
+    const api = await apiMock();
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/envelopes/env-offer/archive', undefined, {}),
+    );
+    expect(await screen.findByText('1 document archived')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/envelopes/env-offer/unarchive', undefined, {}),
+    );
+
+    fireEvent.click(screen.getByRole('tab', { name: /Archived/ }));
+    expect(await screen.findByText('Lease renewal — 44 Maple')).toBeInTheDocument();
   });
 
   it('offers the three ways to start from the New menu', async () => {
@@ -384,7 +434,7 @@ describe('DashboardPage on a phone', () => {
       fireEvent.click(
         screen.getByRole('button', { name: 'More actions for Offer letter — M. Chen' }),
       );
-      const sheet = await screen.findByRole('dialog', { name: 'Row actions' });
+      const sheet = await screen.findByRole('dialog', { name: 'Document actions' });
       expect(within(sheet).getByRole('button', { name: 'Download' })).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: /^Filter/ }));
       expect(await screen.findByRole('dialog', { name: 'Filter' })).toBeInTheDocument();

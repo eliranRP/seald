@@ -116,6 +116,8 @@ When('the sender opens the dashboard', async ({ dashboardPage }) => {
 // by the Playwright `page` reference so parallel scenarios don't bleed
 // into one another.
 const popupBuckets = new WeakMap<object, string[]>();
+// Download-URL requests for the audit trail since the detail page loaded.
+const auditRequests = new WeakMap<object, string[]>();
 
 When('the sender opens the recent envelope detail', async ({ page }) => {
   // EnvelopeDetailPage is mounted under `/document/:id` via DocumentRoute
@@ -145,13 +147,17 @@ When('the sender opens the recent envelope detail', async ({ page }) => {
   page.on('popup', (popup) => {
     bucket.push(popup.url());
   });
+  const audit: string[] = [];
+  auditRequests.set(page, audit);
+  page.on('request', (req) => {
+    if (/\/download\?kind=audit/.test(req.url())) audit.push(req.url());
+  });
 });
 
-When('the sender chooses the {string} download bundle', async ({ page }, _label: string) => {
-  // On a sealed envelope the main Download button is the bundle: the sealed
-  // PDF in one tab plus the audit trail as a download.
+When('the sender clicks the main Download button', async ({ page }) => {
+  // On a sealed envelope the main Download button gets the sealed PDF only;
+  // the audit trail is its own item in the Download options menu.
   await page.getByRole('button', { name: 'Download', exact: true }).click();
-  // Allow the bundle path to fire its anchors + listeners to enqueue.
   await page.waitForTimeout(300);
 });
 
@@ -190,14 +196,13 @@ Then('exactly one new tab opens for the sealed PDF', async ({ page }) => {
   expect(popups[0]).not.toMatch(/audit\.pdf$/);
 });
 
-Then('the audit trail is delivered as a download \\(no popup)', async ({ page }) => {
-  // The fixed bundle path uses `<a download>` for the audit, which
-  // never opens a window. The popup bucket therefore must contain
-  // exactly the single sealed-tab URL — no second window-open.
-  const popups = popupBuckets.get(page) ?? [];
-  expect(popups.length, `audit trail must NOT spawn a popup; bucket: ${popups.join(', ')}`).toBe(1);
+Then('the audit trail is not fetched with it', async ({ page }) => {
+  const audit = auditRequests.get(page) ?? [];
+  expect(audit, `the main Download must not fetch the audit trail: ${audit.join(', ')}`).toEqual(
+    [],
+  );
 });
 
-Then('the success toast confirms the download', async ({ page }) => {
-  await expect(page.getByText(/audit trail downloaded/i)).toBeVisible();
+Then('the success toast confirms the sealed PDF opened', async ({ page }) => {
+  await expect(page.getByText(/sealed pdf (opened|ready)/i)).toBeVisible();
 });

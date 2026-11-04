@@ -118,7 +118,7 @@ export class TsaClient {
       });
     } catch (err) {
       if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
-        throw new Error(`tsa_timeout`);
+        throw new Error(`tsa_timeout`, { cause: err });
       }
       throw err;
     }

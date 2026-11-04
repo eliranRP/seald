@@ -12,7 +12,6 @@ const WP00_FLAGS: FeatureFlag[] = [
   'fieldMetaV2',
   'customReminders',
   'signerAccessAuth',
-  'appendCertificate',
   'mcpServer',
   'mcpOauth',
   'workflowAutomations',
@@ -52,6 +51,10 @@ describe('parity feature flag seeds', () => {
   // The owner switched every parity flag on (feat/enable-parity-flags).
   it.each(WP00_FLAGS)('%s ships on', (flag) => {
     expect(FEATURE_FLAGS[flag]).toBe(true);
+  });
+
+  it('appendCertificate is off: the audit trail is never appended to the sealed PDF', () => {
+    expect(FEATURE_FLAGS.appendCertificate).toBe(false);
   });
 
   it('gdriveMultiAccount stays off (its UI is not part of the parity work)', () => {

@@ -11,7 +11,13 @@
         "@sender",
         "@signer",
         "@chromium-only",
-        "@fixme"
+        "@fixme",
+        "@a11y",
+        "@gdrive",
+        "@mobile",
+        "@nav",
+        "@settings",
+        "@verify"
       ]
     }
   ],

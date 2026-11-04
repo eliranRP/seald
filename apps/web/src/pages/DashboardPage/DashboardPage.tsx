@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
+  Archive,
+  ArchiveRestore,
   Bell,
   Ban,
   ChevronDown,
@@ -33,12 +35,15 @@ import {
   EMPTY_VIEW,
   addTagToEnvelopes,
   applyView,
+  archiveEnvelopes,
   canRemind,
+  canRemove,
   copyDocumentLink,
   downloadEnvelopes,
   fixBouncedEmail,
   groupByRecency,
   hasActiveFilters,
+  isArchived,
   needsYouCards,
   remindEnvelopes,
   removeEnvelopes,
@@ -96,6 +101,7 @@ const TAB_META: Record<DashboardTab, { label: string }> = {
   sealed: { label: 'Sealed' },
   drafts: { label: 'Drafts' },
   stopped: { label: 'Stopped' },
+  archived: { label: 'Archived' },
 };
 
 /** Undo stays on screen this long after Send. */
@@ -107,6 +113,8 @@ interface ToastSpec {
   readonly kind: 'sent' | 'undone' | 'info' | 'error';
   readonly title: string;
   readonly envelopeId?: string;
+  /** Info toasts only: an Undo for a reversible action (archive). */
+  readonly undo?: () => void;
 }
 
 interface PendingConfirm {
@@ -123,6 +131,13 @@ function parseTab(raw: string | null): DashboardTab {
 function removeTitle(single: EnvelopeListItem | undefined, count: number): string {
   if (single === undefined) return `Remove ${plural(count, 'document', 'documents')}?`;
   return single.status === 'draft' ? 'Delete this draft?' : 'Cancel this request?';
+}
+
+/** Bulk Delete label: what actually happens to the selection. */
+function removeLabel(envs: ReadonlyArray<EnvelopeListItem>): string {
+  if (envs.every((e) => e.status === 'draft')) return 'Delete';
+  if (envs.every((e) => e.status !== 'draft')) return 'Cancel request';
+  return 'Remove';
 }
 
 function plural(n: number, one: string, many: string): string {
@@ -222,6 +237,12 @@ export function DashboardPage() {
   );
   const allVisibleSelected = visible.length > 0 && selectedItems.length === visible.length;
   const bulkOn = selected.size > 0;
+  // Bulk actions show only when they apply to the selection, so none of
+  // them is a dead end (a sealed document cannot be deleted, only archived).
+  const bulkCanRemind = selectedItems.some(canRemind);
+  const bulkCanDownload = selectedItems.some((e) => e.status === 'completed');
+  const bulkArchived = selectedItems.length > 0 && selectedItems.every(isArchived);
+  const bulkCanRemove = selectedItems.length > 0 && selectedItems.every(canRemove);
 
   const say = useCallback(
     (title: string, kind: ToastSpec['kind'] = 'info'): void => setToast({ kind, title }),
@@ -284,10 +305,9 @@ export function DashboardPage() {
       const out = envs.filter(
         (e) => e.status === 'awaiting_others' || e.status === 'sealing',
       ).length;
-      if (drafts + out === 0) {
-        setToast({ kind: 'info', title: 'Sealed documents cannot be removed' });
-        return;
-      }
+      // Only drafts and requests still out for signature can be removed;
+      // the bulk bar and row menus offer Delete for nothing else.
+      if (drafts + out === 0) return;
       const single = envs.length === 1 ? envs[0] : undefined;
       setConfirm({
         title: removeTitle(single, drafts + out),
@@ -304,6 +324,36 @@ export function DashboardPage() {
       });
     },
     [summarize],
+  );
+
+  const archive = useCallback(
+    async (envs: ReadonlyArray<EnvelopeListItem>, archived: boolean): Promise<void> => {
+      const s = await archiveEnvelopes(envs, archived);
+      setSelected(new Set());
+      setSelecting(false);
+      refresh();
+      if (s.ok === 0) {
+        say(archived ? 'Could not archive' : 'Could not restore', 'error');
+        return;
+      }
+      const done = archived
+        ? plural(s.ok, 'document archived', 'documents archived')
+        : plural(s.ok, 'document restored', 'documents restored');
+      setToast({
+        kind: 'info',
+        title: s.failed > 0 ? `${done} · ${s.failed} failed` : done,
+        ...(archived
+          ? {
+              undo: () =>
+                void archiveEnvelopes(envs, false).then(() => {
+                  refresh();
+                  setToast({ kind: 'undone', title: 'Moved back to Documents' });
+                }),
+            }
+          : {}),
+      });
+    },
+    [refresh, say],
   );
 
   const rowActions = useCallback(
@@ -338,8 +388,21 @@ export function DashboardPage() {
             ),
         },
         { id: 'tag', label: 'Add tag', icon: TagIcon, onSelect: () => setTagFor([env]) },
+        isArchived(env)
+          ? {
+              id: 'unarchive',
+              label: 'Unarchive',
+              icon: ArchiveRestore,
+              onSelect: () => void archive([env], false),
+            }
+          : {
+              id: 'archive',
+              label: 'Archive',
+              icon: Archive,
+              onSelect: () => void archive([env], true),
+            },
       );
-      if (env.status === 'draft' || env.status === 'awaiting_others' || env.status === 'sealing') {
+      if (canRemove(env)) {
         out.push({
           id: 'remove',
           label: env.status === 'draft' ? 'Delete draft' : 'Cancel request',
@@ -350,7 +413,7 @@ export function DashboardPage() {
       }
       return out;
     },
-    [openDocument, remind, download, say, askRemove],
+    [openDocument, remind, download, say, askRemove, archive],
   );
 
   const menuEntries = useCallback(
@@ -463,11 +526,13 @@ export function DashboardPage() {
     } else if (toast.kind === 'undone') {
       toastProps = { ...base, title: toast.title, icon: Undo2, duration: 4000 };
     } else {
+      const { undo } = toast;
       toastProps = {
         ...base,
         title: toast.title,
         tone: toast.kind === 'error' ? 'error' : 'info',
-        duration: 4000,
+        duration: undo === undefined ? 4000 : UNDO_MS,
+        ...(undo === undefined ? {} : { action: { label: 'Undo', onClick: undo } }),
       };
     }
   }
@@ -507,6 +572,21 @@ export function DashboardPage() {
               </Button>
             }
           />
+        );
+      }
+      if (filters.tab === 'archived' && !filtered) {
+        return (
+          <EmptyState
+            icon={Archive}
+            title="No archived documents"
+            action={
+              <Button variant="secondary" onClick={() => patchFilters({ tab: 'all' })}>
+                View all documents
+              </Button>
+            }
+          >
+            Archive a sealed or finished document to file it away. It stays verifiable.
+          </EmptyState>
         );
       }
       return (
@@ -573,13 +653,18 @@ export function DashboardPage() {
             </HeaderSearch>
           ) : null}
           <MenuAnchor>
-            <SplitGroup>
-              <Button variant="primary" iconLeft={Upload} onClick={() => navigate('/document/new')}>
+            <SplitGroup $secondary={firstRun}>
+              {/* First run: the empty state's "Choose file" is the one primary action. */}
+              <Button
+                variant={firstRun ? 'secondary' : 'primary'}
+                iconLeft={Upload}
+                onClick={() => navigate('/document/new')}
+              >
                 New document
               </Button>
               <Button
                 ref={newChevronRef}
-                variant="primary"
+                variant={firstRun ? 'secondary' : 'primary'}
                 iconOnly
                 iconLeft={ChevronDown}
                 aria-label="More ways to start"
@@ -667,22 +752,26 @@ export function DashboardPage() {
                 <span>{`${selected.size} selected`}</span>
                 {mobile ? null : (
                   <>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      iconLeft={Bell}
-                      onClick={() => void remind(selectedItems)}
-                    >
-                      Remind
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      iconLeft={Download}
-                      onClick={() => void download(selectedItems)}
-                    >
-                      Download
-                    </Button>
+                    {bulkCanRemind ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        iconLeft={Bell}
+                        onClick={() => void remind(selectedItems)}
+                      >
+                        Remind
+                      </Button>
+                    ) : null}
+                    {bulkCanDownload ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        iconLeft={Download}
+                        onClick={() => void download(selectedItems)}
+                      >
+                        Download
+                      </Button>
+                    ) : null}
                     <Button
                       size="sm"
                       variant="ghost"
@@ -694,11 +783,21 @@ export function DashboardPage() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      iconLeft={Trash2}
-                      onClick={() => askRemove(selectedItems)}
+                      iconLeft={bulkArchived ? ArchiveRestore : Archive}
+                      onClick={() => void archive(selectedItems, !bulkArchived)}
                     >
-                      Delete
+                      {bulkArchived ? 'Unarchive' : 'Archive'}
                     </Button>
+                    {bulkCanRemove ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        iconLeft={Trash2}
+                        onClick={() => askRemove(selectedItems)}
+                      >
+                        {removeLabel(selectedItems)}
+                      </Button>
+                    ) : null}
                     <Spacer />
                     <Button
                       size="sm"
@@ -722,7 +821,6 @@ export function DashboardPage() {
                 onOpenFilterSheet={() => setFilterSheet(true)}
                 onStartSelecting={() => setSelecting(true)}
                 searchOpen={mobileSearch}
-                resultCount={loading ? undefined : visible.length}
               />
             )}
 
@@ -773,22 +871,36 @@ export function DashboardPage() {
 
       {mobile && bulkOn ? (
         <MobileActionBar role="toolbar" aria-label="Selection actions">
-          <button type="button" onClick={() => void remind(selectedItems)}>
-            <Bell size={20} aria-hidden />
-            Remind
-          </button>
-          <button type="button" onClick={() => void download(selectedItems)}>
-            <Download size={20} aria-hidden />
-            Download
-          </button>
+          {bulkCanRemind ? (
+            <button type="button" onClick={() => void remind(selectedItems)}>
+              <Bell size={20} aria-hidden />
+              Remind
+            </button>
+          ) : null}
+          {bulkCanDownload ? (
+            <button type="button" onClick={() => void download(selectedItems)}>
+              <Download size={20} aria-hidden />
+              Download
+            </button>
+          ) : null}
           <button type="button" onClick={() => setTagFor(selectedItems)}>
             <TagIcon size={20} aria-hidden />
             Tag
           </button>
-          <button type="button" data-danger="true" onClick={() => askRemove(selectedItems)}>
-            <Trash2 size={20} aria-hidden />
-            Delete
+          <button type="button" onClick={() => void archive(selectedItems, !bulkArchived)}>
+            {bulkArchived ? (
+              <ArchiveRestore size={20} aria-hidden />
+            ) : (
+              <Archive size={20} aria-hidden />
+            )}
+            {bulkArchived ? 'Unarchive' : 'Archive'}
           </button>
+          {bulkCanRemove ? (
+            <button type="button" data-danger="true" onClick={() => askRemove(selectedItems)}>
+              <Trash2 size={20} aria-hidden />
+              {removeLabel(selectedItems)}
+            </button>
+          ) : null}
         </MobileActionBar>
       ) : null}
 

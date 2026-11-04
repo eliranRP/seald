@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { nativeControl } from '@/styles/mixins';
 
 export const Root = styled.fieldset`
   display: grid;
@@ -12,8 +13,9 @@ export const Root = styled.fieldset`
 export const Legend = styled.legend`
   padding: 0;
   margin-bottom: ${({ theme }) => theme.space[1]};
-  font-size: 13px;
-  font-weight: 600;
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[1]};
 `;
 
 export const Field = styled.div`
@@ -22,16 +24,16 @@ export const Field = styled.div`
 `;
 
 export const Label = styled.label`
-  font-size: 13px;
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.fg[2]};
 `;
 
 export const Control = styled.select`
-  min-height: calc(${({ theme }) => theme.space[10]} + ${({ theme }) => theme.space[1]});
-  padding: 0 ${({ theme }) => theme.space[2]};
-  font: inherit;
+  ${nativeControl}
 `;
 
 export const Hint = styled.p`
   margin: 0;
-  font-size: 12px;
+  font-size: ${({ theme }) => theme.font.size.xs};
+  color: ${({ theme }) => theme.color.fg[3]};
 `;

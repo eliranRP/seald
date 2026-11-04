@@ -59,4 +59,19 @@ export const MobileNavNew = styled.button`
     outline: 0;
     box-shadow: ${({ theme }) => theme.shadow.focus};
   }
+
+  /* One primary per screen (hierarchy § 1): while the page shows its own
+     primary action (an empty state's "Choose file", marked
+     [data-page-primary]) or the host asks for it, the FAB goes calm:
+     paper fill with an indigo glyph, so the accent stays on the page. */
+  &[data-calm='true'],
+  body:has([data-page-primary]) & {
+    background: ${({ theme }) => theme.color.paper};
+    color: ${({ theme }) => theme.color.indigo[600]};
+    border: 1px solid ${({ theme }) => theme.color.border[1]};
+  }
+  &[data-calm='true']:hover,
+  body:has([data-page-primary]) &:hover {
+    background: ${({ theme }) => theme.color.indigo[50]};
+  }
 `;

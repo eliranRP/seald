@@ -36,7 +36,9 @@ export const Input = styled.input`
   width: ${({ theme }) => theme.space[5]};
   height: ${({ theme }) => theme.space[5]};
   margin: 2px 0 0;
-  border: 1.5px solid ${({ theme }) => theme.color.ink[300]};
+  /* ink-500 (~4.8:1 on paper): the ink-300 box edge was ~1.5:1, below the
+     3:1 a control boundary needs. */
+  border: 1.5px solid ${({ theme }) => theme.color.ink[500]};
   border-radius: ${({ theme }) => theme.radius.xs};
   background: ${({ theme }) => theme.color.paper};
   display: grid;

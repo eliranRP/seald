@@ -3,7 +3,7 @@ import { act, fireEvent } from '@testing-library/react';
 import { axe } from 'vitest-axe';
 import { Link } from 'lucide-react';
 import { renderWithTheme } from '@/test/renderWithTheme';
-import { Toast } from './Toast';
+import { MIN_TOAST_MS, Toast } from './Toast';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -71,6 +71,34 @@ describe('Toast', () => {
       vi.advanceTimersByTime(60000);
     });
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('keeps a short-lived toast up for at least MIN_TOAST_MS', () => {
+    vi.useFakeTimers();
+    const onClose = vi.fn();
+    renderWithTheme(<Toast title="Saved" duration={2000} onClose={onClose} />);
+    act(() => {
+      vi.advanceTimersByTime(MIN_TOAST_MS - 1);
+    });
+    expect(onClose).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps an error toast until it is dismissed', () => {
+    vi.useFakeTimers();
+    const onClose = vi.fn();
+    const { getByRole } = renderWithTheme(
+      <Toast tone="error" title="Upload failed" duration={4000} onClose={onClose} />,
+    );
+    act(() => {
+      vi.advanceTimersByTime(60000);
+    });
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(getByRole('button', { name: 'Dismiss' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('hides the glyph when icon is null', () => {

@@ -41,6 +41,8 @@ import { gdriveSearchFilesTool } from './gdrive/gdrive-search-files.tool';
 import { meGetTool } from './me-get.tool';
 import { envelopesAddSignerTool } from './prepare/envelopes-add-signer.tool';
 import { envelopesCreateTool } from './prepare/envelopes-create.tool';
+import { envelopesArchiveTool } from './archive/envelopes-archive.tool';
+import { envelopesUnarchiveTool } from './archive/envelopes-unarchive.tool';
 import { envelopesDeleteDraftTool } from './prepare/envelopes-delete-draft.tool';
 import { envelopesPlaceFieldsTool } from './prepare/envelopes-place-fields.tool';
 import { envelopesPrepareTool } from './prepare/envelopes-prepare.tool';
@@ -92,6 +94,8 @@ export const MCP_WRITE_TOOLS: readonly McpTool[] = [
   envelopesCreateTool,
   envelopesUpdateTool,
   envelopesDeleteDraftTool,
+  envelopesArchiveTool,
+  envelopesUnarchiveTool,
   envelopesAddSignerTool,
   envelopesRemoveSignerTool,
   envelopesPlaceFieldsTool,

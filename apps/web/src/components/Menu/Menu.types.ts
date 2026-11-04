@@ -50,6 +50,11 @@ export interface MenuProps extends Omit<HTMLAttributes<HTMLDivElement>, 'role' |
   readonly anchorRef?: RefObject<HTMLElement | null> | undefined;
   /** Focus the first enabled item on open. Default true. */
   readonly autoFocus?: boolean | undefined;
+  /**
+   * Which side of the anchor the menu opens on. Default `auto`: below, or
+   * above when the viewport has no room below and more room above.
+   */
+  readonly placement?: 'auto' | 'bottom' | 'top' | undefined;
 }
 
 export interface MenuTriggerProps {

@@ -5,17 +5,14 @@ import type { StatusTone } from './StatusPage.types';
 export const Page = styled.div`
   min-height: 100vh;
   min-height: 100dvh;
+  /* One ground at every width: the muted lines need it for 4.5:1. */
   background: ${({ theme }) => theme.color.bg.app};
-
-  @media (max-width: 640px) {
-    background: ${({ theme }) => theme.color.bg.subtle};
-  }
 `;
 
 /**
  * Status column (canvas `.state-page`): centred in the space under the 64px
  * header on desktop; top-aligned under the 56px header on mobile (16px page
- * gutter + 40px top padding).
+ * gutter, 40px top padding).
  */
 export const Column = styled.main`
   box-sizing: border-box;
@@ -35,7 +32,7 @@ export const Column = styled.main`
   @media (max-width: 640px) {
     justify-content: flex-start;
     min-height: 0;
-    padding: 56px ${({ theme }) => theme.space[6]} ${({ theme }) => theme.space[10]};
+    padding: ${({ theme }) => `${theme.space[10]} ${theme.space[4]}`};
   }
 `;
 
@@ -64,12 +61,12 @@ export const Disc = styled.span<{ readonly $tone: StatusTone }>`
 
 /**
  * Canvas `.h1` (32px) on desktop, `.h1-m` (28px) on mobile. While busy
- * ("Opening …") it is the quiet `.body` line under the spinner instead.
+ * ("Opening …") it is the quiet 14px line under the spinner instead.
  */
 export const Title = styled.h1<{ readonly $busy: boolean }>`
   margin: 0;
   font-family: ${({ theme, $busy }) => ($busy ? theme.font.sans : theme.font.serif)};
-  font-size: ${({ theme, $busy }) => ($busy ? theme.font.size.bodyMd : theme.font.size.x4l)};
+  font-size: ${({ theme, $busy }) => ($busy ? theme.font.size.bodySm : theme.font.size.x4l)};
   font-weight: ${({ theme, $busy }) =>
     $busy ? theme.font.weight.regular : theme.font.weight.medium};
   line-height: ${({ theme, $busy }) =>
@@ -79,39 +76,46 @@ export const Title = styled.h1<{ readonly $busy: boolean }>`
   color: ${({ theme, $busy }) => ($busy ? theme.color.fg[2] : theme.color.fg[1])};
 
   @media (max-width: 640px) {
-    font-size: ${({ theme, $busy }) => ($busy ? theme.font.size.caption : theme.font.size.x3l)};
+    font-size: ${({ theme, $busy }) => ($busy ? theme.font.size.bodySm : theme.font.size.x3l)};
   }
 `;
 
+/** What happened and what comes next: the secondary ink, not the muted one. */
 export const Body = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: ${({ theme }) => theme.space[4]};
   width: 100%;
-  font-size: ${({ theme }) => theme.font.size.caption};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
   line-height: ${({ theme }) => theme.font.lineHeight.normal};
-  color: ${({ theme }) => theme.color.fg[3]};
+  color: ${({ theme }) => theme.color.fg[2]};
 `;
 
-/** Anchor that looks like the secondary button: a real link target (download). */
+/**
+ * Anchor that looks like the primary button: a real link target (download).
+ * It is the one thing to do on the screens that show it, so it takes the accent.
+ */
 export const ActionLink = styled.a`
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: ${({ theme }) => theme.space[2]};
   height: 44px;
-  padding: 0 18px;
-  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  padding: 0 ${({ theme }) => theme.space[5]};
+  border: 1px solid transparent;
   border-radius: ${({ theme }) => theme.radius.md};
-  background: ${({ theme }) => theme.color.paper};
-  color: ${({ theme }) => theme.color.fg[1]};
+  background: ${({ theme }) => theme.color.accent.base};
+  color: ${({ theme }) => theme.color.fgOnAccent};
   font-size: ${({ theme }) => theme.font.size.bodySm};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   text-decoration: none;
 
   &:hover {
-    background: ${({ theme }) => theme.color.bg.subtle};
+    background: ${({ theme }) => theme.color.accent.hover};
+  }
+  &:active {
+    background: ${({ theme }) => theme.color.accent.press};
   }
   &:focus-visible {
     outline: none;
@@ -119,19 +123,25 @@ export const ActionLink = styled.a`
   }
 `;
 
-/** Quiet inline link under the actions. */
+/**
+ * Quiet inline link under the actions: neutral ink and an underline, so the
+ * accent stays on the one primary action.
+ */
 export const TextLink = styled.a`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: ${({ theme }) => theme.space[2]};
   font-size: ${({ theme }) => theme.font.size.bodySm};
-  font-weight: ${({ theme }) => theme.font.weight.medium};
-  color: ${({ theme }) => theme.color.indigo[700]};
-  text-decoration: none;
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[2]};
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: ${({ theme }) => theme.color.border[2]};
 
   &:hover {
-    text-decoration: underline;
+    color: ${({ theme }) => theme.color.fg[1]};
+    text-decoration-color: currentColor;
   }
 `;
 
@@ -139,19 +149,21 @@ export const Quote = styled.blockquote`
   box-sizing: border-box;
   width: 100%;
   margin: 0;
-  padding: 10px 14px;
-  border-left: 3px solid ${({ theme }) => theme.color.danger[500]};
-  border-radius: 0 ${({ theme }) => theme.radius.sm} ${({ theme }) => theme.radius.sm} 0;
+  padding: ${({ theme }) => `${theme.space[3]} ${theme.space[4]}`};
+  border-inline-start: 3px solid ${({ theme }) => theme.color.border[2]};
+  border-start-end-radius: ${({ theme }) => theme.radius.sm};
+  border-end-end-radius: ${({ theme }) => theme.radius.sm};
   background: ${({ theme }) => theme.color.paper};
-  text-align: left;
+  text-align: start;
   font-size: ${({ theme }) => theme.font.size.bodySm};
   color: ${({ theme }) => theme.color.fg[2]};
 `;
 
+/** Small print under the actions: the muted ink, 12px, the smallest size on the page. */
 export const Fine = styled.div`
   width: 100%;
-  font-size: ${({ theme }) => theme.font.size.micro};
+  font-size: ${({ theme }) => theme.font.size.xs};
   line-height: ${({ theme }) => theme.font.lineHeight.normal};
   color: ${({ theme }) => theme.color.fg[3]};
-  text-align: left;
+  text-align: start;
 `;

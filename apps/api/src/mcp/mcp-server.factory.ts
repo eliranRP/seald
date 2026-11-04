@@ -31,6 +31,10 @@ export function createMcpServer(runner: McpToolRunner, principal: McpPrincipal):
     { capabilities: { tools: { listChanged: false }, resources: {}, prompts: {} } },
   );
   const server = mcp.server;
+  // SDK >= 1.32.2 installs its own handlers for the declared capabilities and
+  // sets tools.listChanged to true. This server is stateless and never sends
+  // list-changed notifications, so restore false before connect().
+  server.registerCapabilities({ tools: { listChanged: false } });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: listTools() }));
   server.setRequestHandler(CallToolRequestSchema, async (req) =>
     runner.call(req.params.name, req.params.arguments, principal),

@@ -2,12 +2,14 @@ import { X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { Button } from '@/components/Button';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
+import { useModalFocus } from '../shared/useModalFocus';
 import { Body, Foot, Handle, Head, Heading, Scrim, Surface } from './SheetDialog.styles';
 import type { SheetDialogProps } from './SheetDialog.types';
 
 /**
  * Dialog that is a centred modal on a desktop and a bottom sheet on a phone.
- * Scrim click and Escape close it; focus moves into it on open.
+ * Scrim click and Escape close it; focus moves into it on open, Tab stays
+ * inside, and focus returns to the trigger on close.
  */
 export function SheetDialog(props: SheetDialogProps) {
   const {
@@ -23,6 +25,7 @@ export function SheetDialog(props: SheetDialogProps) {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
 
   useEscapeKey(onClose, open);
+  useModalFocus(surfaceRef, open);
 
   useEffect(() => {
     if (!open) return;

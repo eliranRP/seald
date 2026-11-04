@@ -32,6 +32,13 @@ export const BackRow = styled.div`
   }
 `;
 
+/** Actions on the load-error card: Try again first, then the way out. Wraps on a phone. */
+export const ErrorActions = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${({ theme }) => theme.space[3]};
+`;
+
 /** Mobile header: back, the envelope title and the more menu (`.m-top`). */
 export const MobileTop = styled.div`
   display: none;
@@ -101,14 +108,25 @@ export const Title = styled.h1`
 
 export const HeadMeta = styled.div`
   display: flex;
-  gap: 10px;
+  gap: ${({ theme }) => theme.space[2]};
   align-items: center;
   flex-wrap: wrap;
   font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[3]};
-  ${MOBILE} {
-    gap: ${({ theme }) => theme.space[2]};
-  }
+`;
+
+/** Tag chips + add button; a full line of the meta block when tags exist. */
+export const HeadTags = styled.div<{ readonly $ownRow: boolean }>`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+  min-width: 0;
+  ${({ $ownRow }) =>
+    $ownRow &&
+    css`
+      flex-basis: 100%;
+    `}
 `;
 
 export const HeadCode = styled.span`
@@ -467,7 +485,22 @@ export const FieldBox = styled.label`
     font: inherit;
     font-size: ${({ theme }) => theme.font.size.bodySm};
     color: ${({ theme }) => theme.color.fg[1]};
+    /* 16px on a phone so iOS does not zoom into the field on focus. */
+    ${MOBILE} {
+      font-size: ${({ theme }) => theme.font.size.body};
+    }
   }
+  &:has(input[aria-invalid='true']) {
+    border-color: ${({ theme }) => theme.color.danger[500]};
+  }
+`;
+
+/** Inline field error under the email fix / replace inputs: what is wrong and how to fix it. */
+export const FieldHint = styled.p`
+  flex-basis: 100%;
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.danger[700]};
 `;
 
 export const ActList = styled.ul`
@@ -578,7 +611,8 @@ export const SheetList = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.space[1]};
-  padding: ${({ theme }) => `0 ${theme.space[4]} ${theme.space[4]}`};
+  /* The sheet surface already holds the 16px gutter; rows line up with its title. */
+  padding-bottom: ${({ theme }) => theme.space[4]};
   /* Sheet rows read as a menu (canvas .menu-item, 48px): icon and label start-aligned. */
   & > button {
     justify-content: flex-start;

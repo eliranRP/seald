@@ -1,5 +1,5 @@
-import { forwardRef, useCallback, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import { forwardRef, useCallback, useId, useMemo, useRef, useState } from 'react';
+import type { JSX, ReactNode } from 'react';
 import {
   ArrowLeft,
   Bookmark,
@@ -20,7 +20,6 @@ import { AddSignerDropdown } from '@/components/AddSignerDropdown';
 import type { AddSignerContact } from '@/components/AddSignerDropdown/AddSignerDropdown.types';
 import { AddSignerPanel } from '@/components/AddSignerPanel';
 import { Button } from '@/components/Button';
-import { CollapsibleRail } from '@/components/CollapsibleRail';
 import { DocumentCanvas } from '@/components/DocumentCanvas';
 import { FieldPalette } from '@/components/FieldPalette';
 import { FieldsPlacedList } from '@/components/FieldsPlacedList';
@@ -104,11 +103,13 @@ import {
   SignersSection,
   PreparePanel,
   RailSlot,
-  ReminderSlot,
   RightRailFooter,
+  SendOptions,
+  TemplateRail,
   RightRailInner,
   RightRailScroll,
   SaveAsTemplateButton,
+  SaveAsTemplateHint,
   SaveAsTemplateRow,
   Shell,
   ShortcutsDock,
@@ -158,9 +159,20 @@ const DESKTOP_CHROME_WIDTH = 320 + 104 + 64;
  * 640px when the window has room; field coordinates stay in the 560px
  * base, since every canvas handler divides by the view zoom.
  */
-function paperFitZoom(isMobile: boolean, desktopPrepare: boolean, paperWidth: number): number {
+/** Two collapsed CollapsibleRail strips (40px each) beside the phone canvas. */
+const COLLAPSED_RAILS_WIDTH = 80;
+
+function paperFitZoom(
+  isMobile: boolean,
+  desktopPrepare: boolean,
+  paperWidth: number,
+  railsBeside = false,
+): number {
   if (paperWidth <= 0 || typeof window === 'undefined') return 1;
-  if (isMobile) return Math.min(1, (window.innerWidth - 32) / paperWidth);
+  if (isMobile) {
+    const room = window.innerWidth - 32 - (railsBeside ? COLLAPSED_RAILS_WIDTH : 0);
+    return Math.min(1, room / paperWidth);
+  }
   if (!desktopPrepare) return 1;
   const room = window.innerWidth - DESKTOP_CHROME_WIDTH;
   return Math.max(1, Math.min(BOARD_PAPER_WIDTH, room) / paperWidth);
@@ -225,6 +237,18 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
   // -------------------------- chrome state (rail widths + drawer toggles)
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
+  // Phones (template editor): both rails start collapsed; one opens at a time.
+  const [mobileRail, setMobileRail] = useState<'left' | 'right' | null>(null);
+  const leftShown = isMobile ? mobileRail === 'left' : leftOpen;
+  const rightShown = isMobile ? mobileRail === 'right' : rightOpen;
+  const setLeftShown = (open: boolean): void => {
+    if (isMobile) setMobileRail(open ? 'left' : null);
+    else setLeftOpen(open);
+  };
+  const setRightShown = (open: boolean): void => {
+    if (isMobile) setMobileRail(open ? 'right' : null);
+    else setRightOpen(open);
+  };
   const [leftWidth, setLeftWidth] = useState(DEFAULT_LEFT_WIDTH);
   const [rightWidth, setRightWidth] = useState(DEFAULT_RIGHT_WIDTH);
   const [addSignerOpen, setAddSignerOpen] = useState(false);
@@ -258,7 +282,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
   const { zoom, zoomIn, zoomOut, resetZoom, zoomInDisabled, zoomOutDisabled } = useCanvasZoom();
   // On phones the page is scaled down to fit the screen width; the zoom the
   // person picks multiplies that fit.
-  const fitZoom = paperFitZoom(isMobile, !isMobile && !legacy, paperSize.width);
+  const fitZoom = paperFitZoom(isMobile, !isMobile && !legacy, paperSize.width, legacy);
   const viewZoom = zoom * fitZoom;
 
   const clearSignerPopover = useCallback(() => setSignerPopoverFor(null), []);
@@ -617,6 +641,33 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     />
   );
 
+  /**
+   * "Save as template" needs at least one field. Instead of a silently
+   * disabled button, it stays focusable (`aria-disabled`) and says why.
+   */
+  const saveTplHintId = useId();
+  const renderSaveAsTemplate = (onSave: () => void): JSX.Element => {
+    const empty = fields.length === 0;
+    return (
+      <SaveAsTemplateRow>
+        {empty ? (
+          <SaveAsTemplateHint id={saveTplHintId}>Place a field first</SaveAsTemplateHint>
+        ) : null}
+        <SaveAsTemplateButton
+          type="button"
+          aria-disabled={empty || undefined}
+          aria-describedby={empty ? saveTplHintId : undefined}
+          onClick={() => {
+            if (!empty) onSave();
+          }}
+        >
+          <Icon icon={BookmarkPlus} size={14} />
+          Save as template
+        </SaveAsTemplateButton>
+      </SaveAsTemplateRow>
+    );
+  };
+
   const preparePanel = (
     <PreparePanel aria-label="Signers and fields" $hidden={isMobile && mobileTab !== 'signers'}>
       <SignersSection>
@@ -666,19 +717,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
         onDuplicateField={duplicateField}
         onRemoveField={removeField}
       />
-      {onSaveAsTemplate ? (
-        <SaveAsTemplateRow>
-          <SaveAsTemplateButton
-            type="button"
-            onClick={onSaveAsTemplate}
-            disabled={fields.length === 0}
-            aria-label="Save current layout as a template"
-          >
-            <Icon icon={BookmarkPlus} size={14} />
-            Save as template
-          </SaveAsTemplateButton>
-        </SaveAsTemplateRow>
-      ) : null}
+      {onSaveAsTemplate ? renderSaveAsTemplate(onSaveAsTemplate) : null}
     </PreparePanel>
   );
 
@@ -746,23 +785,24 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
       <Body>
         <Workspace>
           {legacy ? (
-            <CollapsibleRail
+            <TemplateRail
               side="left"
               title="Fields"
-              open={leftOpen}
-              onOpenChange={setLeftOpen}
+              $fill={isMobile && leftShown}
+              open={leftShown}
+              onOpenChange={setLeftShown}
               width={leftWidth}
               onWidthChange={setLeftWidth}
               minW={200}
               maxW={360}
             >
               {palette}
-            </CollapsibleRail>
+            </TemplateRail>
           ) : (
             preparePanel
           )}
 
-          <Center $hidden={!legacy && isMobile && mobileTab !== 'fields'}>
+          <Center $hidden={isMobile && (legacy ? mobileRail !== null : mobileTab !== 'fields')}>
             {legacy ? (
               <CenterTop>
                 <CenterHeader>
@@ -1016,11 +1056,12 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
           )}
 
           {legacy ? (
-            <CollapsibleRail
+            <TemplateRail
               side="right"
               title={isTemplateAuthoring ? (templateName ?? 'New template') : 'Ready to send'}
-              open={rightOpen}
-              onOpenChange={setRightOpen}
+              $fill={isMobile && rightShown}
+              open={rightShown}
+              onOpenChange={setRightShown}
               width={rightWidth}
               onWidthChange={setRightWidth}
               minW={280}
@@ -1072,7 +1113,8 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                           onChange={onSigningOrderChange}
                         />
                       ) : null}
-                      {accessAuth && onAccessAuthChange ? (
+                      {/* Asked once there is someone to ask it about. */}
+                      {accessAuth && onAccessAuthChange && signers.length > 0 ? (
                         <AccessAuthEditor
                           signers={signers}
                           value={accessAuth}
@@ -1100,20 +1142,36 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                     onDuplicateField={duplicateField}
                     onRemoveField={removeField}
                   />
+                  {isTemplateAuthoring ? null : (
+                    <SendOptions aria-label="Send options">
+                      {reminderSettings && onReminderSettingsChange ? (
+                        <>
+                          <SendSettings
+                            value={reminderSettings}
+                            onChange={onReminderSettingsChange}
+                          />
+                          <DateFormatSettings
+                            value={reminderSettings}
+                            onChange={onReminderSettingsChange}
+                          />
+                          <LocaleSettings
+                            value={reminderSettings}
+                            onChange={onReminderSettingsChange}
+                          />
+                        </>
+                      ) : null}
+                      <ReminderToggle
+                        enabled={reminders.enabled}
+                        pending={reminders.pending}
+                        onChange={reminders.onChange}
+                        cadence={reminderSettings?.cadence}
+                      />
+                    </SendOptions>
+                  )}
                 </RightRailScroll>
-                {onSaveAsTemplate && !isTemplateAuthoring ? (
-                  <SaveAsTemplateRow>
-                    <SaveAsTemplateButton
-                      type="button"
-                      onClick={onSaveAsTemplate}
-                      disabled={fields.length === 0}
-                      aria-label="Save current layout as a template"
-                    >
-                      <Icon icon={BookmarkPlus} size={14} />
-                      Save as template
-                    </SaveAsTemplateButton>
-                  </SaveAsTemplateRow>
-                ) : null}
+                {onSaveAsTemplate && !isTemplateAuthoring
+                  ? renderSaveAsTemplate(onSaveAsTemplate)
+                  : null}
                 {isTemplateAuthoring ? (
                   <TemplatePrimaryFooter>
                     <TemplatePrimaryStatus>
@@ -1133,32 +1191,6 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                   </TemplatePrimaryFooter>
                 ) : (
                   <RightRailFooter>
-                    <ReminderSlot>
-                      {reminderSettings && onReminderSettingsChange ? (
-                        <SendSettings
-                          value={reminderSettings}
-                          onChange={onReminderSettingsChange}
-                        />
-                      ) : null}
-                      {reminderSettings && onReminderSettingsChange ? (
-                        <DateFormatSettings
-                          value={reminderSettings}
-                          onChange={onReminderSettingsChange}
-                        />
-                      ) : null}
-                      {reminderSettings && onReminderSettingsChange ? (
-                        <LocaleSettings
-                          value={reminderSettings}
-                          onChange={onReminderSettingsChange}
-                        />
-                      ) : null}
-                      <ReminderToggle
-                        enabled={reminders.enabled}
-                        pending={reminders.pending}
-                        onChange={reminders.onChange}
-                        cadence={reminderSettings?.cadence}
-                      />
-                    </ReminderSlot>
                     <SendPanelFooter
                       fieldCount={sendTotals?.fieldCount ?? fields.length}
                       /* The seald API rejects envelopes without a signature
@@ -1177,7 +1209,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                   </RightRailFooter>
                 )}
               </RightRailInner>
-            </CollapsibleRail>
+            </TemplateRail>
           ) : null}
         </Workspace>
       </Body>

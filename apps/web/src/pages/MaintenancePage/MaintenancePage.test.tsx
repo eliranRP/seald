@@ -14,12 +14,14 @@ describe('MaintenancePage', () => {
   it('says Back soon with the default eta', () => {
     renderWithTheme(<MaintenancePage />);
     expect(screen.getByRole('heading', { name: 'Back soon' })).toBeInTheDocument();
-    expect(screen.getByText('About 15 min')).toBeInTheDocument();
+    expect(screen.getByText('Back in about 15 min')).toBeInTheDocument();
+    // Says what happened and that nothing is needed from the visitor.
+    expect(screen.getByText(/reloads by itself/)).toBeInTheDocument();
   });
 
   it('uses the eta the API sent', () => {
     renderWithTheme(<MaintenancePage etaMinutes={40} />);
-    expect(screen.getByText('About 40 min')).toBeInTheDocument();
+    expect(screen.getByText('Back in about 40 min')).toBeInTheDocument();
   });
 
   it('links the status page only when one is configured', () => {
@@ -55,7 +57,7 @@ describe('MaintenanceGate', () => {
       setMaintenance(true, 20);
     });
     expect(screen.queryByText('the app')).not.toBeInTheDocument();
-    expect(screen.getByText('About 20 min')).toBeInTheDocument();
+    expect(screen.getByText('Back in about 20 min')).toBeInTheDocument();
   });
 
   it('lifts the page once the health check answers', async () => {

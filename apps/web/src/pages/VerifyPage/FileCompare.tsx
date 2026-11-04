@@ -105,7 +105,9 @@ export function FileCompare({ sealedHashes, initialMatch }: FileCompareProps) {
   };
 
   const reset = () => setState({ kind: 'idle' });
-  const idleTitle = isMobile ? 'Tap to choose the PDF' : 'Have a copy? Drop the PDF to compare';
+  const idleTitle = isMobile
+    ? 'Have a copy? Tap to compare'
+    : 'Have a copy? Drop the PDF to compare';
 
   if (state.kind === 'checking') {
     return (

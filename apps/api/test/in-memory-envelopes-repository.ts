@@ -250,6 +250,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       completed_at: e.completed_at,
       expires_at: e.expires_at,
       tags: [...(e.tags ?? [])],
+      archived_at: e.archived_at ?? null,
       created_at: e.created_at,
       updated_at: e.updated_at,
       signers: e.signers.map((s) => ({
@@ -352,6 +353,18 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     if (!e || e.status !== 'draft') return false;
     this.envelopes.delete(envelope_id);
     return true;
+  }
+
+  async setArchived(
+    owner_id: string,
+    envelope_id: string,
+    archived: boolean,
+  ): Promise<Envelope | null> {
+    const e = await this.findByIdForOwner(owner_id, envelope_id);
+    if (!e) return null;
+    const next: Envelope = { ...e, archived_at: archived ? new Date().toISOString() : null };
+    this.envelopes.set(envelope_id, next);
+    return next;
   }
 
   async setOriginalFile(

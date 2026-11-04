@@ -1,4 +1,12 @@
-import { forwardRef, useCallback, useEffect, useId, useRef, useState } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import type { KeyboardEvent, Ref } from 'react';
 import { Check } from 'lucide-react';
 import { Icon } from '../Icon';
@@ -19,6 +27,27 @@ import {
   MenuSep,
   MenuSurface,
 } from './Menu.styles';
+
+/** Gap between anchor and surface; matches `space[1]` in Menu.styles. */
+const MENU_GAP_PX = 4;
+
+/**
+ * Vertical band the menu can paint in: the intersection of every ancestor
+ * that clips overflow (a rounded table card, a scroll area). The viewport is
+ * applied by the caller.
+ */
+function clipBounds(from: Element): { top: number; bottom: number } {
+  let top = Number.NEGATIVE_INFINITY;
+  let bottom = Number.POSITIVE_INFINITY;
+  for (let el = from.parentElement; el && el !== document.body; el = el.parentElement) {
+    const { overflowY } = window.getComputedStyle(el);
+    if (overflowY === 'visible') continue;
+    const r = el.getBoundingClientRect();
+    top = Math.max(top, r.top);
+    bottom = Math.min(bottom, r.bottom);
+  }
+  return { top, bottom };
+}
 
 function isAction(entry: MenuEntry): entry is MenuActionItem {
   return entry.type === undefined || entry.type === 'item';
@@ -47,10 +76,37 @@ export const Menu = forwardRef<HTMLDivElement, MenuProps>((props, ref) => {
     align = 'end',
     anchorRef,
     autoFocus = true,
+    placement = 'auto',
     onKeyDown,
     ...rest
   } = props;
   const surfaceRef = useRef<HTMLDivElement | null>(null);
+  // `auto` measures on open: when the menu would run past the bottom of the
+  // viewport and there is more room above the anchor, it opens upward
+  // (forms § 13, flip on edge). Measured before paint, so it never jumps.
+  const [flipUp, setFlipUp] = useState(placement === 'top');
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    if (placement !== 'auto') {
+      setFlipUp(placement === 'top');
+      return;
+    }
+    const surface = surfaceRef.current;
+    const box = surface?.offsetParent;
+    if (!surface || !box) {
+      setFlipUp(false);
+      return;
+    }
+    const anchor = box.getBoundingClientRect();
+    const need = surface.offsetHeight + MENU_GAP_PX;
+    const clip = clipBounds(box);
+    const fitsBelow = Math.min(window.innerHeight, clip.bottom) - anchor.bottom >= need;
+    const fitsAbove = anchor.top - Math.max(0, clip.top) >= need;
+    // Open upward only when it fits there; otherwise stay below, where the
+    // page can still scroll the rest into view.
+    setFlipUp(!fitsBelow && fitsAbove);
+  }, [open, placement, items.length]);
 
   const setSurface = useCallback(
     (node: HTMLDivElement | null): void => {
@@ -132,7 +188,15 @@ export const Menu = forwardRef<HTMLDivElement, MenuProps>((props, ref) => {
   };
 
   return (
-    <MenuSurface ref={setSurface} role="menu" $align={align} onKeyDown={handleKeyDown} {...rest}>
+    <MenuSurface
+      ref={setSurface}
+      role="menu"
+      $align={align}
+      $up={flipUp}
+      data-placement={flipUp ? 'top' : 'bottom'}
+      onKeyDown={handleKeyDown}
+      {...rest}
+    >
       {header ? <MenuHeader>{header}</MenuHeader> : null}
       {items.map((entry) => {
         if (entry.type === 'separator') return <MenuSep key={entry.id} role="separator" />;

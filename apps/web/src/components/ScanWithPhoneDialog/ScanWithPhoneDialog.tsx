@@ -16,9 +16,12 @@ import {
   Card,
   Done,
   ErrorText,
+  Instruction,
   Header,
   Heading,
   Meta,
+  MetaGroup,
+  QrStatus,
   OverlayTitle,
   QrOverlay,
   QrWrap,
@@ -167,17 +170,19 @@ export function ScanWithPhoneDialog(props: ScanWithPhoneDialogProps): JSX.Elemen
           ) : null}
 
           {state.kind === 'qr' ? (
-            <Status>
-              <Meta>Open your camera and point it here</Meta>
-              <Meta role="status">
-                <Spinner size="sm" />
-                Waiting for your phone…
-              </Meta>
-              <Meta>
-                <Lock size={14} aria-hidden />
-                Link works for 10 min
-              </Meta>
-            </Status>
+            <QrStatus>
+              <Instruction>Open your camera and point it here</Instruction>
+              <MetaGroup>
+                <Meta role="status">
+                  <Spinner size="sm" />
+                  Waiting for your phone…
+                </Meta>
+                <Meta>
+                  <Lock size={14} aria-hidden />
+                  Link works for 10 min
+                </Meta>
+              </MetaGroup>
+            </QrStatus>
           ) : null}
 
           {state.kind === 'fetching' ? (

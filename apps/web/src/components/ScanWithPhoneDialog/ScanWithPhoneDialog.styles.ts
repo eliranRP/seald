@@ -92,6 +92,25 @@ export const Status = styled.div`
   gap: 10px;
 `;
 
+/** QR state: the instruction leads; status + expiry sit 16px below as one group. */
+export const QrStatus = styled(Status)`
+  gap: ${({ theme }) => theme.space[4]};
+`;
+
+/** The one line that says what to do: 14px in secondary ink, above the muted meta. */
+export const Instruction = styled(Meta)`
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  color: ${({ theme }) => theme.color.fg[2]};
+`;
+
+/** Live status and expiry, 4px apart. */
+export const MetaGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[1]};
+`;
+
 export const Received = styled(Status)`
   gap: 20px;
 `;

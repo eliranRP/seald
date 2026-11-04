@@ -58,11 +58,11 @@ export const Input = styled.input<{ $hasIcon: boolean; $invalid: boolean }>`
 `;
 
 export const HelpText = styled.span`
-  font-size: 12px;
+  font-size: ${({ theme }) => theme.font.size.xs};
   color: ${({ theme }) => theme.color.fg[3]};
 `;
 
 export const ErrorText = styled.span`
-  font-size: 12px;
+  font-size: ${({ theme }) => theme.font.size.xs};
   color: ${({ theme }) => theme.color.danger[700]};
 `;

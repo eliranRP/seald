@@ -19,6 +19,7 @@ import type { MenuEntry } from '@/components/Menu';
 import { useDownloadPdf } from '@/features/downloadPdf';
 import {
   getPdfSignedUrl,
+  signerErrorMessage,
   SigningSessionProvider,
   useSigningSession,
   type SignMeField,
@@ -230,7 +231,7 @@ function Content() {
         backToEntry();
         return;
       }
-      setStartError(e.message || t('signing.sign.consent.errorAccept'));
+      setStartError(signerErrorMessage(e, t('signing.sign.consent.errorAccept'), t));
     } finally {
       setStartBusy(false);
     }
@@ -251,10 +252,10 @@ function Content() {
           backToEntry();
           return;
         }
-        setDialogError(e.message || fallback);
+        setDialogError(signerErrorMessage(e, fallback, t));
       }
     },
-    [backToEntry, envelopeId, navigate],
+    [backToEntry, envelopeId, navigate, t],
   );
 
   const handleSign = useCallback(async () => {
@@ -280,7 +281,7 @@ function Content() {
         backToEntry();
         return;
       }
-      setDialogError(e.message || t('signing.sign.finish.errorSubmit'));
+      setDialogError(signerErrorMessage(e, t('signing.sign.finish.errorSubmit'), t));
     }
   }, [backToEntry, envelopeId, intentRecorded, navigate, session, t]);
 

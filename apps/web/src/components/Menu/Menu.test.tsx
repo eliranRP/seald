@@ -163,4 +163,14 @@ describe('MenuButton + Menu', () => {
     await userEvent.click(getByRole('button', { name: 'More' }));
     expect(await axe(container)).toHaveNoViolations();
   });
+  it('opens below by default and above when placement="top"', () => {
+    const { getByRole, rerender } = renderWithTheme(
+      <Menu open onClose={vi.fn()} items={buildItems()} aria-label="Actions" />,
+    );
+    expect(getByRole('menu')).toHaveAttribute('data-placement', 'bottom');
+    rerender(
+      <Menu open onClose={vi.fn()} items={buildItems()} aria-label="Actions" placement="top" />,
+    );
+    expect(getByRole('menu')).toHaveAttribute('data-placement', 'top');
+  });
 });

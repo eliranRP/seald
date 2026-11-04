@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { Session } from '@supabase/supabase-js';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import * as flagsModule from 'shared';
 import { renderWithProviders } from '@/test/renderWithProviders';
@@ -37,7 +38,7 @@ function Where() {
 
 function renderReview(
   path = `/approve/${APPROVAL_ID}/review`,
-  options: Parameters<typeof renderWithProviders>[1] = {},
+  options: Parameters<typeof renderWithProviders>[1] = { auth: FRESH },
 ) {
   return renderWithProviders(
     <MemoryRouter initialEntries={[path]}>
@@ -53,6 +54,15 @@ function renderReview(
     options,
   );
 }
+
+/** A session whose access token says the last real sign-in was `ago` seconds back. */
+function sessionSignedIn(ago: number): Session {
+  const payload = { amr: [{ method: 'otp', timestamp: Math.floor(Date.now() / 1000) - ago }] };
+  const b64 = btoa(JSON.stringify(payload)).replace(/=+$/, '');
+  return { access_token: `h.${b64}.s` } as unknown as Session;
+}
+const FRESH = { session: sessionSignedIn(60) };
+const STALE_AGO = 13 * 60 * 60;
 
 function httpError(status: number, code?: string): Error {
   return Object.assign(new Error('failed'), { status, ...(code ? { code } : {}) });
@@ -105,16 +115,27 @@ describe('ApproveReviewPage', () => {
     expect(await screen.findByRole('status', { name: 'Approved' })).toBeInTheDocument();
   });
 
-  it('asks the owner to sign in again when the session is older than 12 hours', async () => {
+  it('says "Sign in to approve" up front when the last sign-in is older than 12 hours', async () => {
+    const user = userEvent.setup();
+    const signOut = vi.fn(() => Promise.resolve());
+    renderReview(undefined, { auth: { session: sessionSignedIn(STALE_AGO), signOut } });
+
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Sign in to approve' }));
+    expect(postMock).not.toHaveBeenCalled();
+    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(await screen.findByTestId('where')).toHaveTextContent(
+      `/signin?next=${encodeURIComponent(`/approve/${APPROVAL_ID}/review?page=1`)}`,
+    );
+  });
+
+  it('goes straight to sign-in when Approve still comes back fresh_login_required', async () => {
     const user = userEvent.setup();
     const signOut = vi.fn(() => Promise.resolve());
     postMock.mockRejectedValue(httpError(403, 'fresh_login_required'));
-    renderReview(undefined, { auth: { signOut } });
+    renderReview(undefined, { auth: { ...FRESH, signOut } });
 
     await user.click(await screen.findByRole('button', { name: 'Approve' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('sign-in from the last 12 hours');
-
-    await user.click(screen.getByRole('button', { name: 'Sign in again' }));
     expect(signOut).toHaveBeenCalledTimes(1);
     expect(await screen.findByTestId('where')).toHaveTextContent(
       `/signin?next=${encodeURIComponent(`/approve/${APPROVAL_ID}/review?page=1`)}`,

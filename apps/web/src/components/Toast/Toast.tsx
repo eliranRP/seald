@@ -7,12 +7,21 @@ import { Body, IconSlot, Sep, Subtitle, Title, ToastButton, Wrap } from './Toast
 const GLYPH = { success: CheckCircle2, error: AlertCircle, info: Info } as const;
 
 /**
+ * Shortest time a confirmation stays up. Under ~4s a toast is gone before
+ * it is read (UX rules: feedback-and-states § 9 — info 4s).
+ */
+export const MIN_TOAST_MS = 4000;
+
+/**
  * L3 widget — dark floating toast (canvas `.toast`) for transient
  * confirmations ("Sent to 3 signers") with an optional inline action
  * (Undo, Retry) and a Dismiss button.
  *
  * The host owns mounting. Pass `duration` + `onClose` for auto-dismiss
  * (paused while hovered or focused), or omit `duration` for a sticky toast.
+ * Auto-dismiss never runs shorter than `MIN_TOAST_MS`, and an error toast
+ * with a Dismiss button ignores `duration`: failures stay until the user
+ * acknowledges them (UX rules: feedback-and-states § 9).
  *
  * Accessibility: `role="status"` (polite) for success / info and
  * `role="alert"` (assertive) for errors. No focus trap — the toast never
@@ -42,11 +51,15 @@ export const Toast = forwardRef<HTMLDivElement, ToastProps>((props, ref) => {
     onCloseRef.current = onClose;
   }, [onClose]);
 
+  const sticky = tone === 'error' && onClose !== undefined;
+  const autoDismissMs =
+    duration === undefined || sticky ? undefined : Math.max(duration, MIN_TOAST_MS);
+
   useEffect(() => {
-    if (duration === undefined || paused) return undefined;
-    const id = window.setTimeout(() => onCloseRef.current?.(), duration);
+    if (autoDismissMs === undefined || paused) return undefined;
+    const id = window.setTimeout(() => onCloseRef.current?.(), autoDismissMs);
     return () => window.clearTimeout(id);
-  }, [duration, paused]);
+  }, [autoDismissMs, paused]);
 
   const glyph = icon === undefined ? GLYPH[tone] : icon;
   const role = tone === 'error' ? 'alert' : 'status';

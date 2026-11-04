@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithProviders } from '@/test/renderWithProviders';
@@ -7,9 +7,14 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 const exportData = vi.fn();
 const deleteAccount = vi.fn();
 let capturedOnDeleted: (() => void | Promise<void>) | undefined;
+let capturedOnError: ((message: string) => void) | undefined;
 vi.mock('@/features/account', () => ({
-  useAccountActions: (opts: { onAccountDeleted?: () => void | Promise<void> }) => {
+  useAccountActions: (opts: {
+    onAccountDeleted?: () => void | Promise<void>;
+    onError?: (message: string) => void;
+  }) => {
     capturedOnDeleted = opts.onAccountDeleted;
+    capturedOnError = opts.onError;
     return { exportData, deleteAccount, isExporting: false, isDeleting: false, lastError: null };
   },
 }));
@@ -34,6 +39,7 @@ describe('AccountSection', () => {
     exportData.mockReset();
     deleteAccount.mockReset().mockResolvedValue(undefined);
     capturedOnDeleted = undefined;
+    capturedOnError = undefined;
   });
 
   it('downloads the data on request', async () => {
@@ -89,6 +95,38 @@ describe('AccountSection', () => {
 
     await user.click(screen.getByRole('button', { name: 'Delete' }));
     expect(screen.getByRole('textbox', { name: 'Type DELETE to confirm' })).toHaveValue('');
+  });
+
+  it('a failed export shows an error toast instead of a browser alert', async () => {
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => undefined);
+    renderAccount();
+    exportData.mockImplementation(() => {
+      capturedOnError?.('Export failed. Please try again later.');
+      return Promise.resolve();
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Download' }));
+    const toast = await screen.findByRole('alert');
+    expect(toast).toHaveTextContent("Couldn't prepare your data");
+    expect(toast).toHaveTextContent('Export failed. Please try again later.');
+    expect(alertSpy).not.toHaveBeenCalled();
+    alertSpy.mockRestore();
+  });
+
+  it('a failed delete keeps the dialog open and says why', async () => {
+    const user = userEvent.setup();
+    renderAccount();
+    deleteAccount.mockImplementation(() => {
+      capturedOnError?.('Account deletion failed. Please try again later.');
+      return Promise.resolve();
+    });
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    await user.type(screen.getByRole('textbox', { name: 'Type DELETE to confirm' }), 'DELETE');
+    await user.click(screen.getByRole('button', { name: 'Delete account' }));
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete your account?' });
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Account deletion failed. Please try again later.',
+    );
+    expect(screen.getByRole('textbox', { name: 'Type DELETE to confirm' })).toHaveValue('DELETE');
   });
 
   it('Escape closes the dialog', async () => {

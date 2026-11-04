@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
+import { Button } from '@/components/Button';
 import type { ApprovalCard as ApprovalCardData } from 'shared';
 import { ApprovalActions } from '@/features/approvals/ApprovalActions';
 import { ApprovalCard } from '@/features/approvals/ApprovalCard';
@@ -19,7 +20,11 @@ export function tokenFromHash(hash: string): string | null {
   return TOKEN_PATTERN.test(raw) ? raw : null;
 }
 
-const Notice = styled.p`
+const Notice = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: ${({ theme }) => theme.space[3]};
   margin: 0;
   padding: ${({ theme }) => `${theme.space[3]} ${theme.space[4]}`};
   border: 1px solid ${({ theme }) => theme.color.warn[500]};
@@ -168,7 +173,16 @@ function ApprovePageBody() {
       ) : null}
       {view.kind === 'error' ? (
         <Notice role="alert">
-          We could not load this request. Check your connection and reload the page.
+          We could not load this request. Check your connection, then try again.
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setView({ kind: 'loading' });
+              loadCard().catch(() => undefined);
+            }}
+          >
+            Try again
+          </Button>
         </Notice>
       ) : null}
       {view.kind === 'card' ? (

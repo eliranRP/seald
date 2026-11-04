@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useId, useRef, useState } from 'react';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { useT } from '@/lib/i18n';
@@ -48,6 +48,13 @@ export function ConsentBar(props: ConsentBarProps) {
   const t = useT();
   const labelId = useId();
   const hintId = useId();
+  const boxRef = useRef<HTMLInputElement>(null);
+  // Start stays pressable: a disabled button gives no reason and is skipped
+  // by Tab. Pressing it before agreeing says what is missing and moves focus
+  // to the checkbox (forms § 5, feedback § 16).
+  const [nudge, setNudge] = useState(false);
+  const showNudge = nudge && !agreed;
+  const message = error ?? (showNudge ? t('signing.sign.consent.needAgree') : null);
 
   return (
     <Bar aria-label={t('signing.sign.consent.aria')}>
@@ -72,11 +79,13 @@ export function ConsentBar(props: ConsentBarProps) {
       <Agree>
         <AgreeLabel $disabled={busy}>
           <AgreeBox
+            ref={boxRef}
             type="checkbox"
             checked={agreed}
             disabled={busy}
             aria-labelledby={labelId}
             aria-describedby={hintId}
+            aria-invalid={showNudge ? true : undefined}
             onChange={(event) => {
               onAgreedChange(event.currentTarget.checked);
             }}
@@ -93,11 +102,23 @@ export function ConsentBar(props: ConsentBarProps) {
         </DisclosureLink>
       </Agree>
       <StartSlot>
-        <Button onClick={onStart} disabled={!agreed || busy} loading={busy} fullWidth>
+        <Button
+          onClick={() => {
+            if (busy) return;
+            if (!agreed) {
+              setNudge(true);
+              boxRef.current?.focus();
+              return;
+            }
+            onStart();
+          }}
+          loading={busy}
+          fullWidth
+        >
           {t('signing.sign.consent.start')}
         </Button>
       </StartSlot>
-      {error ? <ErrorLine role="alert">{error}</ErrorLine> : null}
+      {message ? <ErrorLine role="alert">{message}</ErrorLine> : null}
     </Bar>
   );
 }

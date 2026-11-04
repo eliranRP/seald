@@ -48,4 +48,4 @@ Feature: Public verifier surfaces seal + audit-chain trust signals
   Scenario: The entry page takes a 13-character code
     When the user opens "/verify"
     Then the verify entry page asks for a document code
-    And the Verify button is disabled until 13 characters are typed
+    And the Verify button asks for all 13 characters before it looks up a code

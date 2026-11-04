@@ -10,7 +10,7 @@ export const Bar = styled.section`
   width: 100%;
   max-width: 880px;
   box-sizing: border-box;
-  padding: 14px 16px 14px 20px;
+  padding: ${({ theme }) => `${theme.space[3]} ${theme.space[4]} ${theme.space[3]} ${theme.space[5]}`};
   border: 1px solid ${({ theme }) => theme.color.indigo[200]};
   border-radius: ${({ theme }) => theme.radius.lg};
   background: ${({ theme }) => theme.color.paper};
@@ -77,11 +77,11 @@ export const Agree = styled.div`
   }
 `;
 
-/** Canvas `.consent-bar label`: 16px box, 10px gap, 14px text. */
+/** Canvas `.consent-bar label`: 16px box, 12px gap, 14px text. */
 export const AgreeLabel = styled.label<{ readonly $disabled: boolean }>`
   display: inline-flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: ${({ theme }) => theme.space[3]};
   min-width: 0;
   cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
   opacity: ${({ $disabled }) => ($disabled ? 0.6 : 1)};
@@ -120,11 +120,23 @@ export const AgreeHint = styled.span`
   color: ${({ theme }) => theme.color.fg[3]};
 `;
 
+/**
+ * On a phone the link sits under the consent text it explains (indented by
+ * the 16px box + 12px gap) and gets a 44px tap height.
+ */
 export const DisclosureLink = styled.a`
   flex-shrink: 0;
   font-size: ${({ theme }) => theme.font.size.caption};
-  font-weight: ${({ theme }) => theme.font.weight.medium};
+  font-weight: ${({ theme }) => theme.font.weight.regular};
   color: ${({ theme }) => theme.color.indigo[700]};
+
+  @media (max-width: 640px) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin-top: -${({ theme }) => theme.space[2]};
+    margin-inline-start: calc(${({ theme }) => theme.space[4]} + ${({ theme }) => theme.space[3]});
+  }
 `;
 
 export const StartSlot = styled.div`

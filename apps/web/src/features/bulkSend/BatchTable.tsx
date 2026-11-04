@@ -49,8 +49,9 @@ function Cell({
 /**
  * One row per CSV row. Recipients are listed in template order; the status
  * column says it in words (a colored badge is never the only signal) and, in
- * the preview, lists each validation problem under it. The wrapper scrolls
- * sideways on a phone and is reachable by keyboard.
+ * the preview, lists each validation problem under it. Under 640px each row
+ * becomes a card (recipients and row number, then the result, then the
+ * title) instead of a table that scrolls sideways.
  */
 export function BatchTable({ rows, caption, mode }: BatchTableProps) {
   return (

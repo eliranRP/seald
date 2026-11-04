@@ -63,6 +63,8 @@ describe('MCP tool catalog (contract)', () => {
       'envelopes_create',
       'envelopes_update',
       'envelopes_delete_draft',
+      'envelopes_archive',
+      'envelopes_unarchive',
       'envelopes_add_signer',
       'envelopes_remove_signer',
       'envelopes_place_fields',

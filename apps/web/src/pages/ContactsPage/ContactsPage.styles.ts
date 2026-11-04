@@ -110,6 +110,10 @@ export const SearchField = styled.label`
   ${MOBILE} {
     max-width: none;
     height: 44px;
+    /* 16px or iOS zooms the page on focus. */
+    input {
+      font-size: ${({ theme }) => theme.font.size.body};
+    }
   }
 `;
 
@@ -282,14 +286,6 @@ export const BulkLabel = styled.span`
 export const SkeletonRow = styled(Row)`
   &:hover {
     background: transparent;
-  }
-`;
-
-export const AvatarStack = styled.div`
-  display: flex;
-  justify-content: center;
-  & > * + * {
-    margin-left: -8px;
   }
 `;
 

@@ -28,14 +28,15 @@ describe('MagicLinkForm', () => {
     expect(getByRole('textbox', { name: 'Email' })).toBeInTheDocument();
   });
 
-  it('keeps the primary button disabled until an email is typed', () => {
-    const { getByRole } = renderWithTheme(<Harness />);
+  it('keeps the primary button live when empty, then names the missing email and focuses it', () => {
+    const onSubmit = vi.fn();
+    const { getByRole } = renderWithTheme(<Harness onSubmit={onSubmit} />);
     const primary = getByRole('button', { name: 'Email me a sign-in link' });
-    expect(primary).toBeDisabled();
-    fireEvent.change(getByRole('textbox', { name: 'Email' }), {
-      target: { value: 'hannah@quill.vc' },
-    });
     expect(primary).toBeEnabled();
+    fireEvent.click(primary);
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(getByRole('alert')).toHaveTextContent('Enter your email address');
+    expect(getByRole('textbox', { name: 'Email' })).toHaveFocus();
   });
 
   it('submits a trimmed, valid email', () => {

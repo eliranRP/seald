@@ -7,10 +7,11 @@ import {
   Path,
   StyleSheet,
   Svg,
-  Text,
+  Text as PdfText,
   View,
   renderToBuffer,
 } from '@react-pdf/renderer';
+import type { TextProps } from '@react-pdf/renderer';
 import * as React from 'react';
 import QRCode from 'qrcode';
 import { McpEventMetadataSchema, type McpEventMetadata, maskEmail } from 'shared';
@@ -139,6 +140,32 @@ export async function buildAuditPdf(input: AuditPdfInput): Promise<Buffer> {
 // both ts-node (src/) and the compiled artifact (dist/src/).
 // ---------------------------------------------------------------------------
 
+/** Hebrew letters and presentation forms. */
+const HEBREW_RE = /[\u0590-\u05FF\uFB1D-\uFB4F]/;
+
+function plainText(node: React.ReactNode): string {
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(plainText).join('');
+  return '';
+}
+
+const HEBREW_STYLE = { fontFamily: 'NotoSansHebrew' } as const;
+
+/**
+ * `Text` for this document: a run whose own string children contain Hebrew
+ * is set in Noto Sans Hebrew (see registerFontsOnce). Everything else
+ * renders exactly as react-pdf's Text.
+ */
+type PdfTextProps = React.PropsWithChildren<TextProps>;
+type PdfStyle = Exclude<NonNullable<TextProps['style']>, ReadonlyArray<unknown>>;
+
+function Text(props: PdfTextProps): React.ReactElement {
+  if (!HEBREW_RE.test(plainText(props.children))) return <PdfText {...props} />;
+  const style: PdfStyle[] =
+    props.style === undefined ? [] : Array.isArray(props.style) ? props.style : [props.style];
+  return <PdfText {...props} style={[...style, HEBREW_STYLE]} />;
+}
+
 let fontsRegistered = false;
 function registerFontsOnce(): void {
   if (fontsRegistered) return;
@@ -171,6 +198,22 @@ function registerFontsOnce(): void {
     fonts: [
       { src: join(fontsDir, 'JetBrainsMono-Regular.ttf'), fontWeight: 400 },
       { src: join(fontsDir, 'JetBrainsMono-Regular.ttf'), fontWeight: 400, fontStyle: 'italic' },
+    ],
+  });
+  // Hebrew: file names, titles and names are user text, often Hebrew.
+  // Inter and Source Serif have no Hebrew glyphs, so a run that contains
+  // Hebrew is set wholly in Noto Sans Hebrew (it carries Latin too); see
+  // `UserText`. A per-glyph fallback stack mixes glyph ids across fonts in
+  // react-pdf 4 and prints the wrong letters, so it is not used.
+  Font.register({
+    family: 'NotoSansHebrew',
+    fonts: [
+      { src: join(fontsDir, 'NotoSansHebrew-Regular.ttf'), fontWeight: 400 },
+      { src: join(fontsDir, 'NotoSansHebrew-Regular.ttf'), fontWeight: 400, fontStyle: 'italic' },
+      { src: join(fontsDir, 'NotoSansHebrew-Regular.ttf'), fontWeight: 500 },
+      { src: join(fontsDir, 'NotoSansHebrew-SemiBold.ttf'), fontWeight: 600 },
+      { src: join(fontsDir, 'NotoSansHebrew-SemiBold.ttf'), fontWeight: 600, fontStyle: 'italic' },
+      { src: join(fontsDir, 'NotoSansHebrew-SemiBold.ttf'), fontWeight: 700 },
     ],
   });
   Font.register({

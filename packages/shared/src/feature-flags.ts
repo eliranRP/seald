@@ -63,9 +63,10 @@ export const FEATURE_FLAGS: Record<string, boolean> = {
 
   /**
    * Appended certificate page (WP-01 item 3). Gates the pre-seal
-   * certificate pages rendered into the sealed PDF. On since the parity flag flip.
+   * certificate pages rendered into the sealed PDF. Off: the sealed PDF holds
+   * only the signed document, and the audit trail is its own file (audit.pdf).
    */
-  appendCertificate: true,
+  appendCertificate: false,
 
   /**
    * MCP server endpoint (WP-35 family). Gates the `/mcp` route and API key

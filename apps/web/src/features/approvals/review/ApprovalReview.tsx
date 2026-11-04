@@ -5,12 +5,14 @@ import { Button } from '@/components/Button';
 import { DocumentPageCanvas } from '@/components/DocumentPageCanvas';
 import { MWBottomSheet } from '@/components/MWBottomSheet';
 import { PageThumbRail } from '@/components/PageThumbRail';
-import { useCanvasWidth } from '@/lib/canvas-coords';
+import { CANVAS_WIDTH, useCanvasHeight, useCanvasWidth } from '@/lib/canvas-coords';
+import { usePdfDocument } from '@/lib/pdf';
 import type { Envelope } from '@/features/envelopes';
 import {
   Bar,
   BarSpacer,
   Body,
+  Footer,
   Header,
   HeaderSub,
   HeaderText,
@@ -75,8 +77,15 @@ function ReviewPageCanvas({ envelope, target }: PageCanvasProps) {
   const width = useCanvasWidth();
   const { data: src } = useReviewPdfUrl(envelope.id, target.documentId);
   const fields = fieldsOnPage(envelope, target);
+  // Fields are page fractions, placed as % of the field layer. The page box
+  // has a 740px min-height, which is taller than the PDF on a phone, so pin
+  // it to the rendered PDF height (as the signing page does) or every field
+  // drifts down in proportion to its y.
+  const { doc } = usePdfDocument(src || null);
+  const height = (useCanvasHeight(doc) * width) / CANVAS_WIDTH;
   return (
     <DocumentPageCanvas
+      style={{ minHeight: Math.round(height) }}
       pageNum={target.page}
       totalPages={envelope.original_pages ?? target.page}
       title={target.documentTitle}
@@ -225,23 +234,25 @@ export function ApprovalReview({
         </RailSlot>
       </Body>
 
-      {notice ? <Notice role="alert">{notice}</Notice> : null}
+      <Footer>
+        {notice ? <Notice role="alert">{notice}</Notice> : null}
 
-      <Bar aria-label="Review actions" role="group">
-        {!isMobile ? (
-          <>
-            <Button variant="ghost" size="lg" disabled={current <= 1} onClick={goBack}>
-              Back
-            </Button>
-            <Button variant="ghost" size="lg" disabled={onSummary} onClick={goNext}>
-              Next
-            </Button>
-          </>
-        ) : null}
-        <BarSpacer />
-        {editButton}
-        {approveButton}
-      </Bar>
+        <Bar aria-label="Review actions" role="group">
+          {!isMobile ? (
+            <>
+              <Button variant="ghost" size="lg" disabled={current <= 1} onClick={goBack}>
+                Back
+              </Button>
+              <Button variant="ghost" size="lg" disabled={onSummary} onClick={goNext}>
+                Next
+              </Button>
+            </>
+          ) : null}
+          <BarSpacer />
+          {editButton}
+          {approveButton}
+        </Bar>
+      </Footer>
 
       <MWBottomSheet
         open={isMobile && onSummary}

@@ -27,7 +27,8 @@ export const Badge = styled.span`
   height: 18px;
   padding: 0 5px;
   border-radius: ${({ theme }) => theme.radius.pill};
-  background: ${({ theme }) => theme.color.danger[500]};
+  /* danger-700: white 11px text on danger-500 is ~3.8:1, under 4.5:1. */
+  background: ${({ theme }) => theme.color.danger[700]};
   color: ${({ theme }) => theme.color.fg.inverse};
   font-family: ${({ theme }) => theme.font.sans};
   font-size: ${({ theme }) => theme.font.size.micro};

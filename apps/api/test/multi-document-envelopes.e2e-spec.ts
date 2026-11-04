@@ -387,17 +387,13 @@ describeOrSkip('Multi-file envelopes (e2e, WP-03)', () => {
         .set(auth())
         .expect(200);
       expect(zip.body.kind).toBe('zip');
-      const zipBytes = storage.get(`${envId}/documents.zip`)!.bytes;
+      const zipBytes = storage.get(`${envId}/sealed-documents.zip`)!.bytes;
       const zipDir = mkdtempSync(join(tmpdir(), 'seald-wp03-zip-'));
       writeFileSync(join(zipDir, 'bundle.zip'), zipBytes);
       const listing = execFileSync('unzip', ['-Z1', join(zipDir, 'bundle.zip')], {
         encoding: 'utf8',
       });
-      expect(listing.trim().split('\n')).toEqual([
-        '01 Contract.pdf',
-        '02 Annex.pdf',
-        'audit-trail.pdf',
-      ]);
+      expect(listing.trim().split('\n')).toEqual(['01 Contract.pdf', '02 Annex.pdf']);
       const test = spawnSync('unzip', ['-tq', join(zipDir, 'bundle.zip')], { encoding: 'utf8' });
       expect(test.status).toBe(0);
 

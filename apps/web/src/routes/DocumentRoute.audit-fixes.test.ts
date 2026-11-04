@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { friendlySendError } from './DocumentRoute';
+import { friendlyTemplateSaveError } from './friendlyErrors';
 
 /**
  * Regression coverage for PR-7 (audit slice A — Sender):
@@ -40,6 +41,23 @@ describe('DocumentRoute.friendlySendError (PR-7 L-21)', () => {
   it('passes through short, message-only errors as-is so server-side hints still show', () => {
     expect(friendlySendError(new Error('Recipient list is empty.'))).toBe(
       'Recipient list is empty.',
+    );
+  });
+});
+
+describe('friendlyErrors — no raw status codes, always a next step', () => {
+  it('hides a bare axios status line behind the generic send copy', () => {
+    expect(friendlySendError(new Error('Request failed with status code 500'))).toMatch(
+      /Unable to send the document/i,
+    );
+  });
+
+  it('template save: says the layout is kept, and names the connection when offline', () => {
+    expect(friendlyTemplateSaveError(new Error('Request failed with status code 500'))).toBe(
+      'Your layout is still here. Try again in a moment.',
+    );
+    expect(friendlyTemplateSaveError(new TypeError('Failed to fetch'))).toMatch(
+      /check your connection/i,
     );
   });
 });

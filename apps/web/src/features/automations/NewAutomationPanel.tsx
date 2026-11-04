@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SecretOnceSheet } from '@/components/SecretOnceSheet';
 import { NewAutomationForm } from './NewAutomationForm';
 import { useCreateAutomation } from './automationsApi';
-import { Intro, Stack } from './automations.styles';
+import { BackLink, Intro, Stack } from './automations.styles';
 import { recipeCard, saveProblem } from './model';
 
 export interface NewAutomationPanelProps {
@@ -26,7 +26,7 @@ export function NewAutomationPanel({ basePath }: NewAutomationPanelProps) {
     return (
       <Stack>
         <Intro role="status">Pick an automation first.</Intro>
-        <Link to={basePath}>Back to automations</Link>
+        <BackLink to={basePath}>Back to automations</BackLink>
       </Stack>
     );
   }

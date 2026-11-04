@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "engines": {
-    "node": ">=22.12",
+    "node": ">=22.23.4",
     "pnpm": ">=9"
   },
   "packageManager": "pnpm@9.12.0",
@@ -17,7 +17,7 @@
     "lint": "pnpm -r lint && pnpm i18n:check",
     "i18n:check": "node scripts/i18n-check.mjs",
     "lint:workflows": "actionlint",
-    "lint:gherkin": "gherkin-lint 'apps/web/e2e/features/**/*.feature'",
+    "lint:gherkin": "gherkin-lint apps/web/e2e/features",
     "lint:spelling": "cspell lint --no-progress --no-must-find-files --no-gitignore '.github/workflows/**/*.yml' 'apps/web/e2e/features/**/*.feature' 'apps/web/src/**/*.{ts,tsx}' 'apps/api/src/**/*.ts' 'packages/shared/src/**/*.ts'",
     "lint:all": "pnpm lint:workflows && pnpm lint:gherkin && pnpm lint:spelling && pnpm -r lint",
     "typecheck": "tsc -b",
@@ -27,14 +27,14 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@commitlint/cli": "^21.2.3",
-    "@commitlint/config-conventional": "^21.2.3",
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
     "cspell": "^10.4.0",
     "gherkin-lint": "^4.2.4",
     "husky": "9.1.7",
-    "lint-staged": "15.2.10",
+    "lint-staged": "17.6.0",
     "prettier": "3.9.10",
-    "typescript": "5.6.3"
+    "typescript": "6.0.3"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -53,7 +53,8 @@
     "overrides": {
       "crypto-js@<4.2.0": ">=4.2.0",
       "tar@<7.5.11": ">=7.5.11",
-      "glob@>=10.2.0 <10.5.0": ">=10.5.0",
+      "glob@>=9.0.0 <14.0.2": "^14.0.2",
+      "minimatch@>=10.0.0 <11.0.1": "^11.0.1",
       "picomatch@>=4.0.0 <4.0.4": ">=4.0.4",
       "yaml@<2.8.3": ">=2.8.3",
       "ajv@>=7.0.0-alpha.0 <8.18.0": ">=8.18.0",
@@ -80,7 +81,7 @@
       "smol-toml@<1.9.0": "^1.9.1",
       "proxy-addr@<2.0.8": "^2.0.8",
       "source-map-js@>=1.0.0 <1.2.2": "^1.2.2",
-      "follow-redirects@<1.16.1": "^1.16.1",
+      "follow-redirects@<1.16.2": "^1.16.2",
       "dompurify@<3.4.17": "^3.4.17",
       "http-cache-semantics@<4.3.0": "^4.3.0",
       "qs@<6.16.0": "^6.16.1",
@@ -95,19 +96,12 @@
       "js-yaml@>=3.0.0 <3.15.2": "^3.15.2",
       "browserslist@<4.28.7": "^4.28.7",
       "immutable@>=4.0.0-beta.1 <4.3.9": "^4.3.9",
-      "handlebars@<4.7.10": "^4.7.10"
+      "handlebars@<4.7.10": "^4.7.10",
+      "gherkin-lint>glob": "^14.0.3"
     },
     "auditConfig": {
-      "ignoreCves": [
-        "CVE-2025-26791"
-      ],
       "ignoreGhsas": [
-        "GHSA-pfq8-rq6v-vf5m",
-        "GHSA-wrwg-2hg8-v723",
-        "GHSA-xf7r-hgr6-v32p",
-        "GHSA-v52c-386h-88mc",
-        "GHSA-5528-5vmv-3xc2",
-        "GHSA-86w9-cpqp-85rv"
+        "GHSA-gcqx-w48m-w2h4"
       ]
     },
     "patchedDependencies": {

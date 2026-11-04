@@ -280,6 +280,9 @@ export const EnvelopeWriteInputSchema = z.strictObject({ envelope_id: uuid, ...w
 
 export const EnvelopesDeleteDraftOutputSchema = z.object({ deleted: z.literal(true) });
 
+/** `envelopes_archive` / `envelopes_unarchive` (0.14.0): any status; returns the envelope. */
+export const EnvelopesArchiveInputSchema = z.strictObject({ envelope_id: uuid, ...write });
+
 const signerShape = {
   /** A saved contact; or give `email` and `name` instead. */
   contact_id: uuid.optional(),

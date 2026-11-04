@@ -65,6 +65,10 @@ describe('SigningLinkPage', () => {
   it('Link expired: Ask for a new link posts the token and turns into a disabled Requested', async () => {
     renderLink('expired', { token: 'tok'.repeat(15), sender_name: 'Eliran Azulay' });
     expect(screen.getByRole('heading', { name: 'Link expired' })).toBeInTheDocument();
+    // The page says what the button does before the signer presses it.
+    expect(
+      screen.getByText('Ask Eliran Azulay for a new one. It arrives by email.'),
+    ).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Ask for a new link' }));
 
     await waitFor(() => {

@@ -43,6 +43,9 @@ export function SettingsIndexPage() {
         {extra.map((row) => (
           <li key={row.to}>
             <IndexLink to={row.to}>
+              <IndexIcon>
+                <Icon icon={row.icon} size={20} />
+              </IndexIcon>
               <Grow>{row.label}</Grow>
               <Chevron>
                 <Icon icon={ChevronRight} size={20} />

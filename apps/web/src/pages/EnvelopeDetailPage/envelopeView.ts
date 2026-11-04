@@ -259,3 +259,11 @@ export function activityRows(
   }
   return rows.reverse();
 }
+
+/** Loose shape check for a typed email (the server does the real check). */
+export function emailOk(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+/** Copy for a malformed email: what is wrong and what a good one looks like. */
+export const EMAIL_HINT = 'Enter a full email address, like name@company.com.';

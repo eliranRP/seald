@@ -254,11 +254,12 @@ export class EnvelopeDocumentsService {
   }
 
   /**
-   * Zip of every sealed document plus audit.pdf for a completed envelope.
-   * Built once and cached at `{id}/documents.zip`; the inputs never change
-   * after sealing. Returns the storage path.
+   * Zip of every sealed document of a completed envelope. The audit trail
+   * stays a separate download and is never packed with the signed files.
+   * Built once and cached at `{id}/sealed-documents.zip`; the inputs never
+   * change after sealing. Returns the storage path.
    */
-  async sealedBundle(envelope: Envelope, audit_file_path: string): Promise<string> {
+  async sealedBundle(envelope: Envelope): Promise<string> {
     const path = sealedBundlePath(envelope.id);
     if (await this.storage.exists(path)) return path;
     const docs = await this.docs.listByEnvelope(envelope.id);
@@ -272,10 +273,6 @@ export class EnvelopeDocumentsService {
       );
       entries.push({ name, data: await this.storage.download(doc.sealed_file_path) });
     }
-    entries.push({
-      name: uniqueName(used, 'audit-trail.pdf'),
-      data: await this.storage.download(audit_file_path),
-    });
     const mtime = new Date(envelope.completed_at ?? envelope.updated_at);
     await this.storage.upload(path, buildStoredZip(entries, mtime), 'application/zip');
     return path;
@@ -284,7 +281,7 @@ export class EnvelopeDocumentsService {
   /**
    * Flag-on downloads: one document's PDF (`document_id`, `kind`
    * original|sealed, default sealed when present) or `kind=zip` for every
-   * sealed document plus audit.pdf. 5-minute signed URL, like the legacy
+   * sealed document (no audit.pdf). 5-minute signed URL, like the legacy
    * route.
    */
   async downloadUrl(
@@ -298,7 +295,7 @@ export class EnvelopeDocumentsService {
       if (envelope.status !== 'completed' || !paths?.audit_file_path) {
         throw new BadRequestException('file_not_ready');
       }
-      const path = await this.sealedBundle(envelope, paths.audit_file_path);
+      const path = await this.sealedBundle(envelope);
       return { url: await this.storage.createSignedUrl(path, 300), kind: 'zip' };
     }
     if (args.document_id === undefined) throw new BadRequestException('validation_error');

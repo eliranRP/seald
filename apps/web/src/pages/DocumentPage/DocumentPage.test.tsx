@@ -949,23 +949,26 @@ describe('DocumentPage', () => {
     // Without the prop the page hides the affordance entirely — the
     // legacy callers (sign-only flows, demo views) never see it.
     const { unmount } = renderPage();
-    expect(screen.queryByRole('button', { name: /save current layout as a template/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Save as template' })).toBeNull();
     unmount();
 
     // With the prop wired the route shows the dashed quiet button.
     const onSaveAsTemplate = vi.fn();
     renderPage({ onSaveAsTemplate });
-    const btn = screen.getByRole('button', { name: /save current layout as a template/i });
+    const btn = screen.getByRole('button', { name: 'Save as template' });
     expect(btn).toBeInTheDocument();
     fireEvent.click(btn);
     expect(onSaveAsTemplate).toHaveBeenCalledOnce();
   });
 
-  it('disables the Save-as-template button when no fields have been placed', () => {
+  it('keeps Save as template focusable but inert with no fields, and says why', () => {
     const onSaveAsTemplate = vi.fn();
     renderPage({ onSaveAsTemplate, initialFields: [] });
-    const btn = screen.getByRole('button', { name: /save current layout as a template/i });
-    expect(btn).toBeDisabled();
+    const btn = screen.getByRole('button', { name: 'Save as template' });
+    expect(btn).toHaveAttribute('aria-disabled', 'true');
+    expect(btn).toHaveAccessibleDescription('Place a field first');
+    fireEvent.click(btn);
+    expect(onSaveAsTemplate).not.toHaveBeenCalled();
   });
 });
 

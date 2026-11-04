@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/Button';
 import {
   BulkApiError,
@@ -106,6 +107,7 @@ export function BulkSendPanel({
       <Stack>
         <Notice $tone="error" role="alert">
           {messageOf(schema.error)}
+          <Link to={backTo}>Back to templates</Link>
         </Notice>
       </Stack>
     );

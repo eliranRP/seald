@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Mail } from 'lucide-react';
 import { Banner } from '../Banner';
@@ -17,6 +17,9 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * then an email field that sends a magic link. One submit covers sign-in and
  * sign-up, so the UI never reveals whether an address already has an account.
  * The email is validated on submit only; the error clears as the user types.
+ * The submit stays live while the field is empty: a click names what is
+ * missing and moves focus to the field (forms § 5) instead of a silent,
+ * low-contrast disabled button.
  */
 export function MagicLinkForm(props: MagicLinkFormProps) {
   const {
@@ -31,16 +34,23 @@ export function MagicLinkForm(props: MagicLinkFormProps) {
     notice,
     submitLabel = 'Email me a sign-in link',
   } = props;
-  const [invalid, setInvalid] = useState(false);
+  const [fieldError, setFieldError] = useState<string | undefined>(undefined);
+  const inputRef = useRef<HTMLInputElement>(null);
   // The board's submit is 44px on desktop and 48px on a phone.
   const mobile = useIsMobileViewport();
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
     const trimmed = email.trim();
-    if (sending || locked || trimmed.length === 0) return;
+    if (sending || locked) return;
+    if (trimmed.length === 0) {
+      setFieldError('Enter your email address');
+      inputRef.current?.focus();
+      return;
+    }
     if (!EMAIL_RE.test(trimmed)) {
-      setInvalid(true);
+      setFieldError('Check the email address');
+      inputRef.current?.focus();
       return;
     }
     onSubmit(trimmed);
@@ -65,17 +75,18 @@ export function MagicLinkForm(props: MagicLinkFormProps) {
       </OrRow>
       <Form noValidate onSubmit={handleSubmit}>
         <TextField
+          ref={inputRef}
           type="email"
-          aria-label="Email"
+          label="Email"
           placeholder="you@company.com"
           autoComplete="email"
           inputMode="email"
           autoCapitalize="none"
           value={email}
           disabled={sending}
-          error={invalid ? 'Check the email address' : undefined}
+          error={fieldError}
           onChange={(value) => {
-            setInvalid(false);
+            setFieldError(undefined);
             onEmailChange(value);
           }}
         />
@@ -85,7 +96,7 @@ export function MagicLinkForm(props: MagicLinkFormProps) {
           fullWidth
           iconLeft={Mail}
           loading={sending}
-          disabled={email.trim().length === 0 || locked}
+          disabled={locked}
         >
           {sending ? 'Sending…' : submitLabel}
         </Button>

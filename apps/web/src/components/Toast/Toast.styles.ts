@@ -1,4 +1,5 @@
 import styled, { css } from 'styled-components';
+import { touchTarget } from '@/styles/mixins';
 import { toastIn } from '@/styles/motion';
 import type { ToastTone } from './Toast.types';
 
@@ -90,8 +91,11 @@ export const ToastButton = styled.button<{ $icon?: boolean }>`
   &:hover {
     background: rgba(255, 255, 255, 0.12);
   }
+  /* The indigo focus token disappears on the ink-900 toast; use a light
+     ring instead (indigo-300 on ink-900 is ~9:1). */
   &:focus-visible {
-    outline: 0;
-    box-shadow: ${({ theme }) => theme.shadow.focus};
+    outline: 2px solid ${({ theme }) => theme.color.indigo[300]};
+    outline-offset: 1px;
   }
+  ${touchTarget}
 `;

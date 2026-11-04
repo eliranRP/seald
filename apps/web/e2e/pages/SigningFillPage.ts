@@ -50,7 +50,7 @@ export class SigningFillPage {
     await this.page.getByRole('menuitem', { name: /^decline$/i }).click();
     await this.page
       .getByRole('dialog', { name: /decline to sign/i })
-      .getByRole('button', { name: /^decline$/i })
+      .getByRole('button', { name: /^decline to sign$/i })
       .click();
   }
 

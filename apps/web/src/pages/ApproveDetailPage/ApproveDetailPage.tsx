@@ -131,7 +131,18 @@ export function ApproveDetailPage() {
     <ApprovalFrame title="Approval request">
       {detail.isPending ? <Fine role="status">Loading the request…</Fine> : null}
       {detail.isError && !isNotFound(detail.error) ? (
-        <Notice role="alert">We could not load this request. Reload the page to try again.</Notice>
+        <Notice role="alert">
+          We could not load this request. Check your connection, then try again.
+          <Button
+            variant="secondary"
+            loading={detail.isRefetching}
+            onClick={() => {
+              detail.refetch().catch(() => undefined);
+            }}
+          >
+            Try again
+          </Button>
+        </Notice>
       ) : null}
       {data ? (
         <>

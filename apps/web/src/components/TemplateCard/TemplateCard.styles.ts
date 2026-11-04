@@ -1,5 +1,6 @@
 import styled from 'styled-components';
 import { hoverLift, rise } from '@/styles/motion';
+import { visuallyHidden } from '@/styles/mixins';
 
 const MOBILE = '@media (max-width: 640px)';
 
@@ -104,7 +105,15 @@ export const Dot = styled.span<{ $color: string }>`
   background: ${({ $color }) => $color};
 `;
 
-/** The ⋯ trigger, pinned to the card's top-right. */
+export const SrOnly = styled.span`
+  ${visuallyHidden}
+`;
+
+/**
+ * The ⋯ trigger, pinned to the card's top-right. It sits over the preview,
+ * so it gets a visible 32px paper button (hairline + shadow) instead of a
+ * bare glyph, and a 44px box on touch screens.
+ */
 export const More = styled.div<{ $compact: boolean }>`
   position: absolute;
   top: ${({ theme }) => theme.space[3]};
@@ -112,5 +121,21 @@ export const More = styled.div<{ $compact: boolean }>`
   ${({ $compact }) => ($compact ? 'top: 50%; translate: 0 -50%; right: 4px;' : '')}
   ${MOBILE} {
     right: 4px;
+  }
+
+  & > button,
+  & > * > button {
+    background: ${({ theme }) => theme.color.paper};
+    border: 1px solid ${({ theme }) => theme.color.border[1]};
+    box-shadow: ${({ theme }) => theme.shadow.xs};
+    color: ${({ theme }) => theme.color.fg[2]};
+  }
+
+  @media (pointer: coarse) {
+    & > button,
+    & > * > button {
+      min-width: 44px;
+      min-height: 44px;
+    }
   }
 `;

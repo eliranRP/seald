@@ -109,7 +109,20 @@ describe('tabCounts', () => {
       sealed: 1,
       drafts: 1,
       stopped: 2,
+      archived: 0,
     });
+  });
+
+  it('counts an archived document only under Archived', () => {
+    const [first, ...rest] = DOCS;
+    const items = [{ ...first!, archived_at: '2026-01-01T00:00:00.000Z' }, ...rest];
+    const counts = tabCounts(items, ME);
+    expect(counts.archived).toBe(1);
+    expect(counts.all).toBe(5);
+    expect(applyView(items, { ...EMPTY_VIEW, tab: 'archived' }, ME, NOW).map((e) => e.id)).toEqual([
+      first!.id,
+    ]);
+    expect(applyView(items, EMPTY_VIEW, ME, NOW).map((e) => e.id)).not.toContain(first!.id);
   });
 });
 

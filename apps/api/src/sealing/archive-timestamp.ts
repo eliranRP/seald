@@ -179,7 +179,6 @@ export async function appendArchiveTimestamp(input: ArchiveTimestampInput): Prom
   const newSize = Math.max(trailer.size, nextObjNum);
   const xref = serializeXrefSubsection(appended, objectOffsets);
   chunks.push(xref);
-  cursor += xref.length;
 
   const trailerDict = buildTrailerDict({
     size: newSize,

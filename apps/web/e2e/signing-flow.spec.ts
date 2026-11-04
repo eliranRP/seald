@@ -214,9 +214,11 @@ test.describe('signing flow', () => {
 
     // 3. One checkbox, then Start: fires POST /sign/accept-terms +
     //    POST /sign/esign-disclosure (both mocked above). Start stays
-    //    disabled until the box is ticked.
+    //    pressable; pressed early it says what is missing and records nothing.
     const start = page.getByRole('button', { name: /^start$/i });
-    await expect(start).toBeDisabled();
+    await start.click();
+    await expect(page.getByText(/tick the box to agree, then press start/i)).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/sign/${ENVELOPE_ID}/fill`));
     await page.getByRole('checkbox', { name: /agree to sign electronically/i }).check();
     await start.click();
 

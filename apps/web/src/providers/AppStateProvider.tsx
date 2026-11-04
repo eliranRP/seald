@@ -114,7 +114,9 @@ export function AppStateProvider(props: AppStateProviderProps) {
     [authUser, contactsQuery.data],
   );
 
-  const contactsLoading = useMinDuration(contactsEnabled && contactsQuery.isPending, 2000);
+  // A short floor only stops a flash on fast loads; the design rules show
+  // nothing under ~300ms, so the skeleton must not linger past the data.
+  const contactsLoading = useMinDuration(contactsEnabled && contactsQuery.isPending, 300);
   // Preserved for back-compat with consumers that still read the flag.
   // Drafts live in memory only; there is no network fetch to block on.
   const documentsLoading = false;

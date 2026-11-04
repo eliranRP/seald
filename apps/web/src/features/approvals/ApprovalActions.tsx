@@ -25,7 +25,7 @@ export interface ApprovalActionsProps {
 }
 
 /**
- * Approve and Deny as the two main buttons, "Review fields" under them
+ * Approve and Deny as the two main buttons, "Review fields" after them
  * when Approve is login-free. A request that needs a session says
  * "Sign in to approve" and goes to the review, which signs in first.
  */
@@ -40,35 +40,33 @@ export function ApprovalActions({
   const needsSession = approveRequires === 'session';
   const mainHandler = needsSession && onReview ? onReview : onApprove;
   return (
-    <>
-      <Row>
-        <Button
-          size="lg"
-          variant="primary"
-          loading={busy === 'approve'}
-          disabled={busy === 'deny'}
-          onClick={mainHandler}
-        >
-          {needsSession ? 'Sign in to approve' : 'Approve'}
-        </Button>
-        <Button
-          size="lg"
-          variant="secondary"
-          loading={busy === 'deny'}
-          disabled={busy === 'approve'}
-          autoFocus={focusDeny}
-          onClick={onDeny}
-        >
-          Deny
-        </Button>
-      </Row>
+    <Row>
+      <Button
+        size="lg"
+        variant="primary"
+        loading={busy === 'approve'}
+        disabled={busy === 'deny'}
+        onClick={mainHandler}
+      >
+        {needsSession ? 'Sign in to approve' : 'Approve'}
+      </Button>
+      <Button
+        size="lg"
+        variant="secondary"
+        loading={busy === 'deny'}
+        disabled={busy === 'approve'}
+        autoFocus={focusDeny}
+        onClick={onDeny}
+      >
+        Deny
+      </Button>
+      {/* Same row as Approve and Deny, so its label lines up with them
+            instead of floating on its own padded line. */}
       {!needsSession && onReview ? (
-        <Row>
-          <Button size="lg" variant="ghost" onClick={onReview}>
-            Review fields
-          </Button>
-        </Row>
+        <Button size="lg" variant="ghost" onClick={onReview}>
+          Review fields
+        </Button>
       ) : null}
-    </>
+    </Row>
   );
 }

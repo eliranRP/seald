@@ -320,6 +320,7 @@ class FakeRepo extends EnvelopesRepository {
         completed_at: e.completed_at,
         expires_at: e.expires_at,
         tags: [...(e.tags ?? [])],
+        archived_at: e.archived_at ?? null,
         created_at: e.created_at,
         updated_at: e.updated_at,
         signers: [],
@@ -363,6 +364,14 @@ class FakeRepo extends EnvelopesRepository {
     this.envelopes.set(id, next);
     return next;
   }
+  async setArchived(owner_id: string, id: string, archived: boolean) {
+    const e = await this.findByIdForOwner(owner_id, id);
+    if (!e) return null;
+    const next: Envelope = { ...e, archived_at: archived ? new Date().toISOString() : null };
+    this.envelopes.set(id, next);
+    return next;
+  }
+
   async deleteDraft(owner_id: string, id: string) {
     const e = await this.findByIdForOwner(owner_id, id);
     if (!e || e.status !== 'draft') return false;

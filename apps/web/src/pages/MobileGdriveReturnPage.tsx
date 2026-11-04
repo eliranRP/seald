@@ -26,32 +26,36 @@ const Wrap = styled.div`
   min-height: 100dvh;
   display: grid;
   place-items: center;
-  background: #fff;
-  gap: 16px;
-  padding: 24px;
+  background: ${({ theme }) => theme.color.paper};
+  gap: ${({ theme }) => theme.space[4]};
+  padding: ${({ theme }) => theme.space[6]};
 `;
 
 const Inner = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: ${({ theme }) => theme.space[3]};
 `;
 
 const Spinner = styled.span`
   width: 22px;
   height: 22px;
-  border-radius: 999px;
-  border: 2px solid var(--ink-200);
-  border-top-color: var(--ink-900);
+  border-radius: ${({ theme }) => theme.radius.pill};
+  border: 2px solid ${({ theme }) => theme.color.ink[200]};
+  border-top-color: ${({ theme }) => theme.color.ink[900]};
   animation: ${spin} 0.8s linear infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation-duration: 2.4s;
+  }
 `;
 
 const Caption = styled.p`
   margin: 0;
   font-family: ${({ theme }) => theme.font.sans};
-  font-size: 14px;
-  color: var(--fg-3);
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  color: ${({ theme }) => theme.color.fg[3]};
   text-align: center;
 `;
 

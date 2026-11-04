@@ -87,15 +87,15 @@ describe('TemplatesListPage — phone', () => {
     );
   });
 
-  it('Delete in the sheet asks first, then deletes', async () => {
+  it('Delete in the sheet deletes at once and offers Undo', async () => {
     const user = userEvent.setup();
     const del = vi.spyOn(templatesApi, 'deleteTemplate').mockResolvedValue();
     renderPhone();
     await user.click(screen.getByRole('button', { name: `More for ${TAGGED[0]!.name}` }));
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }));
-    const confirm = screen.getByRole('alertdialog');
-    await user.click(within(confirm).getByRole('button', { name: 'Delete' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(del).toHaveBeenCalledWith(TAGGED[0]!.id);
+    expect(await screen.findByRole('button', { name: 'Undo' })).toBeInTheDocument();
   });
 
   it('tapping a row opens the Use sheet', async () => {

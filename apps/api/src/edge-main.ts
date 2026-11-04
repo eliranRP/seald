@@ -3,6 +3,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { createConfiguredApp } from './app-setup';
 import { edgeProxyGuard } from './edge/proxy-guard';
 import { installFastLatin1 } from './edge/fast-latin1';
+import { normalizeRawHeaders } from './edge/raw-headers';
 
 /**
  * Supabase Edge Function entry (AWS exit plan, WS-0).
@@ -26,6 +27,7 @@ export async function bootstrapEdge(functionName: string): Promise<void> {
   }
   const prefix = `/${functionName}`;
   app.use((req: Request, _res: Response, next: NextFunction) => {
+    normalizeRawHeaders(req);
     if (req.url === prefix) req.url = '/';
     else if (req.url.startsWith(`${prefix}/`) || req.url.startsWith(`${prefix}?`)) {
       req.url = req.url.slice(prefix.length);

@@ -58,6 +58,19 @@ export const TermsBox = styled.input`
   }
 `;
 
+/** Terms row plus its inline error, tight like a TextField's feedback. */
+export const TermsField = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[1]};
+`;
+
+/** Same ink and size as TextField's error line. */
+export const TermsError = styled.span`
+  font-size: ${({ theme }) => theme.font.size.xs};
+  color: ${({ theme }) => theme.color.danger[700]};
+`;
+
 export const Form = styled.form`
   display: flex;
   flex-direction: column;

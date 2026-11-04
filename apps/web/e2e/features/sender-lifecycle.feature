@@ -34,9 +34,9 @@ Feature: Sender lifecycle regressions — dashboard responsiveness, dates, downl
     And the row for the recent envelope omits the year
 
   @smoke @sender @regression
-  Scenario: Download bundle opens the sealed PDF and downloads the audit trail (BUG-3)
+  Scenario: Download opens only the sealed PDF; the audit trail stays separate (BUG-3)
     When the sender opens the recent envelope detail
-    And the sender chooses the "Sealed PDF + audit" download bundle
+    And the sender clicks the main Download button
     Then exactly one new tab opens for the sealed PDF
-    And the audit trail is delivered as a download (no popup)
-    And the success toast confirms the download
+    And the audit trail is not fetched with it
+    And the success toast confirms the sealed PDF opened

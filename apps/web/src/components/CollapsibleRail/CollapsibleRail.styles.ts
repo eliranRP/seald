@@ -25,6 +25,10 @@ export const CollapsedRoot = styled.aside<SideProps>`
   align-items: center;
   padding: ${({ theme }) => `${theme.space[3]} 0`};
   flex-shrink: 0;
+  /* Room for the 44px touch toggle. */
+  @media (pointer: coarse) {
+    width: ${({ theme }) => theme.space[12]};
+  }
 `;
 
 export const CollapsedToggle = styled.button`
@@ -42,6 +46,11 @@ export const CollapsedToggle = styled.button`
   &:focus-visible {
     outline: none;
     box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+  /* 44px tap target on touch screens (tables § 21). */
+  @media (pointer: coarse) {
+    min-width: 44px;
+    min-height: 44px;
   }
 `;
 

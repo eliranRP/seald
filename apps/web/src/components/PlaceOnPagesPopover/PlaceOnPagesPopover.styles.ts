@@ -1,4 +1,5 @@
 import styled, { css } from 'styled-components';
+import { mobileInputText } from '@/styles/mixins';
 
 export const Backdrop = styled.div`
   position: fixed;
@@ -93,6 +94,7 @@ export const CustomInput = styled.input`
   border-radius: 10px;
   font-size: 14px;
   font-family: ${({ theme }) => theme.font.sans};
+  ${mobileInputText}
   color: ${({ theme }) => theme.color.fg[1]};
   background: ${({ theme }) => theme.color.bg.surface};
   outline: none;

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Bell, Check, MoreHorizontal, Pencil, Send, UserRoundCog } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
@@ -9,13 +9,14 @@ import { MiniTrack } from '@/components/MiniTrack';
 import { MWBottomSheet } from '@/components/MWBottomSheet';
 import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 import type { Envelope, EnvelopeSigner } from '@/features/envelopes';
-import { isPending, signerRowView } from './envelopeView';
+import { EMAIL_HINT, emailOk, isPending, signerRowView } from './envelopeView';
 import {
   CardHead,
   Count,
   EmptyNote,
   Eyebrow,
   FieldBox,
+  FieldHint,
   FixRow,
   RowActions,
   SectionCard,
@@ -52,20 +53,30 @@ function FixEmailForm(props: {
 }) {
   const { signer, busy, onCancel, onSubmit } = props;
   const [email, setEmail] = useState(signer.email);
+  // Validate when the field is left (or on Resend); once wrong, re-check live.
+  const [touched, setTouched] = useState(false);
+  const hintId = useId();
   const first = signer.name.split(/\s+/)[0] ?? signer.name;
+  const invalid = touched && !emailOk(email);
   const submit = (event: FormEvent): void => {
     event.preventDefault();
-    const next = email.trim();
-    if (next !== '') onSubmit(next);
+    setTouched(true);
+    if (emailOk(email)) onSubmit(email.trim());
   };
   return (
-    <FixRow onSubmit={submit}>
+    <FixRow onSubmit={submit} noValidate>
       <FieldBox>
         <input
           type="email"
+          inputMode="email"
+          autoComplete="email"
+          enterKeyHint="send"
           aria-label={`${first}'s email`}
+          aria-invalid={invalid || undefined}
+          aria-describedby={invalid ? hintId : undefined}
           value={email}
           autoFocus
+          onBlur={() => setTouched(true)}
           onChange={(e) => setEmail(e.target.value)}
         />
       </FieldBox>
@@ -75,6 +86,11 @@ function FixEmailForm(props: {
       <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
         Cancel
       </Button>
+      {invalid ? (
+        <FieldHint id={hintId} role="alert">
+          {EMAIL_HINT}
+        </FieldHint>
+      ) : null}
     </FixRow>
   );
 }
@@ -221,9 +237,12 @@ export function SignersCard(props: SignersCardProps) {
                 <SignerGrid>
                   <Avatar name={signer.name} size={32} />
                   <SignerWho>
-                    <SignerName>{signer.name}</SignerName>
+                    {/* One line each; the full value is in the tooltip. Names may be RTL. */}
+                    <SignerName dir="auto" title={signer.name}>
+                      {signer.name}
+                    </SignerName>
                     {!isMobile || signer.status === 'bounced' ? (
-                      <SignerEmail>{signer.email}</SignerEmail>
+                      <SignerEmail title={signer.email}>{signer.email}</SignerEmail>
                     ) : null}
                     {isMobile ? track : null}
                   </SignerWho>

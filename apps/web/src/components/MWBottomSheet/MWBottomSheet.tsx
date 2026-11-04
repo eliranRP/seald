@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
+import { useModalFocus } from '../shared/useModalFocus';
 import { SheetBackdrop, SheetGrabber, SheetSurface, SheetTitle } from './MWBottomSheet.styles';
 
 const FOCUSABLE_SELECTOR =
@@ -25,6 +26,8 @@ export function MWBottomSheet(props: MWBottomSheetProps) {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
 
   useEscapeKey(onClose, open);
+  // Tab stays inside the sheet; focus returns to the trigger on close.
+  useModalFocus(surfaceRef, open);
 
   // Lock body scroll while open
   useEffect(() => {

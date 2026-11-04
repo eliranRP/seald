@@ -104,6 +104,11 @@ function Expired({
   } else if (hints.token) {
     body = (
       <>
+        <span>
+          {sender
+            ? t('signing.sign.link.expired.body', { sender })
+            : t('signing.sign.link.expired.bodyAnon')}
+        </span>
         <Button iconLeft={Send} onClick={ask} loading={state === 'busy'}>
           {t('signing.sign.link.expired.ask')}
         </Button>

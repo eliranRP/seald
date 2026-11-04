@@ -7,9 +7,9 @@ import { InfoChip } from '@/components/InfoChip';
 import { RetentionNotice } from '@/components/RetentionNotice';
 import { SignatureLevelNote } from '@/components/SignatureLevelNote';
 import { readDoneSnapshot, safeDownloadName, useSealedDownload } from '@/features/signing';
-import { ActionLink, Fine, StatusPage, TextLink } from '@/features/signing/ui/StatusPage';
+import { ActionLink, StatusPage, TextLink } from '@/features/signing/ui/StatusPage';
 import { useT } from '@/lib/i18n';
-import { Actions, Hint } from './SigningDonePage.styles';
+import { Actions, FinePrint, Hint } from './SigningDonePage.styles';
 
 /**
  * `/sign/:envelopeId/done` — terminal success screen. Reads the sessionStorage
@@ -95,10 +95,10 @@ export function SigningDonePage() {
         </TextLink>
       </Actions>
 
-      <Fine>
+      <FinePrint>
         <RetentionNotice verifyPath={`/verify/${snap.short_code}`} />
         <SignatureLevelNote />
-      </Fine>
+      </FinePrint>
     </StatusPage>
   );
 }

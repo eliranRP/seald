@@ -73,6 +73,7 @@ export function SettingsPage() {
           {extra.length > 0 ? <NavDivider /> : null}
           {extra.map((row) => (
             <SideLink key={row.to} to={row.to}>
+              <Icon icon={row.icon} size={16} />
               {row.label}
             </SideLink>
           ))}

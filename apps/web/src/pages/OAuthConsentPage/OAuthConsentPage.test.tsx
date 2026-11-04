@@ -123,7 +123,7 @@ describe('OAuthConsentPage', () => {
           },
     );
     const { onRedirect } = renderPage();
-    await user.click(await screen.findByRole('button', { name: 'Approve' }));
+    await user.click(await screen.findByRole('button', { name: 'Allow access' }));
     await waitFor(() => {
       expect(onRedirect).toHaveBeenCalledWith(
         'https://claude.example/api/mcp/auth_callback?code=abc&state=xyz',
@@ -160,7 +160,7 @@ describe('OAuthConsentPage', () => {
     const signOut = vi.fn(() => Promise.resolve());
     postMock.mockResolvedValue({ data: description({ fresh_login_required: true }) });
     renderPage(undefined, { auth: { signOut } });
-    expect(await screen.findByRole('button', { name: 'Approve' })).toBeDisabled();
+    expect(await screen.findByRole('button', { name: 'Allow access' })).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'Sign in again' }));
     expect(signOut).toHaveBeenCalled();
     expect(await screen.findByTestId('where')).toHaveTextContent(
@@ -176,7 +176,7 @@ describe('OAuthConsentPage', () => {
       throw httpError(403, 'fresh_login_required');
     });
     renderPage();
-    await user.click(await screen.findByRole('button', { name: 'Approve' }));
+    await user.click(await screen.findByRole('button', { name: 'Allow access' }));
     expect(await screen.findByRole('button', { name: 'Sign in again' })).toBeInTheDocument();
   });
 
@@ -195,14 +195,14 @@ describe('OAuthConsentPage', () => {
   it('explains an untrusted client or redirect sent back by /oauth/authorize', async () => {
     renderPage('/oauth/mcp/consent?error=invalid_redirect_uri');
     expect(await screen.findByRole('alert')).toHaveTextContent('not allowed to');
-    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Allow access' })).not.toBeInTheDocument();
   });
 
   it('a request the API refuses shows an error and no buttons', async () => {
     postMock.mockRejectedValue(httpError(400, 'invalid_client'));
     renderPage();
     expect(await screen.findByRole('alert')).toHaveTextContent('Seald does not know this app');
-    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Allow access' })).not.toBeInTheDocument();
   });
 
   it('a session without an email account cannot connect apps', async () => {

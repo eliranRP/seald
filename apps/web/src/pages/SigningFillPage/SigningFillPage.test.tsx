@@ -94,8 +94,10 @@ describe('SigningFillPage — consent', () => {
   it('asks for the one consent first and keeps the fields still', async () => {
     renderFill();
     expect(await screen.findByText(/asked you to sign|have been asked to sign/i)).toBeVisible();
-    const start = screen.getByRole('button', { name: 'Start' });
-    expect(start).toBeDisabled();
+    // Start without the box ticked records nothing and says what is missing.
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+    expect(post).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent('Tick the box to agree');
     expect(screen.queryByRole('region', { name: 'Signing progress' })).toBeNull();
 
     // A tap on a field does nothing yet.
@@ -301,8 +303,23 @@ describe('SigningFillPage — finish', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Finish signing' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Sign' }));
 
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('boom');
+    // A server fault reads as signer copy with a next step, never the raw text.
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'We could not submit right now. Please try again.',
+    );
+    expect(within(dialog).queryByText('boom')).toBeNull();
     expect(post.mock.calls.map((c) => c[0])).toEqual(['/sign/intent-to-sign']);
+  });
+
+  it('reads a dropped connection as a connection problem', async () => {
+    post.mockRejectedValueOnce(new Error('Network Error'));
+    renderFill();
+    await userEvent.click(await screen.findByRole('button', { name: 'Finish' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Finish signing' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Sign' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      "We couldn't reach Seald. Check your connection and try again.",
+    );
   });
 
   it('Back closes the sheet and sends nothing', async () => {
@@ -324,7 +341,7 @@ describe('SigningFillPage — decline, not me, withdraw', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Decline to sign?' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Terms' }));
     await userEvent.type(within(dialog).getByRole('textbox'), 'Clause 4');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Decline' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Decline to sign' }));
 
     await waitFor(() => {
       expect(post).toHaveBeenCalledWith(
@@ -341,7 +358,7 @@ describe('SigningFillPage — decline, not me, withdraw', () => {
     await openMenu();
     await userEvent.click(screen.getByRole('menuitem', { name: 'Decline' }));
     const dialog = await screen.findByRole('dialog', { name: 'Decline to sign?' });
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Keep signing' }));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(post).not.toHaveBeenCalled();
   });

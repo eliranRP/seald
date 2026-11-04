@@ -137,6 +137,8 @@ interface LoaderCardProps {
   readonly failed: boolean;
   readonly onCancel?: (() => void) | undefined;
   readonly onRetry?: (() => void) | undefined;
+  /** Phones get 44px buttons (touch targets). */
+  readonly touch?: boolean | undefined;
 }
 
 function StepGlyph({ state }: { readonly state: StepState }): JSX.Element | null {
@@ -146,7 +148,8 @@ function StepGlyph({ state }: { readonly state: StepState }): JSX.Element | null
 }
 
 function LoaderCard(props: LoaderCardProps): JSX.Element {
-  const { status, fileName, fileSize, pages, failed, onCancel, onRetry } = props;
+  const { status, fileName, fileSize, pages, failed, onCancel, onRetry, touch = false } = props;
+  const displayName = fileName !== undefined && fileName.length > 0 ? fileName : 'Your file';
   const steps = loaderSteps(status, pages);
   const done = steps.filter((s) => s.state === 'done').length;
   const pct = Math.round(((done + 0.5) / steps.length) * 100);
@@ -166,19 +169,20 @@ function LoaderCard(props: LoaderCardProps): JSX.Element {
           <i />
         </Thumb>
         <Grow>
-          <FileName>
-            {fileName !== undefined && fileName.length > 0 ? fileName : 'Your file'}
-          </FileName>
+          <FileName title={displayName}>{displayName}</FileName>
           {meta ? <FileMeta>{meta}</FileMeta> : null}
           <Progress aria-hidden $error={failed}>
             <span style={{ width: failed ? '100%' : `${String(pct)}%` }} />
           </Progress>
           {failed ? (
             <>
-              <AlertInline>
+              <AlertInline role="alert">
                 <AlertCircle size={16} aria-hidden />
-                Couldn&apos;t convert
+                {status === 'converting'
+                  ? "Couldn't convert this file to PDF."
+                  : "Couldn't read this PDF."}
               </AlertInline>
+              <FileMeta>Retry, or save it as a PDF again and upload that copy.</FileMeta>
               <Actions>
                 {onRetry ? (
                   <Button variant="primary" iconLeft={RefreshCw} onClick={onRetry}>
@@ -207,7 +211,7 @@ function LoaderCard(props: LoaderCardProps): JSX.Element {
           )}
         </Grow>
         {onCancel && !failed ? (
-          <Button variant="ghost" size="sm" onClick={onCancel}>
+          <Button variant="ghost" size={touch ? 'md' : 'sm'} onClick={onCancel}>
             Cancel
           </Button>
         ) : null}
@@ -280,12 +284,11 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
   const effectiveDropSubheading =
     dropSubheading ?? `or choose a file from your computer · up to ${String(sizeMb)} MB`;
 
+  // Say what happened and how to fix it (not just "PDF or Word only").
   const typeMessage = allowWord
-    ? 'PDF or Word only'
+    ? "This file type isn't supported. Upload a PDF or Word file."
     : "This file type isn't supported. Please upload a PDF.";
-  const sizeMessage = allowWord
-    ? `Max ${String(sizeMb)} MB`
-    : `This file is larger than ${String(sizeMb)} MB. Please choose a smaller file.`;
+  const sizeMessage = `This file is larger than ${String(sizeMb)} MB. Please choose a smaller file.`;
 
   const raiseError = useCallback(
     (code: UploadPageErrorCode, message: string, file: File): void => {
@@ -515,6 +518,7 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
               failed={conversionFailed}
               onCancel={onCancelAnalysis}
               onRetry={onRetryConversion}
+              touch={isMobile}
             />
           ) : (
             <Dropzone
@@ -533,14 +537,17 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
                   <DropIcon $error>
                     <AlertCircle size={48} strokeWidth={1.5} aria-hidden />
                   </DropIcon>
-                  <AlertInline id={errorId}>{error.message}</AlertInline>
-                  {allowWord ? <Mono>{error.file}</Mono> : null}
+                  <AlertInline id={errorId} role="alert">
+                    {error.message}
+                  </AlertInline>
+                  {allowWord ? <Mono title={error.file}>{error.file}</Mono> : null}
                   <Actions>
-                    <Button variant="secondary" onClick={handleChooseClick}>
-                      Choose another
+                    {/* The one way forward here, so it carries the accent. */}
+                    <Button variant="primary" onClick={handleChooseClick}>
+                      Choose another file
                     </Button>
                     {error.code === 'size' && onPickDrive ? (
-                      <Button variant="ghost" size="sm" onClick={onPickDrive}>
+                      <Button variant="ghost" onClick={onPickDrive}>
                         Try Google Drive
                       </Button>
                     ) : null}

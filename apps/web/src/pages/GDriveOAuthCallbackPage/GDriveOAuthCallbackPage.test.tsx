@@ -187,7 +187,7 @@ describe('GDriveOAuthCallbackPage (Bug G + Bug I)', () => {
       </MemoryRouter>,
     );
     closeSpy.mockClear();
-    const close = await screen.findByRole('button', { name: /^close$/i });
+    const close = await screen.findByRole('button', { name: /^close window$/i });
     close.click();
     expect(closeSpy).toHaveBeenCalled();
   });

@@ -12,6 +12,7 @@ import { DocumentPage } from '../pages/DocumentPage';
 import { TemplateFlowHeader } from '../components/TemplateFlowHeader';
 import { TemplateModeBanner } from '../components/TemplateModeBanner';
 import { Toast } from '../components/Toast';
+import { friendlySendError, friendlyTemplateSaveError } from './friendlyErrors';
 import { SendConfirmDialog } from '../components/SendConfirmDialog';
 import { ExitConfirmDialog } from '../components/ExitConfirmDialog';
 import { GuestSenderEmailDialog } from '../components/GuestSenderEmailDialog';
@@ -467,8 +468,9 @@ export function TemplateEditorRoute() {
     readonly tone: 'success' | 'error' | 'info';
   } | null>(null);
 
+  // Success toasts time out; errors stay until dismissed.
   useEffect(() => {
-    if (!toast) return undefined;
+    if (!toast || toast.tone === 'error') return undefined;
     const toastTimer = window.setTimeout(() => setToast(null), TOAST_AUTO_DISMISS_MS);
     return () => window.clearTimeout(toastTimer);
   }, [toast]);
@@ -627,8 +629,8 @@ export function TemplateEditorRoute() {
     } catch (err) {
       setSaving(false);
       setToast({
-        title: 'Save failed',
-        subtitle: err instanceof Error ? err.message : 'Failed to save template. Please try again.',
+        title: "Couldn't save the template",
+        subtitle: friendlyTemplateSaveError(err),
         tone: 'error',
       });
     }
@@ -709,7 +711,7 @@ export function TemplateEditorRoute() {
         sendDocument(draft.id);
         navigate('/documents', { state: { justSent: result.envelope_id } });
       } catch (err) {
-        setSendError(err instanceof Error ? err.message : 'Unable to send the document.');
+        setSendError(friendlySendError(err));
       }
     },
     [
@@ -795,8 +797,9 @@ export function TemplateEditorRoute() {
         })
         .catch(() => {
           setToast({
-            title: 'Template update failed',
-            subtitle: 'Sending the document anyway.',
+            title: "Couldn't update the template",
+            subtitle:
+              'Your document is still being sent. Edit the template later to keep this layout.',
             tone: 'error',
           });
         });
@@ -991,6 +994,7 @@ export function TemplateEditorRoute() {
           title={toast.title}
           {...(toast.subtitle ? { subtitle: toast.subtitle } : {})}
           tone={toast.tone}
+          onClose={() => setToast(null)}
         />
       ) : null}
       <ExitConfirmDialog

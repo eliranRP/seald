@@ -3,6 +3,10 @@ import { DialogSectionedCard } from '../DialogPrimitives';
 
 export const Card = styled(DialogSectionedCard)<{ $width: number }>`
   max-width: ${({ $width }) => `${String($width)}px`};
+  /* Programmatic focus target on open; the card itself needs no ring. */
+  &:focus {
+    outline: none;
+  }
 `;
 
 export const Title = styled.h2`

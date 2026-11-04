@@ -567,6 +567,13 @@ export interface EnvelopesTable {
   // Migration 0035 (WP-38) — locale for signer-facing UI and email; null
   // means the default (en). Read and written only while `i18n` is on.
   locale: ColumnType<string | null, string | null | undefined, string | null | undefined>;
+  // Migration 0051 — set when the owner archives the envelope (hidden from
+  // the Documents tabs, listed under Archived); null when not archived.
+  archived_at: ColumnType<
+    Date | null,
+    Date | string | null | undefined,
+    Date | string | null | undefined
+  >;
   // Migration 0026 (WP-10) — envelope default for the emailed one-time
   // code before access / before submit. Read only while `signerAccessAuth`
   // is on.

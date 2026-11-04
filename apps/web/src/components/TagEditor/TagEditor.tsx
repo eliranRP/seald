@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react';
 import { Tag, X } from 'lucide-react';
 import styled, { css } from 'styled-components';
 import { TagChip } from '@/components/TagChip';
+import { mobileInputText } from '@/styles/mixins';
 
 /**
  * Inline tag composer used by both the dashboard row's "+" affordance
@@ -70,6 +71,7 @@ const Input = styled.input<{ readonly $inline: boolean }>`
   font-family: ${({ theme }) => theme.font.sans};
   font-size: 13px;
   line-height: 1.4;
+  ${mobileInputText}
   background: ${({ theme }) => theme.color.bg.surface};
   color: ${({ theme }) => theme.color.fg[1]};
   &::placeholder {

@@ -1,4 +1,5 @@
 import styled, { type DefaultTheme } from 'styled-components';
+import { mobileInputText } from '@/styles/mixins';
 import { spring } from '@/styles/motion';
 import type { EmailChipKind } from '@/features/contacts/classifyEmails';
 
@@ -80,6 +81,7 @@ export const Field = styled.input`
   background: transparent;
   font: ${({ theme }) =>
     `${theme.font.weight.regular} ${theme.font.size.bodySm} ${theme.font.sans}`};
+  ${mobileInputText}
   color: ${({ theme }) => theme.color.fg[1]};
 
   &::placeholder {

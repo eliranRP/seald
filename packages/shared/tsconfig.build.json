@@ -11,7 +11,7 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "module": "commonjs",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "isolatedModules": true
   },
   "include": ["src/**/*"],

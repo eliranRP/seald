@@ -12,6 +12,7 @@ export const Stack = styled.div`
 
 export const Intro = styled.p`
   margin: 0;
+  max-width: 65ch;
   font-size: ${({ theme }) => theme.font.size.body};
   line-height: ${({ theme }) => theme.font.lineHeight.relaxed};
   color: ${({ theme }) => theme.color.fg[2]};
@@ -66,10 +67,13 @@ export const Mono = styled.code`
   overflow-wrap: anywhere;
 `;
 
+/** Label above control; capped at 480px so a short select isn't page-wide. */
 export const Field = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.space[1]};
+  width: 100%;
+  max-width: calc(${({ theme }) => theme.space[24]} * 5);
   font-size: ${({ theme }) => theme.font.size.bodySm};
   color: ${({ theme }) => theme.color.fg[2]};
 `;
@@ -85,10 +89,28 @@ export const FileInput = styled.input`
   border: 1px dashed ${({ theme }) => theme.color.border[2]};
   border-radius: ${({ theme }) => theme.radius.sm};
   font: inherit;
-  font-size: 16px;
+  font-size: ${({ theme }) => theme.font.size.body};
   color: ${({ theme }) => theme.color.fg[1]};
   background: ${({ theme }) => theme.color.paper};
   max-width: 100%;
+  cursor: pointer;
+
+  /* The browser's grey "Choose File" button, drawn as our secondary button. */
+  &::file-selector-button {
+    margin-right: ${({ theme }) => theme.space[3]};
+    padding: ${({ theme }) => `${theme.space[2]} ${theme.space[4]}`};
+    border: 1px solid ${({ theme }) => theme.color.border[2]};
+    border-radius: ${({ theme }) => theme.radius.sm};
+    background: ${({ theme }) => theme.color.paper};
+    color: ${({ theme }) => theme.color.fg[1]};
+    font: inherit;
+    font-size: ${({ theme }) => theme.font.size.bodySm};
+    font-weight: ${({ theme }) => theme.font.weight.semibold};
+    cursor: pointer;
+  }
+  &:hover::file-selector-button {
+    background: ${({ theme }) => theme.color.bg.sunken};
+  }
 
   &:focus-visible {
     outline: 2px solid ${({ theme }) => theme.color.indigo[500]};
@@ -102,7 +124,7 @@ export const Select = styled.select`
   border: 1px solid ${({ theme }) => theme.color.border[1]};
   border-radius: ${({ theme }) => theme.radius.sm};
   font: inherit;
-  font-size: 16px;
+  font-size: ${({ theme }) => theme.font.size.body};
   color: ${({ theme }) => theme.color.fg[1]};
   background: ${({ theme }) => theme.color.paper};
   max-width: 100%;
@@ -137,6 +159,7 @@ export const SummaryLine = styled.p`
 
 export const TableScroll = styled.div`
   width: 100%;
+  /* Desktop safety net only: under 640px the rows are cards and never scroll. */
   overflow-x: auto;
   border: 1px solid ${({ theme }) => theme.color.border[1]};
   border-radius: ${({ theme }) => theme.radius.md};
@@ -175,6 +198,70 @@ export const Table = styled.table`
     color: ${({ theme }) => theme.color.fg[2]};
     background: ${({ theme }) => theme.color.bg.sunken};
     white-space: nowrap;
+  }
+
+  /* The row number is a number: tabular figures so the column lines up. */
+  tbody th[scope='row'] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /*
+   * Phones: no sideways scroll. Each row becomes a card. Line 1: recipients
+   * (who) and the row number; line 2: the check/result; line 3: the title.
+   */
+  @media (max-width: 640px) {
+    min-width: 0;
+
+    thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+    }
+
+    tbody tr {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        'who row'
+        'state state'
+        'title title';
+      gap: ${({ theme }) => theme.space[2]};
+      padding: ${({ theme }) => theme.space[3]} ${({ theme }) => theme.space[4]};
+      border-top: 1px solid ${({ theme }) => theme.color.border[1]};
+    }
+
+    tbody th,
+    tbody td {
+      padding: 0;
+      border-top: 0;
+      background: transparent;
+      min-width: 0;
+    }
+
+    tbody th[scope='row'] {
+      grid-area: row;
+      font-weight: ${({ theme }) => theme.font.weight.regular};
+      color: ${({ theme }) => theme.color.fg[3]};
+    }
+    tbody th[scope='row']::before {
+      content: 'Row ';
+    }
+    tbody td:nth-of-type(1) {
+      grid-area: who;
+    }
+    tbody td:nth-of-type(2) {
+      grid-area: title;
+      color: ${({ theme }) => theme.color.fg[2]};
+    }
+    tbody td:nth-of-type(2)::before {
+      content: 'Title: ';
+      color: ${({ theme }) => theme.color.fg[3]};
+    }
+    tbody td:nth-of-type(3) {
+      grid-area: state;
+    }
   }
 `;
 

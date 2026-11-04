@@ -25,7 +25,7 @@ Production hosts:
 
 | Piece | Choice |
 | --- | --- |
-| Monorepo | pnpm 9.12 workspaces (`apps/*`, `packages/*`). Node `>=22.12` (`.nvmrc` is `22`). |
+| Monorepo | pnpm 9.12 workspaces (`apps/*`, `packages/*`). Node `>=22.23.4` (`.nvmrc` is `22.23.4`). |
 | Web SPA | React 19, Vite 8, TypeScript 5.6, React Router 7, styled-components 6, TanStack Query 5, Axios, Supabase JS |
 | Landing | Astro, merged with the SPA at deploy time |
 | API | NestJS 11, Express, Zod env parsing, class-validator on DTOs, Kysely + `pg` |
@@ -494,7 +494,7 @@ TypeScript (`tsconfig.base.json`): `strict`, `noUncheckedIndexedAccess`,
 are written `prop?: T | undefined`.
 
 Web ESLint (`apps/web/eslint.config.js`) runs at `--max-warnings=0`.
-API ESLint (`apps/api/.eslintrc.cjs`) runs the same syntax bans on
+API ESLint (`apps/api/eslint.config.cjs`) runs the same syntax bans on
 `src` and `test`. `docs/CONTRIBUTING.md` still describes a longer list;
 the items below that ESLint does not fail are review-only.
 

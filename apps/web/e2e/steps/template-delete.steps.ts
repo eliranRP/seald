@@ -7,7 +7,7 @@ const { Given, When, Then } = createBdd(test);
  * BDD step defs for `features/template-delete.feature`. Steps query by
  * accessible role/name only (rule 4.6). The mocks answer `GET /api/templates`
  * with one template so the list renders a card the sender can target;
- * DELETE and restore are mocked for the Undo scenario. The shared step
+ * DELETE and restore are mocked for Undo. The shared step
  * "the confirmation {string} is shown" lives in `sender-contacts.steps.ts`.
  */
 
@@ -46,35 +46,14 @@ Given(
 When(
   'the sender clicks Delete on the {string} template',
   async ({ templatesListPage }, name: string) => {
+    // Delete acts at once from the card menu; there is no confirm dialog.
     await templatesListPage.openDeleteModal(name);
   },
 );
 
-When('the sender confirms the deletion', async ({ templatesListPage }) => {
-  await templatesListPage.confirmDelete();
-});
-
 When('the sender taps Undo', async ({ page }) => {
   await page.getByRole('button', { name: 'Undo' }).click();
 });
-
-When('the sender presses Escape', async ({ page }) => {
-  await page.keyboard.press('Escape');
-});
-
-Then(
-  'the delete confirmation for {string} is open',
-  async ({ templatesListPage }, name: string) => {
-    await templatesListPage.expectDeleteModalOpen(name);
-  },
-);
-
-Then(
-  'the delete confirmation for {string} is closed',
-  async ({ templatesListPage }, name: string) => {
-    await templatesListPage.expectDeleteModalClosed(name);
-  },
-);
 
 Then('the {string} template is still in the list', async ({ templatesListPage }, name: string) => {
   await templatesListPage.expectTemplateVisible(name);

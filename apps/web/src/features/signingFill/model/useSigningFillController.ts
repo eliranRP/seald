@@ -9,7 +9,7 @@ import {
 import type { SignatureCaptureResult } from '@/components/SignatureCapture';
 import type { SignerFieldKind } from '@/components/SignerField';
 import { isFeatureEnabled } from 'shared';
-import { useSigningSession } from '@/features/signing';
+import { signerErrorMessage, useSigningSession } from '@/features/signing';
 import type { SignMeField } from '@/features/signing';
 import { useT } from '@/lib/i18n';
 import type { CommonKey, TFn } from '@/lib/i18n';
@@ -21,12 +21,28 @@ import {
   readOnlyDefault,
   usesMetaDrawer,
 } from '../inputs/fieldDisplay';
-import { fillErrorMessage } from '../inputs/fillErrors';
+import { fillErrorMessage, isFillErrorSlug } from '../inputs/fillErrors';
 import { nextTodoField } from './fieldOrder';
 import type { MetaInputKind } from '../inputs/MetaFieldDrawer';
 
 interface ApiErrorLike extends Error {
   status?: number;
+}
+
+/**
+ * A known fill slug reads as its field rule; anything else (a network
+ * failure, a raw status phrase) gets signer copy with a next step instead of
+ * the raw text (feedback § 6).
+ */
+function fillMessage(
+  err: unknown,
+  meta: Readonly<Record<string, unknown>> | undefined,
+  fallback: string,
+  t: TFn,
+): string {
+  const message = (err as Partial<ApiErrorLike> | null)?.message ?? '';
+  if (isFillErrorSlug(message)) return fillErrorMessage(message, meta, t);
+  return signerErrorMessage(err, fallback, t);
 }
 
 interface TextDrawerState {
@@ -195,7 +211,7 @@ export function useSigningFillController({
       autoFilledRef.current.add(f.id);
       fillFieldRef.current(f.id, { value_text: def }).catch((err: unknown) => {
         autoFilledRef.current.delete(f.id);
-        setError(fillErrorMessage((err as ApiErrorLike).message ?? '', f.meta, t));
+        setError(fillMessage(err, f.meta, t('signing.fill.errorField'), t));
       });
     }
   }, [fields, t]);
@@ -250,7 +266,7 @@ export function useSigningFillController({
             navigate(`/sign/${envelopeId}`, { replace: true });
             return;
           }
-          setError(e.message ?? t('signing.fill.errorCheckbox'));
+          setError(signerErrorMessage(e, t('signing.fill.errorCheckbox'), t));
           return;
         }
         if (willBeFilled) advanceTo(findNextAfter(field.id));
@@ -304,7 +320,7 @@ export function useSigningFillController({
               navigate(`/sign/${envelopeId}`, { replace: true });
               return;
             }
-            setError(e.message ?? t('signing.fill.errorSignature'));
+            setError(signerErrorMessage(e, t('signing.fill.errorSignature'), t));
             return;
           }
           advanceTo(findNextAfter(field.id));
@@ -363,7 +379,7 @@ export function useSigningFillController({
           navigate(`/sign/${envelopeId}`, { replace: true });
           return;
         }
-        setError(e.message ?? t('signing.fill.errorField'));
+        setError(fillMessage(e, textDrawer.field.meta, t('signing.fill.errorField'), t));
         return;
       }
       // Auto-advance after a successful text fill.
@@ -396,9 +412,7 @@ export function useSigningFillController({
           navigate(`/sign/${envelopeId}`, { replace: true });
           return;
         }
-        setDrawerError(
-          fillErrorMessage(e.message ?? '', field.meta, t) || t('signing.fill.errorField'),
-        );
+        setDrawerError(fillMessage(e, field.meta, t('signing.fill.errorField'), t));
         return;
       }
       setDrawerBusy(false);
@@ -455,7 +469,7 @@ export function useSigningFillController({
           setError(t('signing.fill.signatureTooLarge'));
           return;
         }
-        setError(e.message ?? t('signing.fill.errorSignatureSave'));
+        setError(signerErrorMessage(e, t('signing.fill.errorSignatureSave'), t));
         return;
       }
       // Auto-advance after a successful signature/initials apply.

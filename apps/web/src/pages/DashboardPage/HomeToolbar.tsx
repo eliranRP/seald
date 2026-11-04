@@ -21,7 +21,6 @@ import {
   ChipsRow,
   CountPill,
   Kbd,
-  ResultCount,
   SearchField,
   SelectButton,
   Spacer,
@@ -53,8 +52,6 @@ export interface HomeToolbarProps {
   readonly onStartSelecting: () => void;
   /** Phones: the search field shows only once the header's search button opened it. */
   readonly searchOpen?: boolean | undefined;
-  /** Phones: the number of documents listed, shown at the end of the row. */
-  readonly resultCount?: number | undefined;
 }
 
 interface SelectMenuProps {
@@ -319,9 +316,6 @@ export function HomeToolbar(props: HomeToolbarProps) {
             <Button variant="ghost" iconLeft={CircleCheck} onClick={props.onStartSelecting}>
               Select
             </Button>
-            {props.resultCount !== undefined ? (
-              <ResultCount aria-hidden>{props.resultCount}</ResultCount>
-            ) : null}
           </ToolbarRow>
         </>
       ) : (

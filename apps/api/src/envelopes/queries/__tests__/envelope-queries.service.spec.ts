@@ -24,6 +24,7 @@ function row(id: string, updated: string): SearchEnvelopeRow {
     short_code: 'ABCDEFGHJKMNP',
     sent_at: null,
     updated_at: updated.replace(/\.\d+Z$/, '.000Z'),
+    archived_at: null,
     cursor_updated_at: updated,
     signers: [],
     documents: [],

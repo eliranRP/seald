@@ -39,6 +39,33 @@ export const Flash = styled.div`
   ${fadeIn}
 `;
 
+/** 72% ink over the camera feed: white text stays legible on any frame. */
+const CAM_SCRIM = (ink: string): string => `color-mix(in srgb, ${ink} 72%, transparent)`;
+
+/** Optional context title in the camera's top bar, on the same scrim as the hint. */
+export const TopTitle = styled.p`
+  margin: 0;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 ${({ theme }) => theme.space[3]};
+  border-radius: ${({ theme }) => theme.radius.pill};
+  background: ${({ theme }) => CAM_SCRIM(theme.color.ink[900])};
+  color: ${({ theme }) => theme.color.paper};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+/** Same width as the 44px close button so the title stays centred. */
+export const TopSpacer = styled.span`
+  flex: none;
+  width: 44px;
+`;
+
 export const TopBar = styled.div`
   position: absolute;
   top: 0;
@@ -85,7 +112,9 @@ export const Hint = styled.div`
   height: 32px;
   padding: 0 ${({ theme }) => theme.space[3]};
   border-radius: ${({ theme }) => theme.radius.pill};
-  background: rgba(255, 255, 255, 0.14);
+  /* A dark scrim, not a white tint: the thing in frame is usually a white
+     sheet of paper, so the white text needs a dark ground to stay >= 4.5:1. */
+  background: ${({ theme }) => CAM_SCRIM(theme.color.ink[900])};
   color: ${({ theme }) => theme.color.paper};
   font-size: ${({ theme }) => theme.font.size.caption};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
@@ -364,6 +393,37 @@ export const Center = styled.div`
 /** "Making your PDF…": 20px rhythm, full-width progress (Scan-M-making). */
 export const MakingCenter = styled(Center)`
   gap: 20px;
+`;
+
+/**
+ * Blocked screen. Desktop: one centred column. Phone (<= 640px): the text
+ * group centres in the free space and the actions sit at the bottom, in the
+ * thumb zone, above the safe area (tables § 24).
+ */
+export const BlockedCenter = styled(Center)`
+  @media (max-width: 640px) {
+    justify-content: flex-start;
+    padding-bottom: calc(${({ theme }) => theme.space[6]} + env(safe-area-inset-bottom));
+  }
+`;
+
+export const BlockedText = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[4]};
+  @media (max-width: 640px) {
+    flex: 1;
+    justify-content: center;
+  }
+`;
+
+export const BlockedActions = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+  width: 100%;
 `;
 
 /** Primary action on the blocked screen: full width up to 320px, 48px tall. */

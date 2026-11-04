@@ -29,7 +29,11 @@ export function documentDeclinedPath(
     : `${envelope_id}/documents/${document_id}/declined.pdf`;
 }
 
-/** Cached zip of every sealed document plus audit.pdf (immutable once sealed). */
+/**
+ * Cached zip of every sealed document (immutable once sealed). The audit
+ * trail is not in it; it is downloaded on its own. `sealed-documents.zip`
+ * replaces the older `documents.zip`, which also held audit.pdf.
+ */
 export function sealedBundlePath(envelope_id: string): string {
-  return `${envelope_id}/documents.zip`;
+  return `${envelope_id}/sealed-documents.zip`;
 }

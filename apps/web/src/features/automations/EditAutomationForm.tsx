@@ -39,10 +39,14 @@ export function EditAutomationForm({
       : {}),
   };
   const changed = Object.keys(body).length > 0;
+  // Save stays live (a disabled button can't say why); a click with nothing
+  // changed says what to change instead.
+  const [nudged, setNudged] = useState(false);
 
   const submit = (event: FormEvent): void => {
     event.preventDefault();
     if (changed) onSave(body);
+    else setNudged(true);
   };
 
   return (
@@ -85,8 +89,15 @@ export function EditAutomationForm({
         </Notice>
       ) : null}
       {saved && !problem ? <Notice role="status">Saved.</Notice> : null}
+      {nudged && !changed ? (
+        <Notice role="status">
+          {webhook
+            ? 'Nothing to save yet. Change the name or the address first.'
+            : 'Nothing to save yet. Change the name first.'}
+        </Notice>
+      ) : null}
       <Actions>
-        <Button type="submit" variant="primary" loading={busy} disabled={!changed}>
+        <Button type="submit" variant="primary" loading={busy}>
           Save
         </Button>
       </Actions>

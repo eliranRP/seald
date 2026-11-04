@@ -535,6 +535,16 @@ export class EnvelopesService {
     throw new ConflictException('envelope_not_draft');
   }
 
+  /**
+   * Archive or unarchive an envelope in any status. Archiving only files it
+   * away from the Documents tabs: no event row, no mail, no status change.
+   */
+  async setArchived(owner_id: string, id: string, archived: boolean): Promise<Envelope> {
+    const updated = await this.repo.setArchived(owner_id, id, archived);
+    if (!updated) throw new NotFoundException('envelope_not_found');
+    return updated;
+  }
+
   async setOriginalFile(
     owner_id: string,
     id: string,

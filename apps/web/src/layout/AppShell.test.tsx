@@ -97,3 +97,13 @@ describe('AppShell focused flows', () => {
     expect(getByRole('link', { name: /templates/i })).toBeInTheDocument();
   });
 });
+
+describe('AppShell skip link', () => {
+  it('is the first link and moves focus to the main content', () => {
+    const { getAllByRole, getByRole } = renderShell();
+    const skip = getByRole('link', { name: 'Skip to content' });
+    expect(getAllByRole('link')[0]).toBe(skip);
+    fireEvent.click(skip);
+    expect(getByRole('main')).toHaveFocus();
+  });
+});

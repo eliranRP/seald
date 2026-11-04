@@ -139,7 +139,7 @@ describe('SigningDeclinedPage', () => {
       timestamp: '',
     });
     renderDeclined();
-    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Go to Seald home' }));
     await waitFor(() => {
       expect(screen.getByTestId('__pathname__').textContent).toBe('/');
     });

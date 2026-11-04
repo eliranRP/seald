@@ -24,10 +24,12 @@ import {
   AddTile,
   BarSlot,
   BlockAction,
+  BlockedActions,
+  BlockedCenter,
+  BlockedText,
   CamBar,
   CamThumb,
   CamView,
-  Center,
   CountBadge,
   Flash,
   Grid,
@@ -51,6 +53,8 @@ import {
   TileNumber,
   TopAction,
   TopBar,
+  TopSpacer,
+  TopTitle,
   Video,
   Sheet,
 } from './ScanCapture.styles';
@@ -87,7 +91,7 @@ async function blobBytes(blob: Blob): Promise<Uint8Array> {
  * back to picking photos. The host decides what happens to the PDF.
  */
 export function ScanCapture(props: ScanCaptureProps): JSX.Element {
-  const { onComplete, onClose } = props;
+  const { onComplete, onClose, title } = props;
   const [phase, setPhase] = useState<Phase>('camera');
   const [pages, setPages] = useState<ReadonlyArray<ScanPage>>([]);
   const [filter, setFilter] = useState<ScanFilter>('document');
@@ -366,33 +370,37 @@ export function ScanCapture(props: ScanCaptureProps): JSX.Element {
                 <X size={20} aria-hidden />
               </IconButton>
             ) : null}
-            <SheetTitle as="p">Scan</SheetTitle>
+            <SheetTitle as="p">{title ?? 'Scan'}</SheetTitle>
           </SheetTop>
-          <Center>
-            <StateIcon aria-hidden>
-              <Lock size={32} />
-            </StateIcon>
-            <h2>Camera is blocked</h2>
-            <Meta>Allow camera in browser settings, or choose photos you already took.</Meta>
-            <BlockAction>
-              <Button variant="primary" iconLeft={ImageIcon} onClick={openPicker}>
-                Choose from photos
+          <BlockedCenter>
+            <BlockedText>
+              <StateIcon aria-hidden>
+                <Lock size={32} />
+              </StateIcon>
+              <h2>Camera is blocked</h2>
+              <Meta>Allow camera in browser settings, or choose photos you already took.</Meta>
+              {captureFailed ? (
+                <Meta $error role="alert">
+                  {"Some photos couldn't be read."}
+                </Meta>
+              ) : null}
+            </BlockedText>
+            <BlockedActions>
+              <BlockAction>
+                <Button variant="primary" iconLeft={ImageIcon} onClick={openPicker}>
+                  Choose from photos
+                </Button>
+              </BlockAction>
+              <Button variant="ghost" onClick={retryCamera}>
+                Try the camera again
               </Button>
-            </BlockAction>
-            <Button variant="ghost" onClick={retryCamera}>
-              Try the camera again
-            </Button>
-            {pages.length > 0 ? (
-              <Button variant="secondary" onClick={() => setPhase('review')}>
-                {`Review ${pagesLabel(pages.length)}`}
-              </Button>
-            ) : null}
-            {captureFailed ? (
-              <Meta $error role="alert">
-                {"Some photos couldn't be read."}
-              </Meta>
-            ) : null}
-          </Center>
+              {pages.length > 0 ? (
+                <Button variant="secondary" onClick={() => setPhase('review')}>
+                  {`Review ${pagesLabel(pages.length)}`}
+                </Button>
+              ) : null}
+            </BlockedActions>
+          </BlockedCenter>
           {picker}
         </Sheet>
       </Root>
@@ -429,8 +437,10 @@ export function ScanCapture(props: ScanCaptureProps): JSX.Element {
               <X size={20} aria-hidden />
             </IconButton>
           ) : (
-            <span />
+            <TopSpacer />
           )}
+          {title ? <TopTitle>{title}</TopTitle> : null}
+          <TopSpacer />
         </TopBar>
         <Hint role="status" aria-live="polite">
           {hint}

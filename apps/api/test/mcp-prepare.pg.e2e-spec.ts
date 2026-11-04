@@ -330,6 +330,8 @@ describePg('MCP draft tools (e2e, real Postgres)', () => {
       'envelopes_set_recipient_order',
       'envelopes_prepare',
       'gdrive_import',
+      'envelopes_archive',
+      'envelopes_unarchive',
     ]) {
       expect(names).toContain(name);
     }
@@ -483,6 +485,26 @@ describePg('MCP draft tools (e2e, real Postgres)', () => {
       ),
     );
     expect(updated).toMatchObject({ tags: ['msa'], reminder_first_after_days: 2, reminder_max: 3 });
+
+    // Archive (migration 0051): any status, reversible, filterable in search.
+    const archived = ok(
+      await call(client, 'envelopes_archive', write({ envelope_id: envelopeId })),
+    );
+    expect(archived['archived_at']).toEqual(expect.any(String));
+    expect(archived['status']).toBe('draft');
+    const found = async (archivedFilter: boolean) =>
+      (
+        ok(await call(client, 'envelopes_search', { archived: archivedFilter }))['items'] as Array<{
+          id: string;
+        }>
+      ).map((i) => i.id);
+    expect(await found(true)).toContain(envelopeId);
+    expect(await found(false)).not.toContain(envelopeId);
+    const restored = ok(
+      await call(client, 'envelopes_unarchive', write({ envelope_id: envelopeId })),
+    );
+    expect(restored['archived_at']).toBeNull();
+    expect(await found(false)).toContain(envelopeId);
 
     const status = ok(await call(client, 'envelopes_status', { envelope_id: envelopeId }));
     expect(status).toMatchObject({ status: 'draft', sent_at: null, next_action: 'none' });

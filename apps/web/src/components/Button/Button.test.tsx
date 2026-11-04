@@ -90,4 +90,41 @@ describe('Button', () => {
     const btn = getByRole('button', { name: 'Send' });
     expect(btn.querySelector('svg')).toBeNull();
   });
+  it('explains a disabled button: focusable, described, click blocked', async () => {
+    const onClick = vi.fn();
+    const { getByRole } = renderWithTheme(
+      <Button onClick={onClick} disabled disabledReason="Add a signer first">
+        Send
+      </Button>,
+    );
+    const btn = getByRole('button', { name: 'Send' });
+    expect(btn).not.toBeDisabled();
+    expect(btn).toHaveAttribute('aria-disabled', 'true');
+    expect(btn).toHaveAccessibleDescription('Add a signer first');
+    expect(btn).toHaveAttribute('title', 'Add a signer first');
+    await userEvent.tab();
+    expect(btn).toHaveFocus();
+    await userEvent.click(btn);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('ignores disabledReason while enabled', () => {
+    const { getByRole } = renderWithTheme(<Button disabledReason="Nope">Send</Button>);
+    const btn = getByRole('button', { name: 'Send' });
+    expect(btn).not.toHaveAttribute('aria-disabled');
+    expect(btn).not.toHaveAttribute('title');
+  });
+
+  it('does not submit its form while loading', async () => {
+    const onSubmit = vi.fn((e: { preventDefault: () => void }) => e.preventDefault());
+    const { getByRole } = renderWithTheme(
+      <form onSubmit={onSubmit}>
+        <Button type="submit" loading>
+          Save
+        </Button>
+      </form>,
+    );
+    await userEvent.click(getByRole('button', { name: 'Save' }));
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
 });

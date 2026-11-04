@@ -20,7 +20,7 @@ import {
  * minor for an additive change; a breaking change is a new `_v2` tool
  * name, so the major is not used for that.
  */
-export const MCP_SERVER_VERSION = '0.13.0';
+export const MCP_SERVER_VERSION = '0.14.0';
 
 /**
  * Protocol revisions the server negotiates: the current one and the one
@@ -79,6 +79,11 @@ export const EnvelopesSearchInputSchema = z.strictObject({
   template_id: uuid.optional(),
   /** Case-insensitive substring of the name of a Drive file one of the documents was imported from. */
   drive_file_name: z.string().trim().min(1).max(255).optional(),
+  /**
+   * Added in 0.14.0. true: only archived envelopes; false: only envelopes
+   * that are not archived; omitted: both, as before.
+   */
+  archived: z.boolean().optional(),
   limit: limit.optional(),
   cursor: cursor.optional(),
 });
@@ -166,6 +171,8 @@ export const McpEnvelopeSchema = z.object({
   /** Present while `fieldMetaV2` is on; null means the signer's own format. */
   date_format: z.string().nullable().optional(),
   timezone: z.string().nullable().optional(),
+  /** Added in 0.14.0: when the owner archived it; null when not archived. */
+  archived_at: iso.nullable().optional(),
 });
 
 export const MeGetOutputSchema = z.object({
@@ -189,6 +196,8 @@ export const EnvelopesSearchOutputSchema = z.object({
       status: envelopeStatus,
       short_code: z.string(),
       updated_at: iso,
+      /** Added in 0.14.0: when the owner archived it; null when not archived. */
+      archived_at: iso.nullable().optional(),
       signers: z.array(
         z.object({
           id: uuid,

@@ -8,7 +8,18 @@ import { deriveTemplateRoles } from '@/features/templates/templateRoles';
 import type { TemplateSummary } from '@/features/templates';
 import { relativeAgo } from '@/lib/relativeAgo';
 import type { TemplateCardActions, TemplateCardProps } from './TemplateCard.types';
-import { CardButton, Dot, Dots, Meta, More, Name, Text, Thumb, Wrap } from './TemplateCard.styles';
+import {
+  CardButton,
+  Dot,
+  Dots,
+  Meta,
+  More,
+  Name,
+  SrOnly,
+  Text,
+  Thumb,
+  Wrap,
+} from './TemplateCard.styles';
 
 /** "Used 12× · 3d ago", or "Not used yet" for a template nobody has sent. */
 export function templateUsageText(template: TemplateSummary, now?: Date): string {
@@ -101,11 +112,18 @@ export const TemplateCard = forwardRef<HTMLDivElement, TemplateCardProps>((props
             {template.name}
           </Name>
           <Meta id={metaId}>
-            <Dots aria-hidden>
-              {roles.slice(0, 5).map((r) => (
-                <Dot key={r.key} $color={r.color} />
-              ))}
-            </Dots>
+            {roles.length > 0 ? (
+              <Dots>
+                {roles.slice(0, 5).map((r) => (
+                  <Dot key={r.key} $color={r.color} title={r.person?.name ?? r.label} aria-hidden />
+                ))}
+                {/* The dots' colours only tell roles apart; the count is
+                    said in text so it never rests on colour alone. */}
+                <SrOnly>
+                  {roles.length === 1 ? '1 signer' : `${String(roles.length)} signers`}
+                </SrOnly>
+              </Dots>
+            ) : null}
             <span>{templateUsageText(template)}</span>
           </Meta>
         </Text>

@@ -289,6 +289,8 @@ export interface EnvelopeListItem {
   readonly completed_at: string | null;
   readonly expires_at: string;
   readonly tags: ReadonlyArray<string>;
+  /** Migration 0051: when the owner archived it; null when not archived. */
+  readonly archived_at: string | null;
   readonly created_at: string;
   readonly updated_at: string;
   readonly signers: ReadonlyArray<EnvelopeListSignerSnippet>;
@@ -406,6 +408,16 @@ export abstract class EnvelopesRepository {
     patch: UpdateDraftMetadataPatch,
   ): Promise<Envelope | null>;
   abstract deleteDraft(owner_id: string, envelope_id: string): Promise<boolean>;
+  /**
+   * Archive (`archived` true) or unarchive an envelope the owner holds, in
+   * any status. Leaves `updated_at` alone, so the list order does not move.
+   * Returns the envelope, or null when the owner has no such envelope.
+   */
+  abstract setArchived(
+    owner_id: string,
+    envelope_id: string,
+    archived: boolean,
+  ): Promise<Envelope | null>;
   abstract setOriginalFile(
     envelope_id: string,
     input: SetOriginalFileInput,

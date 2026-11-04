@@ -1,4 +1,5 @@
 import styled, { css, keyframes } from 'styled-components';
+import { mobileInputText } from '@/styles/mixins';
 
 // Mirrors `DownloadMenu`'s `menuIn` so every dropdown surface in the
 // app shares the same enter motion.
@@ -109,6 +110,7 @@ export const SearchInput = styled.input`
   flex: 1;
   font: inherit;
   color: inherit;
+  ${mobileInputText}
   &::placeholder {
     color: ${({ theme }) => theme.color.fg[3]};
   }
@@ -296,8 +298,8 @@ export const PopoverFooter = styled.div`
   padding: 10px 10px 4px;
   border-top: 1px solid ${({ theme }) => theme.color.border[1]};
   margin-top: 6px;
-  font-size: 11px;
-  color: ${({ theme }) => theme.color.fg[4]};
+  font-size: ${({ theme }) => theme.font.size.micro};
+  color: ${({ theme }) => theme.color.fg[3]};
   line-height: 1.5;
   display: flex;
   gap: ${({ theme }) => theme.space[2]};
@@ -322,6 +324,7 @@ export const SignerInput = styled.input`
   font-family: ${({ theme }) => theme.font.sans};
   font-size: 13px;
   line-height: 1.4;
+  ${mobileInputText}
   background: ${({ theme }) => theme.color.bg.surface};
   color: ${({ theme }) => theme.color.fg[1]};
   &::placeholder {
@@ -348,6 +351,7 @@ export const CustomDateField = styled.input`
   font-family: ${({ theme }) => theme.font.sans};
   font-size: 13px;
   line-height: 1.4;
+  ${mobileInputText}
   background: ${({ theme }) => theme.color.bg.surface};
   color: ${({ theme }) => theme.color.fg[1]};
   &:focus {

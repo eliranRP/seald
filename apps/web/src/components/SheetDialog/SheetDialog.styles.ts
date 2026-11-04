@@ -34,6 +34,10 @@ export const Surface = styled.div<{ readonly $width: number }>`
   border-radius: ${({ theme }) => theme.radius.xl};
   box-shadow: ${({ theme }) => theme.shadow.xl};
   ${pop}
+  /* Programmatic focus target on open; the surface itself needs no ring. */
+  &:focus {
+    outline: none;
+  }
 
   /* Canvas \`.sheet\`: 8 16 24 padding around handle, head, body and foot. */
   @media (max-width: 640px) {

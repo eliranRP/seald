@@ -1,4 +1,14 @@
-import { Bell, Layers, Settings, Signature, User, type LucideIcon } from 'lucide-react';
+import {
+  Bell,
+  Code2,
+  Layers,
+  Settings,
+  ShieldCheck,
+  Signature,
+  User,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react';
 import { isFeatureEnabled } from 'shared';
 import { isApprovalsEnabled } from '@/features/approvals';
 import { isAutomationsEnabled } from '@/features/automations';
@@ -35,6 +45,8 @@ export function isSectionId(value: string | undefined): value is SettingsSection
 export interface FlaggedRow {
   readonly label: string;
   readonly to: string;
+  /** Same 16/20px glyph as the sections, so every label starts on one line. */
+  readonly icon: LucideIcon;
 }
 
 /**
@@ -44,8 +56,11 @@ export interface FlaggedRow {
 export function flaggedRows(mobile: boolean): ReadonlyArray<FlaggedRow> {
   const base = mobile ? '/m/settings' : '/settings';
   const rows: FlaggedRow[] = [];
-  if (isAutomationsEnabled()) rows.push({ label: 'Automations', to: `${base}/automations` });
-  if (isDevelopersEnabled()) rows.push({ label: 'Developers', to: `${base}/developers` });
-  if (isApprovalsEnabled()) rows.push({ label: 'Approvals', to: `${base}/approvals` });
+  if (isAutomationsEnabled())
+    rows.push({ label: 'Automations', to: `${base}/automations`, icon: Zap });
+  if (isDevelopersEnabled())
+    rows.push({ label: 'Developers', to: `${base}/developers`, icon: Code2 });
+  if (isApprovalsEnabled())
+    rows.push({ label: 'Approvals', to: `${base}/approvals`, icon: ShieldCheck });
   return rows;
 }

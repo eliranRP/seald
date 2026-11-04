@@ -18,17 +18,24 @@ describe('WelcomeStep', () => {
     expect(getByText('hannah@quill.vc')).toBeInTheDocument();
   });
 
-  it('keeps Create account disabled until the name has 2+ characters and terms are ticked', () => {
-    const { getByRole } = setup();
+  it('keeps Create account live and names each blocker on click, focusing the first', () => {
+    const { getByRole, getByText, queryByText, onSubmit } = setup();
     const create = getByRole('button', { name: 'Create account' });
-    expect(create).toBeDisabled();
+    expect(create).toBeEnabled();
     fireEvent.change(getByRole('textbox', { name: 'Full name' }), { target: { value: 'H' } });
-    fireEvent.click(getByRole('checkbox', { name: /agree to the terms and privacy policy/i }));
-    expect(create).toBeDisabled();
+    fireEvent.click(create);
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(getByText('Enter your full name')).toBeInTheDocument();
+    expect(getByText('Tick the box to accept the Terms')).toBeInTheDocument();
+    expect(getByRole('textbox', { name: 'Full name' })).toHaveFocus();
     fireEvent.change(getByRole('textbox', { name: 'Full name' }), {
       target: { value: 'Hannah Wills' },
     });
-    expect(create).toBeEnabled();
+    expect(queryByText('Enter your full name')).not.toBeInTheDocument();
+    fireEvent.click(create);
+    expect(getByRole('checkbox', { name: /agree to the terms/i })).toHaveFocus();
+    fireEvent.click(getByRole('checkbox', { name: /agree to the terms/i }));
+    expect(queryByText('Tick the box to accept the Terms')).not.toBeInTheDocument();
   });
 
   it('submits the trimmed name', async () => {

@@ -62,7 +62,11 @@ describe('BulkSendPage', () => {
     vi.spyOn(sharedModule, 'isFeatureEnabled').mockReturnValue(false);
     renderAt(`/templates/${TEMPLATE_ID}/bulk-send`);
     expect(screen.getByRole('heading', { level: 1, name: 'Bulk send' })).toBeVisible();
-    expect(screen.getByText("Bulk send isn't available yet.")).toBeVisible();
+    expect(screen.getByText(/Bulk send isn't available yet\./)).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Send from a template instead' })).toHaveAttribute(
+      'href',
+      '/templates',
+    );
     expect(requestMock).not.toHaveBeenCalled();
   });
 
@@ -75,7 +79,7 @@ describe('BulkSendPage', () => {
       await screen.findByLabelText('CSV file'),
       new File(['a,b\n'], 'x.csv', { type: 'text/csv' }),
     );
-    await user.click(screen.getByRole('button', { name: 'Preview' }));
+    await user.click(screen.getByRole('button', { name: 'Preview rows' }));
 
     expect(await screen.findByRole('heading', { name: 'Check before sending' })).toBeVisible();
     expect(screen.getByTestId('probe')).toHaveTextContent(

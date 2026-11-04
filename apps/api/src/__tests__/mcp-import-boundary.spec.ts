@@ -1,17 +1,23 @@
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { ESLint, Linter } from 'eslint';
 
 /**
  * Step 0d: `src/mcp` reaches the application through `*.service.ts` and
- * `shared` only. The rule is read from the real `.eslintrc.cjs` with
+ * `shared` only. The rule is read from the real `eslint.config.cjs` with
  * `calculateConfigForFile` (so the override globs are under test) and
  * applied to probe source with `Linter`. Linting probe files on disk would
  * hit typescript-eslint's program snapshot (CI=true), so the source is
  * checked as plain module syntax instead.
+ *
+ * ESLint loads a config file with a dynamic import(), which jest's CJS
+ * runtime refuses, so the same file is loaded here and passed in.
  */
 
 const API_ROOT = path.resolve(__dirname, '..', '..');
-const eslint = new ESLint({ cwd: API_ROOT });
+const loadCjs = createRequire(__filename);
+const flatConfig = loadCjs(path.join(API_ROOT, 'eslint.config.cjs')) as Linter.Config[];
+const eslint = new ESLint({ cwd: API_ROOT, overrideConfigFile: true, overrideConfig: flatConfig });
 const linter = new Linter();
 
 async function restrictedMessages(file: string, source: string): Promise<string[]> {
@@ -21,10 +27,14 @@ async function restrictedMessages(file: string, source: string): Promise<string[
   const rule = config.rules?.['no-restricted-imports'];
   const messages = linter.verify(
     source,
-    {
-      parserOptions: { ecmaVersion: 2022, sourceType: 'module' },
-      rules: rule ? { 'no-restricted-imports': rule } : {},
-    },
+    [
+      {
+        // A flat config object with no `files` only matches .js names.
+        files: ['**/*.ts'],
+        languageOptions: { ecmaVersion: 2022, sourceType: 'module' },
+        rules: rule ? { 'no-restricted-imports': rule } : {},
+      },
+    ],
     { filename: file },
   );
   return messages.map((m) => m.message);

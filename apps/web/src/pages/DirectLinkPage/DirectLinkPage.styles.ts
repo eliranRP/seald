@@ -1,12 +1,25 @@
 import styled from 'styled-components';
 
-export const Page = styled.main`
+/** Full-height column: the shared logo bar, then the card area. */
+export const Screen = styled.div`
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   background: ${({ theme }) => theme.color.ink[50]};
+  font-family: ${({ theme }) => theme.font.sans};
+`;
+
+export const Page = styled.main`
+  flex: 1;
   display: grid;
   place-items: center;
   padding: ${({ theme }) => theme.space[4]};
-  font-family: ${({ theme }) => theme.font.sans};
+
+  /* Phone: the card starts under the header instead of floating mid-screen. */
+  @media (max-width: 640px) {
+    align-items: start;
+    padding-top: ${({ theme }) => theme.space[6]};
+  }
 `;
 
 export const Card = styled.div`
@@ -18,8 +31,19 @@ export const Card = styled.div`
   padding: ${({ theme }) => theme.space[8]};
   display: flex;
   flex-direction: column;
-  gap: ${({ theme }) => theme.space[4]};
+  gap: ${({ theme }) => theme.space[6]};
   min-width: 0;
+
+  @media (max-width: 640px) {
+    padding: ${({ theme }) => theme.space[6]};
+  }
+`;
+
+/** Title and its description read as one group: 8px inside, 24px to the form. */
+export const Intro = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[2]};
 `;
 
 export const Title = styled.h1`

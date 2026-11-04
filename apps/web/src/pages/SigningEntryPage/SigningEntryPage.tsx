@@ -190,7 +190,8 @@ export function SigningEntryPage() {
   return (
     <StatusPage tone="bad" icon={AlertCircle} title={copy.title}>
       <span role="alert">{copy.body}</span>
-      <Button variant="ghost" onClick={handleRetry}>
+      {/* The one way forward on this screen, so it carries the primary weight. */}
+      <Button variant="primary" onClick={handleRetry}>
         {t('signing.entry.tryAgain')}
       </Button>
       <TextLink href={mailtoHref} rel="noreferrer">

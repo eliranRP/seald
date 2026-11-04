@@ -20,6 +20,19 @@ export const RoleRow = styled.div`
   &:first-child {
     border-top: 0;
   }
+
+  /* Phones: the role name sits above its picker (label above the field) and
+     the picker gets the full width, so names and emails stop truncating. */
+  @media (max-width: 640px) {
+    grid-template-columns: ${({ theme }) => theme.space[2]} minmax(0, 1fr);
+    align-items: center;
+    gap: ${({ theme }) => `${theme.space[2]} ${theme.space[2]}`};
+    padding: ${({ theme }) => `${theme.space[3]} 0`};
+
+    & > :nth-child(3) {
+      grid-column: 1 / -1;
+    }
+  }
 `;
 
 /* Dot and name sit on the picker's centre line (48px picker → 30px down);
@@ -30,10 +43,16 @@ export const RoleDot = styled.span<{ $color: string }>`
   margin-top: 20px;
   border-radius: 50%;
   background: ${({ $color }) => $color};
+  @media (max-width: 640px) {
+    margin-top: 0;
+  }
 `;
 
 export const RoleName = styled.span`
   margin-top: 14px;
+  @media (max-width: 640px) {
+    margin-top: 0;
+  }
   font-size: ${({ theme }) => theme.font.size.caption};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: ${({ theme }) => theme.color.fg[2]};

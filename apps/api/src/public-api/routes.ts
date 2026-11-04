@@ -99,6 +99,20 @@ export const PUBLIC_API_ROUTES: readonly PublicApiRoute[] = [
     summary: 'Delete a draft envelope',
   },
   {
+    method: 'POST',
+    path: `${E}/archive`,
+    tool: 'envelopes_archive',
+    tag: 'Envelopes',
+    summary: 'Archive an envelope (any status; undo with unarchive)',
+  },
+  {
+    method: 'POST',
+    path: `${E}/unarchive`,
+    tool: 'envelopes_unarchive',
+    tag: 'Envelopes',
+    summary: 'Move an archived envelope back to the Documents tabs',
+  },
+  {
     method: 'GET',
     path: `${E}/status`,
     tool: 'envelopes_status',
