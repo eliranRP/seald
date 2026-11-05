@@ -7,39 +7,15 @@ const config: Config = {
   roots: ['<rootDir>/src', '<rootDir>/test'],
   testRegex: '.*\\.spec\\.tsx?$',
   transform: {
-    // yoga-layout (transitive dep of @react-pdf/renderer used by
-    // audit-pdf.tsx) ships an ESM-only bundle that uses `import.meta.url`
-    // and `export default`. ts-jest's CJS output can't handle either, so
-    // we rewrite that single file with a tiny regex transformer before
-    // ts-jest runs over the rest of the workspace. Order matters: the
-    // first matching key wins, so the yoga rule must come before the
-    // generic ts/js rule.
-    'yoga-wasm-base64-esm\\.js$': '<rootDir>/test/yoga-import-meta-transformer.cjs',
     '^.+\\.(t|j)sx?$': 'ts-jest',
   },
-  // The audit-pdf renderer pulls in a deep graph of ESM-only deps via
-  // @react-pdf/* (color-name, color-string, restructure, yoga-layout,
-  // pdfkit, fontkit, etc.). Letting jest skip transformation for all
-  // of those crashes with `Cannot use import statement outside a
-  // module`. List the ones the renderer actually touches; if a future
-  // dep gets added, add it here too.
-  //
-  // `jose` (v6+), `@faker-js/faker` (v10+), and `kysely` (v0.29+) also
-  // ship pure-ESM bundles — Jest's CJS transformer can't load them
-  // otherwise, so they're whitelisted here too. Removing any entry
-  // will surface as `SyntaxError: Unexpected token 'export'` in every
-  // spec that imports it (jose: auth/JWT verification, faker: test
-  // factories, kysely: pg repositories).
-  transformIgnorePatterns: [
-    // NOTE: under pnpm, scoped third-party packages live at
-    // `node_modules/.pnpm/<scope>+<name>@<ver>/node_modules/<scope>/<name>/…`
-    // — note the `+` separator between scope and name. So an entry
-    // like `@faker-js/faker` MUST be reduced to the scope-only
-    // `@faker-js` for the negative lookahead to match the .pnpm
-    // layout as well as the hoisted `node_modules/@faker-js/faker`.
-    // Same trick already in use for `@react-pdf` / `@pdf-lib` above.
-    'node_modules/(?!(?:\\.pnpm/)?(?:@react-pdf|yoga-layout|restructure|@babel/runtime|color-name|color-string|simple-swizzle|is-arrayish|hyphen|hyphenation|pdfkit|fontkit|emoji-regex|@pdf-lib|jose|@faker-js|kysely))',
-  ],
+  // Packages under node_modules are not transformed. ESM-only ones
+  // (@nestjs/* 12, @react-pdf/*, jose, kysely, @faker-js/faker and their
+  // deps) load as native ES modules: Jest supports require(esm) on
+  // Node >= 24.9 with --experimental-vm-modules, which the test scripts
+  // pass. The old allowlist of packages to transpile to CommonJS could not
+  // handle `import.meta.url` (used by @nestjs/common 12) and is gone.
+  transformIgnorePatterns: ['/node_modules/'],
   collectCoverageFrom: ['src/**/*.(t|j)sx?'],
   coverageDirectory: 'coverage',
   testEnvironment: 'node',

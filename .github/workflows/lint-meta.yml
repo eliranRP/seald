@@ -109,11 +109,11 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
       - name: Setup Node
-        # cspell@10 requires >=22.18.0; gherkin-lint is fine on 22 too,
-        # so we use Node 22 LTS for both jobs.
+        # cspell@10 requires >=22.18.0; the repo runs Node 24 LTS
+        # everywhere, so both jobs use it.
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
           check-latest: true
           cache: pnpm
 
@@ -135,11 +135,11 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
       - name: Setup Node
-        # cspell@10 requires Node >=22.18.0. The repo uses Node 22;
+        # cspell@10 requires Node >=22.18.0. The repo uses Node 24;
         # an older 22.x is rejected with "Unsupported NodeJS version".
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
           check-latest: true
           cache: pnpm
 
