@@ -5,10 +5,7 @@
   "testRegex": "\\.e2e-spec\\.ts$",
   "testTimeout": 60000,
   "transform": {
-    "yoga-wasm-base64-esm\\.js$": "<rootDir>/yoga-import-meta-transformer.cjs",
     "^.+\\.(t|j)sx?$": "ts-jest"
   },
-  "transformIgnorePatterns": [
-    "node_modules/(?!(?:\\.pnpm/)?(?:@react-pdf|yoga-layout|restructure|@babel/runtime|color-name|color-string|simple-swizzle|is-arrayish|hyphen|hyphenation|pdfkit|fontkit|emoji-regex|@pdf-lib|jose|@faker-js|kysely))"
-  ]
+  "transformIgnorePatterns": ["/node_modules/"]
 }

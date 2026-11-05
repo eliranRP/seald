@@ -17,6 +17,8 @@ module.exports = {
     configFile: 'jest.config.ts',
     enableFindRelatedTests: true,
   },
+  // Jest loads ESM-only packages natively (see jest.config.ts).
+  testRunnerNodeArgs: ['--experimental-vm-modules'],
   coverageAnalysis: 'perTest',
   mutate: [
     'src/sealing/**/*.ts',
@@ -36,13 +38,7 @@ module.exports = {
   },
   // Stryker creates an isolated sandbox; declare the workspace-relative
   // files it needs so it doesn't try to copy node_modules.
-  ignorePatterns: [
-    'dist/',
-    'coverage/',
-    'reports/',
-    'node_modules/',
-    '.stryker-tmp/',
-  ],
+  ignorePatterns: ['dist/', 'coverage/', 'reports/', 'node_modules/', '.stryker-tmp/'],
   tempDirName: '.stryker-tmp',
   cleanTempDir: true,
 };
