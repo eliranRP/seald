@@ -24,7 +24,7 @@
     "chromatic": "chromatic --exit-zero-on-changes --build-script-name=build-storybook"
   },
   "dependencies": {
-    "@sentry/react": "^10.76.2",
+    "@sentry/react": "^11.11.0",
     "@supabase/supabase-js": "^2.119.0",
     "@tanstack/react-query": "^5.106.1",
     "axios": "^1.21.0",
