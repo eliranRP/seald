@@ -57,7 +57,7 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react-swc": "4.3.3",
-    "@vitest/coverage-v8": "4.1.12",
+    "@vitest/coverage-v8": "5.1.0",
     "chromatic": "^18",
     "eslint": "9.39.4",
     "eslint-import-resolver-typescript": "^4.4.5",
