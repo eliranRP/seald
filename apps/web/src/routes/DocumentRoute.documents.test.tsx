@@ -206,11 +206,12 @@ describe('DocumentRoute multi-document editor', () => {
       return { data: {} };
     });
     put.mockResolvedValue({ data: [] });
-    // After the send the route shows the envelope's detail page for the new id.
-    // Without a real envelope body that page throws if it renders before the
-    // test unmounts, which happens on a slow machine.
+    // After the send the route shows the envelope's detail page, first for
+    // the local draft id (until the post-send navigation) and then for the
+    // server id. Without a real envelope body that page throws on
+    // `signers`, so every envelope id gets one.
     get.mockImplementation(async (url: string) => {
-      if (url === `/envelopes/${SERVER_ENVELOPE}`) {
+      if (/^\/envelopes\/[^/]+$/.test(url)) {
         return {
           data: {
             id: SERVER_ENVELOPE,
@@ -226,7 +227,7 @@ describe('DocumentRoute multi-document editor', () => {
           status: 200,
         };
       }
-      if (url === `/envelopes/${SERVER_ENVELOPE}/events`) {
+      if (/^\/envelopes\/[^/]+\/events$/.test(url)) {
         return { data: { events: [] }, status: 200 };
       }
       return { data: [], status: 200 };

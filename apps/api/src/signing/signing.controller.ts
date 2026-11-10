@@ -19,7 +19,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { isFeatureEnabled } from 'shared';
-import { serialize as serializeCookie } from 'cookie';
+import { serializeCookie } from '../common/cookies';
 import type { Request, Response } from 'express';
 import { Public } from '../auth/public.decorator';
 import { extractClientIp } from '../common/extract-client-ip';
