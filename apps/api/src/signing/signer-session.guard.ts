@@ -4,7 +4,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { parse as parseCookies } from 'cookie';
+import { parseCookies } from '../common/cookies';
 import type { Request } from 'express';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import type { Envelope, EnvelopeSigner } from '../envelopes/envelopes.repository';

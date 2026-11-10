@@ -178,8 +178,11 @@ describe('App routing', { timeout: 20000 }, () => {
     renderApp(['/documents']);
     fireEvent.click(await screen.findByRole('button', { name: /new document/i }));
     // UploadRoute is React.lazy() so the chunk loads asynchronously after
-    // navigation — use findBy to await it.
-    expect(await screen.findByRole('region', { name: /upload a file/i })).toBeInTheDocument();
+    // navigation — use findBy to await it. The import can take longer than
+    // findBy's 1 s default when the whole suite runs in parallel.
+    expect(
+      await screen.findByRole('region', { name: /upload a file/i }, { timeout: 5000 }),
+    ).toBeInTheDocument();
   });
 
   // v2 IA: the "Sign" tab is retired — "New document" (above) is the way

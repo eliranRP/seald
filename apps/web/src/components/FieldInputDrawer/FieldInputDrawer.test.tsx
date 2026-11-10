@@ -127,11 +127,13 @@ describe('FieldInputDrawer', () => {
       const sheet = dialog.firstElementChild as HTMLElement;
       const styles = window.getComputedStyle(sheet);
       // jsdom does not honour the @supports(env()) call, so we assert on
-      // the rendered CSSOM properties directly. Both `max-height` and
-      // `overflow-y: auto` must be present so the footer is reachable
-      // even when the visual viewport shrinks under the soft keyboard.
-      expect(sheet.style.cssText + styles.cssText).toMatch(/max-height/i);
-      expect(sheet.style.cssText + styles.cssText).toMatch(/overflow/i);
+      // the computed properties directly (a computed declaration's
+      // cssText is empty per spec, and jsdom resolves 100dvh to px).
+      // Both a bounded `max-height` and `overflow-y: auto` must be present
+      // so the footer is reachable even when the visual viewport shrinks
+      // under the soft keyboard.
+      expect(styles.getPropertyValue('max-height')).not.toMatch(/^(none)?$/);
+      expect(styles.getPropertyValue('overflow-y')).toBe('auto');
     });
 
     it('traps Tab focus inside the dialog (a11y regression)', async () => {

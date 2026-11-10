@@ -1,6 +1,6 @@
 import { Body, Controller, HttpCode, Inject, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { serialize as serializeCookie } from 'cookie';
+import { serializeCookie } from '../../common/cookies';
 import type { Request, Response } from 'express';
 import type { AccessCodeSendResponse } from 'shared';
 import { Public } from '../../auth/public.decorator';

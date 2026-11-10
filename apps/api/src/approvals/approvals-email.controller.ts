@@ -10,7 +10,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { parse as parseCookies, serialize as serializeCookie } from 'cookie';
+import { parseCookies, serializeCookie } from '../common/cookies';
 import type { Request, Response } from 'express';
 import {
   ApprovalEmailDecisionRequestSchema,
