@@ -6,7 +6,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { parse as parseCookies } from 'cookie';
+import { parseCookies } from '../../common/cookies';
 import { requireFlag } from '../../common/feature-flag.guard';
 import { EnvelopesRepository } from '../../envelopes/envelopes.repository';
 import { SignerSessionGuard, type RequestWithSignerSession } from '../signer-session.guard';
