@@ -33,7 +33,7 @@
     "gherkin-lint": "^4.2.4",
     "husky": "9.1.7",
     "lint-staged": "17.6.0",
-    "prettier": "3.9.10",
+    "prettier": "3.10.1",
     "typescript": "6.0.3"
   },
   "pnpm": {
