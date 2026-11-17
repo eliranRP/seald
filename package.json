@@ -33,7 +33,7 @@
     "gherkin-lint": "^4.2.4",
     "husky": "9.1.7",
     "lint-staged": "17.6.0",
-    "prettier": "3.9.10",
+    "prettier": "3.10.1",
     "typescript": "6.0.3"
   },
   "pnpm": {
@@ -100,11 +100,6 @@
       "gherkin-lint>glob": "^14.0.3",
       "hono@<4.13.16": "^4.13.16",
       "@hono/node-server@>=2.0.0 <2.1.6": "^2.1.6"
-    },
-    "auditConfig": {
-      "ignoreGhsas": [
-        "GHSA-gcqx-w48m-w2h4"
-      ]
     },
     "patchedDependencies": {
       "cucumber-messages@8.0.0": "patches/cucumber-messages@8.0.0.patch"
