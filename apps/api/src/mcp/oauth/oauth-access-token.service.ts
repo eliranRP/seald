@@ -7,8 +7,7 @@ import { hashSecret, looksLikeAccessToken } from './oauth-secrets';
 import { OAuthRepository } from './oauth.repository';
 
 export type OAuthAccessVerifyResult =
-  | (McpPrincipal & { readonly ok: true })
-  | { readonly ok: false; readonly error: 'invalid_token' };
+  (McpPrincipal & { readonly ok: true }) | { readonly ok: false; readonly error: 'invalid_token' };
 
 const TOUCH_INTERVAL_MS = 60_000;
 
@@ -20,9 +19,9 @@ const TOUCH_INTERVAL_MS = 60_000;
  * The principal has the API-key shape so every tool runs the same scope
  * checks, approval requirements and caps. Scopes are the token's scopes
  * intersected with the grant's current scopes. `require_owner_approval`
- * is always true for a connected app: the unattended opt-out is a key
- * setting only (docs/design/mcp-server.md § API keys), and no surface
- * sets it on a grant.
+ * and `allow_new_recipients` come from the grant, like a key's
+ * (migration 0052: off and on by default, so a connected app sends
+ * without waiting on the owner's Approve).
  */
 @Injectable()
 export class OAuthAccessTokenService {
@@ -67,7 +66,7 @@ export class OAuthAccessTokenService {
       scopes: intersectScopes(row.scopes, grant.scopes),
       keyName: connectedAppLabel(grant.client.kind, grant.client.clientId, grant.client.clientName),
       keyPrefix: '',
-      requireOwnerApproval: true,
+      requireOwnerApproval: grant.requireOwnerApproval,
       allowNewRecipients: grant.allowNewRecipients,
       alwaysRequireSignin: grant.alwaysRequireSignin,
       oauth: { grantId: grant.id, clientId: grant.client.id },

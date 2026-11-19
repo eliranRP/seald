@@ -1,5 +1,5 @@
 {
-  "server_version": "0.14.0",
+  "server_version": "0.15.0",
   "variants": {
     "all_flags_on": [
       {
@@ -13298,7 +13298,7 @@
       {
         "name": "approvals_set_required",
         "title": "Ask before each send, on or off",
-        "description": "Sets whether the account owner approves each send made with an API key (api_key_id, default this key). true turns approval back on at once and returns status applied. false asks the owner to stop approving each send for that key: the result is approval_pending and nothing changes until the owner approves. Even with approval off, a send to a recipient the owner has not sent to before still waits for approval. Nothing happens until the account owner approves in Seald: the result is approval_pending with approve_requires session, and Approve needs a sign-in from the last 10 minutes. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Needs keys:admin. Requires idempotency_key and dry_run.",
+        "description": "Sets whether the account owner approves each send made with an API key (api_key_id, default this key). true turns approval back on at once and returns status applied. false asks the owner to stop approving each send for that key: the result is approval_pending and nothing changes until the owner approves. Approval is off by default. With it off, a send to a recipient the owner has not sent to before waits for approval only when the key does not allow new recipients. Nothing happens until the account owner approves in Seald: the result is approval_pending with approve_requires session, and Approve needs a sign-in from the last 10 minutes. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Needs keys:admin. Requires idempotency_key and dry_run.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -26325,7 +26325,7 @@
       {
         "name": "approvals_set_required",
         "title": "Ask before each send, on or off",
-        "description": "Sets whether the account owner approves each send made with an API key (api_key_id, default this key). true turns approval back on at once and returns status applied. false asks the owner to stop approving each send for that key: the result is approval_pending and nothing changes until the owner approves. Even with approval off, a send to a recipient the owner has not sent to before still waits for approval. Nothing happens until the account owner approves in Seald: the result is approval_pending with approve_requires session, and Approve needs a sign-in from the last 10 minutes. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Needs keys:admin. Requires idempotency_key and dry_run.",
+        "description": "Sets whether the account owner approves each send made with an API key (api_key_id, default this key). true turns approval back on at once and returns status applied. false asks the owner to stop approving each send for that key: the result is approval_pending and nothing changes until the owner approves. Approval is off by default. With it off, a send to a recipient the owner has not sent to before waits for approval only when the key does not allow new recipients. Nothing happens until the account owner approves in Seald: the result is approval_pending with approve_requires session, and Approve needs a sign-in from the last 10 minutes. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Needs keys:admin. Requires idempotency_key and dry_run.",
         "inputSchema": {
           "type": "object",
           "properties": {
