@@ -408,6 +408,13 @@ describePg('MCP approval-gated account, key and owner-signing tools (WP-45, real
           )
         ).rows[0]?.require_owner_approval;
 
+      // Migration 0052: a new key starts with approval off; turning it on applies at once.
+      expect(await flag()).toBe(false);
+      expect(
+        ok(await call(client, 'approvals_set_required', write({ require_owner_approval: true }))),
+      ).toMatchObject({ status: 'applied' });
+      expect(await flag()).toBe(true);
+
       const off = ok(
         await call(client, 'approvals_set_required', write({ require_owner_approval: false })),
       );
