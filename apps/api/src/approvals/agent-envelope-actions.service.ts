@@ -64,9 +64,9 @@ export const MCP_USER_AGENT = 'SealdMCP/1';
  * WP-24). The MCP tools are thin adapters over this service, and so will
  * REST v1 be (WP-35).
  *
- * - Send asks the owner (`approval_pending`) unless the key's owner
- *   turned approval off. Even then a recipient who is not known falls
- *   back to approval (unless the owner allowed new recipients), and the
+ * - Send asks the owner (`approval_pending`) only when the credential
+ *   requires approval (off by default since migration 0052), or when a
+ *   recipient is not known and new recipients are not allowed. The
  *   same-turn send needs the 10-minute token from `previewSend`, consumed
  *   in the transaction that locks the envelope and sends.
  * - Remind and cancel always ask the owner; they never take a token.

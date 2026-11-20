@@ -318,7 +318,7 @@ describe('token endpoint: refresh rotation and reuse detection', () => {
 });
 
 describe('access tokens on /mcp', () => {
-  it('maps to the key-shaped principal: grant scopes, approval always required', async () => {
+  it('maps to the key-shaped principal: grant scopes and approval settings', async () => {
     const w = oauthWorld();
     const t = await exchange(w, await approveCode(w));
     const p = await w.access.verify(t.access_token, NOW);
@@ -334,6 +334,20 @@ describe('access tokens on /mcp', () => {
     if (!p.ok) throw new Error('unreachable');
     expect(p.oauth?.grantId).toBe(w.repo.grants[0]?.id);
     expect(p.keyId).toBe(w.repo.grants[0]?.id);
+  });
+
+  it('takes the approval settings from the grant, so an unattended grant sends without Approve', async () => {
+    const w = oauthWorld();
+    const t = await exchange(w, await approveCode(w));
+    const grant = w.repo.grants[0];
+    if (!grant) throw new Error('unreachable');
+    grant.requireOwnerApproval = false;
+    grant.allowNewRecipients = true;
+    expect(await w.access.verify(t.access_token, NOW)).toMatchObject({
+      ok: true,
+      requireOwnerApproval: false,
+      allowNewRecipients: true,
+    });
   });
 
   it('a narrowed grant narrows live tokens; expiry and wrong shape are invalid_token', async () => {

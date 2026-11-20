@@ -509,7 +509,8 @@ describePg('MCP server (e2e, real Postgres)', () => {
         id: ownerA,
         email: 'maya@example.com',
         scopes: ['envelopes:read'],
-        require_owner_approval: true,
+        // Migration 0052: a new key sends without asking the owner.
+        require_owner_approval: false,
       });
     });
 

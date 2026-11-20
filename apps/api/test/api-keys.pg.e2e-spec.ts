@@ -140,8 +140,9 @@ describePg('api keys (real Postgres)', () => {
       ownerId: owner,
       name: 'Key 1',
       scopes: ['envelopes:read'],
-      requireOwnerApproval: true,
-      allowNewRecipients: false,
+      // Migration 0052: a new key sends without asking the owner.
+      requireOwnerApproval: false,
+      allowNewRecipients: true,
       revokedAt: null,
     });
     const mails = await pool!.query(

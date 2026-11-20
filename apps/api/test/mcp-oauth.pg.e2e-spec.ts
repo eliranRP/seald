@@ -284,7 +284,8 @@ describePg('MCP OAuth (real Postgres)', () => {
       name: 'Claude (connected app)',
       revokedAt: null,
       alwaysRequireSignin: false,
-      allowNewRecipients: false,
+      // Migration 0052: grants allow new recipients by default.
+      allowNewRecipients: true,
       approvalNotify: 'email',
     });
 

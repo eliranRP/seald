@@ -24,7 +24,7 @@ function keyOf(args: ApprovalsSetRequiredInput, ctx: McpToolContext): string {
 export const approvalsSetRequiredTool = defineWriteTool({
   name: 'approvals_set_required',
   title: 'Ask before each send, on or off',
-  description: `Sets whether the account owner approves each send made with an API key (api_key_id, default this key). true turns approval back on at once and returns status applied. false asks the owner to stop approving each send for that key: the result is approval_pending and nothing changes until the owner approves. Even with approval off, a send to a recipient the owner has not sent to before still waits for approval. ${GATED_GUIDANCE} Needs keys:admin. Requires idempotency_key and dry_run.`,
+  description: `Sets whether the account owner approves each send made with an API key (api_key_id, default this key). true turns approval back on at once and returns status applied. false asks the owner to stop approving each send for that key: the result is approval_pending and nothing changes until the owner approves. Approval is off by default. With it off, a send to a recipient the owner has not sent to before waits for approval only when the key does not allow new recipients. ${GATED_GUIDANCE} Needs keys:admin. Requires idempotency_key and dry_run.`,
   step: 'WP-45',
   scopes: ['keys:admin'],
   annotations: GATED_ANNOTATIONS,
