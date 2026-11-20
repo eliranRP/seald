@@ -244,7 +244,7 @@ ship `true` since the parity flag flip (`multiDocumentEnvelopes`, `signingOrder`
 the sealed PDF carries only the signed document; the audit trail stays a
 separate `audit.pdf`, never appended or bundled with it. `mcpOauth` needs `mcpServer`. The
 API key routes and the approval routes are on when `mcpServer` or
-`publicApi` is on. `gdriveIntegration` is `true` and predates this work. `ownerReadRpcs` (off)
+`publicApi` is on. `gdriveIntegration` is `true` and predates this work. `ownerReadRpcs` (on)
 switches the SPA's list reads to the migration 0050 RPCs, falling back to the
 API when an RPC fails.
 Two changes are not flag-gated: the B-LTA timestamp (S.7, when a TSA is

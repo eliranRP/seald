@@ -108,7 +108,7 @@ so AWS can be switched off as soon as sealing and the workers run natively.
   `docs/self-hosting.md`.
 - Step 4 started: the dashboard list, contacts and templates read through
   `seald_list_envelopes` / `_contacts` / `_templates` (migration 0050) with
-  supabase-js, behind `ownerReadRpcs` (off). Each falls back to the API
+  supabase-js, behind `ownerReadRpcs` (on). Each falls back to the API
   when the RPC fails. `owner-read-rpcs.pg.e2e-spec.ts` checks each RPC
   against the API's output and proves other users and `anon` get nothing.
   Envelope detail is next.
