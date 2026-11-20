@@ -7,7 +7,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ENVELOPE_STATUSES, isExpiryWithinBounds, isFeatureEnabled } from 'shared';
+import {
+  ENVELOPE_MACHINE,
+  ENVELOPE_STATUSES,
+  isExpiryWithinBounds,
+  isFeatureEnabled,
+} from 'shared';
 import type {
   Envelope as WireEnvelope,
   EnvelopeGdriveSaveResult,
@@ -411,8 +416,7 @@ export class EnvelopesService {
     const existing = await this.repo.findByIdForOwner(owner_id, id);
     if (!existing) throw new NotFoundException('envelope_not_found');
     if (
-      existing.status !== 'draft' &&
-      existing.status !== 'awaiting_others' &&
+      !ENVELOPE_MACHINE.allows(existing.status, 'toggle_reminders') &&
       sanitized.title === undefined &&
       sanitized.expires_at === undefined
     ) {
@@ -453,10 +457,7 @@ export class EnvelopesService {
       // audit_only job ran for a terminal, unsigned envelope.
       resolvedKind = 'declined';
       const candidate = declinedPdfPath(id);
-      const terminal =
-        envelope.status === 'declined' ||
-        envelope.status === 'expired' ||
-        envelope.status === 'canceled';
+      const terminal = ENVELOPE_MACHINE.allows(envelope.status, 'download_declined_copy');
       path = terminal && (await this.storage.exists(candidate)) ? candidate : null;
     } else if (kind === 'audit') {
       resolvedKind = 'audit';
@@ -552,7 +553,9 @@ export class EnvelopesService {
   ): Promise<Envelope> {
     const envelope = await this.repo.findByIdForOwner(owner_id, id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
-    if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
+    if (!ENVELOPE_MACHINE.allows(envelope.status, 'edit_draft')) {
+      throw new ConflictException('envelope_not_draft');
+    }
     const updated = await this.repo.setOriginalFile(id, input);
     if (!updated) throw new ConflictException('envelope_not_draft');
     // BUG-FIX: this event used to share the `'created'` kind with the
@@ -586,7 +589,9 @@ export class EnvelopesService {
     // Gate ownership + draft status BEFORE touching storage.
     const envelope = await this.repo.findByIdForOwner(owner_id, id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
-    if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
+    if (!ENVELOPE_MACHINE.allows(envelope.status, 'edit_draft')) {
+      throw new ConflictException('envelope_not_draft');
+    }
 
     const { pages, sha256 } = await inspectPdfBytes(body);
     const file_path = `${envelope.id}/original.pdf`;
@@ -617,7 +622,9 @@ export class EnvelopesService {
   ): Promise<EnvelopeSigner> {
     const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
-    if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
+    if (!ENVELOPE_MACHINE.allows(envelope.status, 'edit_draft')) {
+      throw new ConflictException('envelope_not_draft');
+    }
 
     let signerInput: {
       contact_id: string | null;
@@ -670,7 +677,9 @@ export class EnvelopesService {
   async removeSigner(owner_id: string, envelope_id: string, signer_id: string): Promise<void> {
     const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
-    if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
+    if (!ENVELOPE_MACHINE.allows(envelope.status, 'edit_draft')) {
+      throw new ConflictException('envelope_not_draft');
+    }
 
     const removed = await this.repo.removeSigner(envelope_id, signer_id);
     if (!removed) throw new NotFoundException('envelope_not_found');
@@ -689,7 +698,9 @@ export class EnvelopesService {
   ): Promise<readonly EnvelopeField[]> {
     const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
-    if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
+    if (!ENVELOPE_MACHINE.allows(envelope.status, 'edit_draft')) {
+      throw new ConflictException('envelope_not_draft');
+    }
 
     const envelopeSignerIds = new Set(envelope.signers.map((s) => s.id));
     for (const f of fields) {
@@ -851,7 +862,9 @@ export class EnvelopesService {
   async checkSend(owner_id: string, envelope_id: string): Promise<Envelope> {
     const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
-    if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
+    if (!ENVELOPE_MACHINE.can(envelope.status, 'send')) {
+      throw new ConflictException('envelope_not_draft');
+    }
 
     // Invariants — fail before the status flip.
     if (!envelope.original_sha256 || !envelope.original_pages) {
@@ -1080,7 +1093,7 @@ export class EnvelopesService {
   ): Promise<{ readonly envelope: Envelope; readonly signer: EnvelopeSigner }> {
     const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
-    if (envelope.status !== 'awaiting_others') {
+    if (!ENVELOPE_MACHINE.allows(envelope.status, 'remind')) {
       throw new ConflictException('envelope_terminal');
     }
 
@@ -1192,7 +1205,9 @@ export class EnvelopesService {
   ): Promise<{ readonly envelope: Envelope; readonly signer: EnvelopeSigner }> {
     const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
-    if (envelope.status !== 'awaiting_others') throw new ConflictException('envelope_terminal');
+    if (!ENVELOPE_MACHINE.allows(envelope.status, 'correct_signer')) {
+      throw new ConflictException('envelope_terminal');
+    }
     const signer = envelope.signers.find((s) => s.id === signer_id);
     if (!signer) throw new NotFoundException('signer_not_found');
     if (signer.signed_at !== null) throw new ConflictException('signer_already_signed');
@@ -1408,7 +1423,9 @@ export class EnvelopesService {
   ): Promise<Envelope> {
     const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
-    if (envelope.status !== 'awaiting_others') throw new ConflictException('envelope_terminal');
+    if (!ENVELOPE_MACHINE.allows(envelope.status, 'extend_expiry')) {
+      throw new ConflictException('envelope_terminal');
+    }
     const at = Date.parse(expires_at);
     if (!isExpiryWithinBounds(at, now.getTime())) {
       throw new BadRequestException('expiry_out_of_range');

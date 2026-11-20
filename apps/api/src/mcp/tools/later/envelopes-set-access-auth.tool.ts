@@ -1,5 +1,9 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
-import { EnvelopesSetAccessAuthInputSchema, EnvelopesSetAccessAuthOutputSchema } from 'shared';
+import {
+  ENVELOPE_MACHINE,
+  EnvelopesSetAccessAuthInputSchema,
+  EnvelopesSetAccessAuthOutputSchema,
+} from 'shared';
 import { defineWriteTool } from '../../tool';
 
 /** `envelopes_set_access_auth` → `AccessAuthService.patchSettings`, as `PATCH /envelopes/:id/access-auth`. */
@@ -22,7 +26,9 @@ export const envelopesSetAccessAuthTool = defineWriteTool({
   output: EnvelopesSetAccessAuthOutputSchema,
   preview: async (args, ctx) => {
     const envelope = await ctx.services.envelopes.getById(ctx.principal.ownerId, args.envelope_id);
-    if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
+    if (!ENVELOPE_MACHINE.allows(envelope.status, 'edit_draft')) {
+      throw new ConflictException('envelope_not_draft');
+    }
     const known = new Set(envelope.signers.map((s) => s.id));
     const seen = new Set<string>();
     for (const s of args.signers ?? []) {

@@ -1,5 +1,9 @@
 import { ConflictException } from '@nestjs/common';
-import { ApprovalPendingResultSchema, EnvelopesSaveToDriveInputSchema } from 'shared';
+import {
+  ENVELOPE_MACHINE,
+  ApprovalPendingResultSchema,
+  EnvelopesSaveToDriveInputSchema,
+} from 'shared';
 import { requestApproval } from '../../approval-pending';
 import { defineWriteTool } from '../../tool';
 import { DRIVE_FILE_SCOPE_NOTE } from '../gdrive/gdrive-annotations';
@@ -28,7 +32,9 @@ export const envelopesSaveToDriveTool = defineWriteTool({
   output: ApprovalPendingResultSchema,
   preview: async (args, ctx) => {
     const envelope = await ctx.services.envelopes.getById(ctx.principal.ownerId, args.envelope_id);
-    if (envelope.status !== 'completed') throw new ConflictException('envelope_not_sealed');
+    if (!ENVELOPE_MACHINE.allows(envelope.status, 'download_sealed')) {
+      throw new ConflictException('envelope_not_sealed');
+    }
     return {
       envelope_id: envelope.id,
       folder_id: args.folder_id,

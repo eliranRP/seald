@@ -194,7 +194,12 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
     if (idx === -1) return;
     const row = this.rows[idx]!;
     if (args.final) {
-      this.rows[idx] = { ...row, status: 'failed', last_error: args.error };
+      this.rows[idx] = {
+        ...row,
+        status: 'failed',
+        last_error: args.error,
+        attempts: row.max_attempts,
+      };
       return;
     }
     this.rows[idx] = {

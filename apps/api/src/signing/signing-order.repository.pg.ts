@@ -1,4 +1,5 @@
 import type { Kysely, Transaction } from 'kysely';
+import { ENVELOPE_MACHINE } from 'shared';
 import type { DeliveryMode } from 'shared';
 import type { Database } from '../../db/schema';
 import type { SetSigningOrderInput, StepInvite } from '../envelopes/envelopes.repository';
@@ -61,7 +62,7 @@ export async function inviteNextStep(
     .select(['delivery_mode', 'status'])
     .where('id', '=', envelope_id)
     .executeTakeFirst();
-  if (!envelope || envelope.status !== 'awaiting_others') return null;
+  if (!envelope || !ENVELOPE_MACHINE.allows(envelope.status, 'sign')) return null;
   if (envelope.delivery_mode !== 'sequential') return null;
   const signers = await trx
     .selectFrom('envelope_signers')
@@ -109,7 +110,7 @@ export async function setSigningOrder(
       .where('id', '=', envelope_id)
       .forUpdate()
       .executeTakeFirst();
-    if (!env || env.status !== 'draft') return false;
+    if (!env || !ENVELOPE_MACHINE.allows(env.status, 'edit_draft')) return false;
     const now = new Date().toISOString();
     await trx
       .updateTable('envelopes')

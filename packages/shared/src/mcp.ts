@@ -20,7 +20,7 @@ import {
  * minor for an additive change; a breaking change is a new `_v2` tool
  * name, so the major is not used for that.
  */
-export const MCP_SERVER_VERSION = '0.15.0';
+export const MCP_SERVER_VERSION = '0.16.0';
 
 /**
  * Protocol revisions the server negotiates: the current one and the one
@@ -221,6 +221,29 @@ export const EnvelopesSearchOutputSchema = z.object({
 
 export const MCP_NEXT_ACTIONS = ['remind', 'wait', 'download', 'none'] as const;
 
+/**
+ * Added in 0.16.0. What an envelope's status permits the owner (or an
+ * agent) to do, read from `ENVELOPE_MACHINE`: the owner's transitions plus
+ * the status-gated actions. Other rules still apply (the remind hour, the
+ * unsend window, approvals); this only says what the status rules out.
+ */
+export const MCP_ENVELOPE_ALLOWED_ACTIONS = [
+  'send',
+  'unsend',
+  'cancel',
+  'edit_draft',
+  'delete',
+  'tag',
+  'archive',
+  'toggle_reminders',
+  'extend_expiry',
+  'remind',
+  'correct_signer',
+  'download_sealed',
+  'download_declined_copy',
+] as const;
+export type McpEnvelopeAllowedAction = (typeof MCP_ENVELOPE_ALLOWED_ACTIONS)[number];
+
 export const EnvelopesStatusOutputSchema = z.object({
   envelope_id: uuid,
   title: z.string(),
@@ -244,6 +267,10 @@ export const EnvelopesStatusOutputSchema = z.object({
   next_action: z.enum(MCP_NEXT_ACTIONS),
   can_remind_at: iso.nullable(),
   documents: z.array(McpDocumentSchema),
+  /** Added in 0.16.0: true when no status change can happen any more. */
+  terminal: z.boolean().optional(),
+  /** Added in 0.16.0: see {@link MCP_ENVELOPE_ALLOWED_ACTIONS}. */
+  allowed_actions: z.array(z.enum(MCP_ENVELOPE_ALLOWED_ACTIONS)).optional(),
 });
 
 export const EnvelopesDownloadUrlOutputSchema = z.object({

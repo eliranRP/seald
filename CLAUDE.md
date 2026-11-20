@@ -130,6 +130,31 @@ SHA-256(canonical-JSON of prior row)`; `GET /verify/:envelopeId`
   and about 1.5 s CPU per step. The seal sweep also reclaims `audit_only`
   jobs left `running` by a killed worker.
 
+### State machines
+
+Every persisted lifecycle is declared once in
+`packages/shared/src/state-machines/` (`ENVELOPE_MACHINE`,
+`SIGNER_MACHINE`, `SEAL_JOB_MACHINE`, `OUTBOUND_EMAIL_MACHINE`, bulk,
+scan, automation run, approval). [`docs/state-machines.md`](docs/state-machines.md)
+is generated from them (diagram + transition table per machine).
+
+- **SM.1** Never compare a status string to gate behavior. Writes guard
+  on `.where('status', 'in', MACHINE.sources('<event>'))` (transitions) or
+  `MACHINE.statesAllowing('<action>')` (status-gated actions); code checks
+  `MACHINE.can(status, event)` / `MACHINE.allows(status, action)`. Display
+  mappings (labels, tones) may still `switch` on the status.
+- **SM.2** The SPA and agents ask `ownerEnvelopeActions(status)`; MCP
+  `envelopes_status` returns it as `allowed_actions` (0.16.0). Its enum
+  (`MCP_ENVELOPE_ALLOWED_ACTIONS`) is type-checked against the machine.
+- **SM.3** A claim/finish queue's finishing writes must re-check the
+  claimed state (`status IN sources('finish')`), or a re-armed row is
+  clobbered by a stale worker.
+- **SM.4** Changing a machine: edit it, then
+  `UPDATE_STATE_MACHINE_DOCS=1 pnpm --filter api test -- state-machines`.
+  `defineMachine` throws on unknown or unreachable states and on edges out
+  of a terminal state; `contract-sync.ts` fails typecheck when a machine
+  and its wire enum disagree.
+
 ### Google Drive integration env vars
 
 The `apps/api/src/integrations/gdrive/` module reads these at startup:

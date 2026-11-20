@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ENVELOPE_MACHINE } from 'shared';
 import type { DeliveryMode } from 'shared';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
@@ -68,7 +69,9 @@ export class SigningOrderService {
   ): Promise<Envelope> {
     const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
-    if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
+    if (!ENVELOPE_MACHINE.allows(envelope.status, 'edit_draft')) {
+      throw new ConflictException('envelope_not_draft');
+    }
     const orders = input.signers ?? [];
     if (input.signers !== undefined) {
       // Every signer exactly once, so a stale editor cannot leave one at

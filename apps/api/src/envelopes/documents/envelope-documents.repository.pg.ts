@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { ENVELOPE_MACHINE } from 'shared';
 import type { Kysely, Selectable, Transaction } from 'kysely';
 import type { Database, EnvelopeDocumentsTable } from '../../../db/schema';
 import { DB_TOKEN } from '../../db/db.provider';
@@ -176,7 +177,9 @@ export class EnvelopeDocumentsPgRepository extends EnvelopeDocumentsRepository {
       .where('id', '=', envelope_id)
       .forUpdate()
       .executeTakeFirst();
-    if (!env || env.status !== 'draft') throw new DocumentEnvelopeNotDraftError();
+    if (!env || !ENVELOPE_MACHINE.allows(env.status, 'edit_draft')) {
+      throw new DocumentEnvelopeNotDraftError();
+    }
   }
 
   /** Dense 1-based `ord` in the order given. */

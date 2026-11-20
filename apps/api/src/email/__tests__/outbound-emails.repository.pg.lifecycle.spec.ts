@@ -107,6 +107,9 @@ describe('OutboundEmailsPgRepository — dispatcher lifecycle', () => {
         .executeTakeFirstOrThrow();
       expect(reread.status).toBe('failed');
       expect(reread.last_error).toBe('bad_address');
+      // `give_up` is terminal: with attempts left, `claimNext` (failed and
+      // attempts < max) would re-send a permanent failure on the next tick.
+      expect(reread.attempts).toBe(reread.max_attempts);
     });
 
     it('final=false flips back to pending and reschedules to nextAttemptAt', async () => {

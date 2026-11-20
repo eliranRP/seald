@@ -1,3 +1,4 @@
+import { ENVELOPE_MACHINE } from 'shared';
 import { useQuery } from '@tanstack/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { verifyApiClient } from '@/lib/api/verifyApiClient';
@@ -51,9 +52,7 @@ export function useSealedDownload(shortCode: string): UseQueryResult<VerifyRespo
       if (status === 'completed' && data.sealed_url) return false;
       // Terminal-but-not-sealed statuses (declined / expired / canceled):
       // no sealed_url will ever appear; stop polling.
-      if (status === 'declined' || status === 'expired' || status === 'canceled') {
-        return false;
-      }
+      if (ENVELOPE_MACHINE.isTerminal(status) && status !== 'completed') return false;
       return POLL_MS;
     },
     refetchIntervalInBackground: false,

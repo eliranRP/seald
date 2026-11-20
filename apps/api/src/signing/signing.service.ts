@@ -11,6 +11,7 @@ import {
   UnprocessableEntityException,
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
+import { ENVELOPE_MACHINE } from 'shared';
 import type { SignatureFormat } from 'shared';
 import {
   CURRENT_SIGNER_AUTH_TIER,
@@ -517,7 +518,7 @@ export class SigningService {
       // Race or missing signature — re-read to tell the user why.
       const fresh = await this.repo.findByIdWithAll(envelope.id);
       const freshSigner = fresh?.signers.find((s) => s.id === signer.id);
-      if (!fresh || fresh.status !== 'awaiting_others') {
+      if (!fresh || !ENVELOPE_MACHINE.allows(fresh.status, 'sign')) {
         throw new GoneException('envelope_terminal');
       }
       if (freshSigner?.signed_at) throw new ConflictException('already_signed');
@@ -683,7 +684,7 @@ export class SigningService {
     if (!updated) {
       const fresh = await this.repo.findByIdWithAll(envelope.id);
       const freshSigner = fresh?.signers.find((s) => s.id === signer.id);
-      if (!fresh || fresh.status !== 'awaiting_others') {
+      if (!fresh || !ENVELOPE_MACHINE.allows(fresh.status, 'sign')) {
         throw new GoneException('envelope_terminal');
       }
       if (freshSigner?.signed_at) throw new ConflictException('already_signed');
@@ -870,7 +871,7 @@ export function assertSignersTurn(envelope: Envelope, signer: EnvelopeSigner): v
 }
 
 function assertStillSignable(envelope: Envelope, signer: EnvelopeSigner): void {
-  if (envelope.status !== 'awaiting_others') {
+  if (!ENVELOPE_MACHINE.allows(envelope.status, 'sign')) {
     throw terminalGone(envelope, signer);
   }
   if (signer.signed_at !== null || signer.declined_at !== null) {

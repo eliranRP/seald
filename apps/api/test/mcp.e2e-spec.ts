@@ -597,9 +597,20 @@ describePg('MCP server (e2e, real Postgres)', () => {
       expect((out['pending_signers'] as Array<{ id: string }>).map((s) => s.id).sort()).toEqual(
         [signer['bob'], signer['cy']].sort(),
       );
+      // 0.16.0: what the status permits, from ENVELOPE_MACHINE.
+      expect(out['terminal']).toBe(false);
+      expect(out['allowed_actions']).toEqual(
+        expect.arrayContaining(['cancel', 'remind', 'correct_signer', 'extend_expiry']),
+      );
+      expect(out['allowed_actions']).not.toContain('download_sealed');
       expect(
         structured(await callTool(client, 'envelopes_status', { envelope_id: env['completed'] })),
-      ).toMatchObject({ next_action: 'download', can_remind_at: null });
+      ).toMatchObject({
+        next_action: 'download',
+        can_remind_at: null,
+        terminal: true,
+        allowed_actions: ['tag', 'archive', 'download_sealed'],
+      });
     });
 
     it('envelopes_status says wait with can_remind_at when every pending signer was just reminded', async () => {

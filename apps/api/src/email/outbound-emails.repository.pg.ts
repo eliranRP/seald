@@ -262,7 +262,10 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
     if (args.final) {
       await this.db
         .updateTable('outbound_emails')
-        .set({ status: 'failed', last_error: safeError })
+        // `give_up` is terminal: spend the attempts too, as `markSkipped`
+        // does, or `claimNext` (failed and attempts < max) re-sends a
+        // permanent failure on its next tick.
+        .set({ status: 'failed', last_error: safeError, attempts: sql<number>`max_attempts` })
         .where('id', '=', id)
         .execute();
       return;

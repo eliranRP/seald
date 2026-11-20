@@ -1,5 +1,5 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { uuid } from 'shared';
+import { ENVELOPE_MACHINE, uuid } from 'shared';
 import { z } from 'zod';
 import type { EnvelopesService } from '../../envelopes/envelopes.service';
 import { mapGdriveSaveError } from '../../envelopes/gdrive-save-error.http-errors';
@@ -73,7 +73,9 @@ export function envelopeSaveToDriveKind(svc: GdriveKindServices): ApprovalKindHa
     highRisk: () => true,
     async describe(args, ctx): Promise<DescribedSubject> {
       const envelope = await svc.envelopes.getById(ctx.ownerId, args.envelope_id);
-      if (envelope.status !== 'completed') throw new ConflictException('envelope_not_sealed');
+      if (!ENVELOPE_MACHINE.allows(envelope.status, 'download_sealed')) {
+        throw new ConflictException('envelope_not_sealed');
+      }
       return {
         subjectKey: `envelope:${envelope.id}:drive:${args.folder_id}`,
         envelopeId: envelope.id,

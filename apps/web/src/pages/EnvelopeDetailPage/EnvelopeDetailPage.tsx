@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { isFeatureEnabled } from 'shared';
+import { ENVELOPE_MACHINE, isFeatureEnabled, ownerEnvelopeActions } from 'shared';
 import type { EnvelopeDocument } from 'shared';
 import { Avatar } from '@/components/Avatar';
 import { Banner } from '@/components/Banner';
@@ -540,7 +540,7 @@ export function EnvelopeDetailPage() {
     setWithdrawOpen(false);
     // Drafts: hard-delete (nobody was notified). Sent envelopes: the cancel
     // mutation flips the status server-side and fans out the cancel emails.
-    if (envelope.status === 'draft') {
+    if (ENVELOPE_MACHINE.allows(envelope.status, 'delete')) {
       deleteEnvelope.mutate(envelope.id, {
         onSuccess: () => {
           void qc.invalidateQueries({ queryKey: envelopeKeys.lists() });
@@ -678,12 +678,13 @@ export function EnvelopeDetailPage() {
   const isComplete = envelope.status === 'completed';
   const isSealing = envelope.status === 'sealing';
   const isTerminal = TERMINAL_STATUSES.has(envelope.status);
-  const isLive = envelope.status === 'awaiting_others';
+  const allowed = ownerEnvelopeActions(envelope.status);
+  const isLive = allowed.includes('remind');
   const barTone = barToneFor(envelope.status);
   const pct = total === 0 ? 0 : Math.round((signed / total) * 100);
   const bounced = envelope.signers.find((s) => s.status === 'bounced') ?? null;
   const badge = badgeFor(envelope, pendingCount);
-  const canWithdraw = ['draft', 'awaiting_others', 'sealing'].includes(envelope.status);
+  const canWithdraw = allowed.includes('delete') || allowed.includes('cancel');
   const showRemindAll = isLive && pendingCount > 0;
   const envelopeDocuments = envelope.documents ?? [];
   const multiDoc = isFeatureEnabled('multiDocumentEnvelopes') && envelopeDocuments.length > 1;

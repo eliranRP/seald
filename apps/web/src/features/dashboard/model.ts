@@ -1,4 +1,4 @@
-import type { EnvelopeListItem } from 'shared';
+import { ownerEnvelopeActions, type EnvelopeListItem } from 'shared';
 import { isAwaitingYou } from '@/features/dashboardFilters';
 
 /**
@@ -26,7 +26,8 @@ export function isArchived(env: EnvelopeListItem): boolean {
 
 /** A draft can be deleted; a request still out for signature can be cancelled. */
 export function canRemove(env: EnvelopeListItem): boolean {
-  return env.status === 'draft' || env.status === 'awaiting_others' || env.status === 'sealing';
+  const allowed = ownerEnvelopeActions(env.status);
+  return allowed.includes('delete') || allowed.includes('cancel');
 }
 
 /** Row status: the design's `badge-*` family plus `sealing`. */

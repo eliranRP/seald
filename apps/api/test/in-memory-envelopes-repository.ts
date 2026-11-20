@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { isFeatureEnabled } from 'shared';
+import { SEAL_JOB_MACHINE, isFeatureEnabled, signerStatusOf } from 'shared';
 import { eventHash } from '../src/envelopes/event-hash';
 import type {
   AddSignerInput,
@@ -516,17 +516,18 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     ) {
       throw new EnvelopeSignerEmailTakenError();
     }
-    const signer: EnvelopeSigner = {
+    const corrected = {
       ...before,
       ...(patch.name !== undefined ? { name: patch.name } : {}),
       ...(patch.email !== undefined ? { email: patch.email } : {}),
-      status: 'awaiting',
       viewed_at: null,
       tc_accepted_at: null,
       ...(patch.email !== undefined && patch.email.toLowerCase() !== before.email.toLowerCase()
         ? { delivery_status: 'delivered' as const }
         : {}),
     };
+    // Same derivation as the pg repo: a name-only fix keeps a bounce.
+    const signer: EnvelopeSigner = { ...corrected, status: signerStatusOf(corrected) };
     this.envelopes.set(envelope_id, {
       ...env,
       signers: env.signers.map((s) => (s.id === signer_id ? signer : s)),
@@ -1038,12 +1039,12 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
 
   async finishJob(job_id: string): Promise<void> {
     const j = this.jobs.find((x) => x.id === job_id);
-    if (j) j.status = 'done';
+    if (j && SEAL_JOB_MACHINE.can(j.status, 'finish')) j.status = 'done';
   }
 
   async failJob(job_id: string, error: string): Promise<void> {
     const j = this.jobs.find((x) => x.id === job_id);
-    if (!j) return;
+    if (!j || !SEAL_JOB_MACHINE.can(j.status, 'retry')) return;
     const trimmed = error.length > 2000 ? error.slice(0, 2000) : error;
     if (j.attempts >= j.max_attempts) {
       j.status = 'failed';

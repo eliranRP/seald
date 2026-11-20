@@ -6,7 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { MAX_ENVELOPE_DOCUMENTS } from 'shared';
+import { ENVELOPE_MACHINE, MAX_ENVELOPE_DOCUMENTS } from 'shared';
 import type { EnvelopeDocument } from 'shared';
 import { StorageService } from '../../storage/storage.service';
 import type { Envelope, EnvelopeField } from '../envelope.entity';
@@ -292,7 +292,7 @@ export class EnvelopeDocumentsService {
     const envelope = await this.requireOwned(owner_id, envelope_id);
     if (args.kind === 'zip') {
       const paths = await this.envelopes.getFilePaths(envelope_id);
-      if (envelope.status !== 'completed' || !paths?.audit_file_path) {
+      if (!ENVELOPE_MACHINE.allows(envelope.status, 'download_sealed') || !paths?.audit_file_path) {
         throw new BadRequestException('file_not_ready');
       }
       const path = await this.sealedBundle(envelope);
@@ -321,7 +321,9 @@ export class EnvelopeDocumentsService {
 
   private async requireDraft(owner_id: string, envelope_id: string): Promise<Envelope> {
     const envelope = await this.requireOwned(owner_id, envelope_id);
-    if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
+    if (!ENVELOPE_MACHINE.allows(envelope.status, 'edit_draft')) {
+      throw new ConflictException('envelope_not_draft');
+    }
     return envelope;
   }
 

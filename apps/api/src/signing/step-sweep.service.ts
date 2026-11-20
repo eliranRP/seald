@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { isFeatureEnabled } from 'shared';
+import { ENVELOPE_MACHINE, isFeatureEnabled } from 'shared';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
@@ -116,7 +116,7 @@ export class StepSweepService implements OnModuleInit, OnModuleDestroy {
       const envelope = await this.envelopes.findByIdWithAll(step.envelopeId);
       if (
         !envelope ||
-        envelope.status !== 'awaiting_others' ||
+        !ENVELOPE_MACHINE.allows(envelope.status, 'sign') ||
         envelope.delivery_mode !== 'sequential' ||
         activeSigningOrder(envelope.signers) !== step.signingOrder
       ) {

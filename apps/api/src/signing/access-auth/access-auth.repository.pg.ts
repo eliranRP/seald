@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { ENVELOPE_MACHINE } from 'shared';
 import { type Kysely, type Selectable, sql } from 'kysely';
 import type { Database, SignerOtpChallengesTable } from '../../../db/schema';
 import { DB_TOKEN } from '../../db/db.provider';
@@ -74,7 +75,7 @@ export class AccessAuthPgRepository extends AccessAuthRepository {
         .where('id', '=', envelope_id)
         .forUpdate()
         .executeTakeFirst();
-      if (!env || env.status !== 'draft') return false;
+      if (!env || !ENVELOPE_MACHINE.allows(env.status, 'edit_draft')) return false;
       const envelopeSet = {
         ...(patch.access_auth !== undefined ? { access_auth: patch.access_auth } : {}),
         ...(patch.action_auth !== undefined ? { action_auth: patch.action_auth } : {}),

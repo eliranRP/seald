@@ -720,6 +720,28 @@ describe('EnvelopesPgRepository — submitSigner', () => {
     const second = await repo.submitSigner(s.id, null, null);
     expect(second).toBeNull();
   });
+
+  it.each(['canceled', 'expired'] as const)(
+    'refuses to sign once the envelope is %s (ENVELOPE_MACHINE: sign needs awaiting_others)',
+    async (stopped) => {
+      const e = await repo.createDraft(draftInput(ownerId));
+      const s = await setupReadySigner(e.id, 'a@x.com');
+      // The session guard read awaiting_others; a cancel or expiry landed
+      // before the submit.
+      await handle.db
+        .updateTable('envelopes')
+        .set({ status: stopped })
+        .where('id', '=', e.id)
+        .execute();
+      expect(await repo.submitSigner(s.id, null, null)).toBeNull();
+      const signer = await handle.db
+        .selectFrom('envelope_signers')
+        .select(['signed_at'])
+        .where('id', '=', s.id)
+        .executeTakeFirstOrThrow();
+      expect(signer.signed_at).toBeNull();
+    },
+  );
 });
 
 describe('EnvelopesPgRepository — declineSigner', () => {
@@ -947,6 +969,55 @@ describe('EnvelopesPgRepository — enqueueJob', () => {
     expect(rows[0]!.status).toBe('pending');
     expect(rows[0]!.attempts).toBe(0);
     expect(rows[0]!.last_error).toBeNull();
+  });
+
+  it('a run that was re-armed meanwhile cannot finish or fail the new job (SEAL_JOB_MACHINE)', async () => {
+    const e = await repo.createDraft(draftInput(ownerId));
+    const jobId = await repo.enqueueJob(e.id, 'seal');
+    await handle.db
+      .updateTable('envelope_jobs')
+      .set({ status: 'running', attempts: 1 })
+      .where('id', '=', jobId)
+      .execute();
+    // Cancel during sealing re-arms the row as audit_only while the seal
+    // worker is still running.
+    await repo.enqueueJob(e.id, 'audit_only');
+    await repo.finishJob(jobId);
+    await repo.failJob(jobId, 'late');
+    const row = await handle.db
+      .selectFrom('envelope_jobs')
+      .selectAll()
+      .where('id', '=', jobId)
+      .executeTakeFirstOrThrow();
+    expect(row.kind).toBe('audit_only');
+    expect(row.status).toBe('pending');
+    expect(row.last_error).toBeNull();
+  });
+
+  it('finishes and fails a running job', async () => {
+    const e = await repo.createDraft(draftInput(ownerId));
+    const jobId = await repo.enqueueJob(e.id, 'seal');
+    const setRunning = (attempts: number) =>
+      handle.db
+        .updateTable('envelope_jobs')
+        .set({ status: 'running', attempts })
+        .where('id', '=', jobId)
+        .execute();
+    const read = () =>
+      handle.db
+        .selectFrom('envelope_jobs')
+        .selectAll()
+        .where('id', '=', jobId)
+        .executeTakeFirstOrThrow();
+    await setRunning(1);
+    await repo.failJob(jobId, 'transient');
+    expect((await read()).status).toBe('pending');
+    await setRunning(99);
+    await repo.failJob(jobId, 'exhausted');
+    expect((await read()).status).toBe('failed');
+    await setRunning(1);
+    await repo.finishJob(jobId);
+    expect((await read()).status).toBe('done');
   });
 });
 

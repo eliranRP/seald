@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { DEFAULT_LOCALE, isFeatureEnabled } from 'shared';
+import { ENVELOPE_MACHINE, DEFAULT_LOCALE, isFeatureEnabled } from 'shared';
 import { EmailCopyLinkMinter } from '../automations/actions/email/email-copy-link-minter.service';
 import { ApprovalLinkMinter } from '../approvals/approval-link-minter.service';
 import { APP_ENV } from '../config/config.module';
@@ -268,7 +268,7 @@ export class EmailDispatcherService {
     const envelope = await this.envelopes.findByIdWithAll(row.envelope_id);
     const signer = envelope?.signers.find((item) => item.id === row.signer_id) ?? null;
     if (!envelope || !signer) return false;
-    if (envelope.status !== 'awaiting_others') return false;
+    if (!ENVELOPE_MACHINE.allows(envelope.status, 'remind')) return false;
     if (!(Date.parse(envelope.expires_at) > Date.now())) return false;
     if (signer.signed_at !== null || signer.declined_at !== null) return false;
     // A bounced address cannot receive the reminder; the sender is already told.

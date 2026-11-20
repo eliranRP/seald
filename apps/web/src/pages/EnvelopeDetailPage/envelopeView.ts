@@ -12,18 +12,14 @@ import {
   XCircle,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { isFeatureEnabled } from 'shared';
+import { ENVELOPE_MACHINE, isFeatureEnabled } from 'shared';
 import type { MiniTrackStep } from '@/components/MiniTrack';
 import { stepStartedText } from '@/features/signers/signingOrder/stepStartedText';
 import { formatShortDate } from '@/lib/dateFormat';
 import type { Envelope, EnvelopeEvent, EnvelopeSigner, EnvelopeStatus } from '@/features/envelopes';
 
-export const TERMINAL_STATUSES: ReadonlySet<EnvelopeStatus> = new Set([
-  'completed',
-  'declined',
-  'expired',
-  'canceled',
-]);
+/** Statuses that can no longer change, read from `ENVELOPE_MACHINE`. */
+export const TERMINAL_STATUSES: ReadonlySet<EnvelopeStatus> = new Set(ENVELOPE_MACHINE.terminal);
 
 /** "2h", "5d", "now": the short relative form used in signer rows. */
 export function relativeShort(iso: string | null, now: Date = new Date()): string {

@@ -1,4 +1,4 @@
-import { DEFAULT_REMINDER_CADENCE, type ReminderCadence } from 'shared';
+import { ENVELOPE_MACHINE, DEFAULT_REMINDER_CADENCE, type ReminderCadence } from 'shared';
 
 export { MAX_AUTOMATED_REMINDERS } from 'shared';
 
@@ -59,7 +59,7 @@ export function reminderCadenceFor(envelope: {
  * between later ones.
  */
 export function isAutomatedReminderDue(clock: ReminderClock, nowMs: number): boolean {
-  if (clock.status !== 'awaiting_others') return false;
+  if (!ENVELOPE_MACHINE.allows(clock.status, 'remind')) return false;
   if (!clock.remindersEnabled) return false;
   if (!(clock.expiresAtMs > nowMs)) return false;
   if (clock.signedAt !== null) return false;
