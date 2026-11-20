@@ -36,16 +36,16 @@ export async function runOneSealStep(
         ? await sealing.processSealStep(job.envelope_id, progress)
         : await sealing.processAuditOnlyStep(job.envelope_id, progress);
     if (!step.done) {
-      await repo.yieldJob(job.id, step.progress);
+      await repo.yieldJob(job.id, step.progress, job.claim);
       return { kind: 'yielded', jobId: job.id };
     }
-    await repo.finishJob(job.id);
+    await repo.finishJob(job.id, job.claim);
     logger.log(`finished job ${job.id}`);
     return { kind: 'finished', jobId: job.id };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.error(`job ${job.id} failed: ${msg}`);
-    await repo.failJob(job.id, msg);
+    await repo.failJob(job.id, msg, job.claim);
     await repo
       .appendEvent({
         envelope_id: job.envelope_id,

@@ -148,6 +148,7 @@ stateDiagram-v2
   [*] --> pending
   pending --> sending: claim
   failed --> sending: claim
+  sending --> sending: claim
   sending --> sent: sent
   sending --> pending: retry
   sending --> failed: give_up
@@ -158,10 +159,10 @@ stateDiagram-v2
 
 | Event | From | To | Meaning |
 | --- | --- | --- | --- |
-| `claim` | `pending`, `failed` | `sending` | The dispatcher claims a due row with attempts left and counts an attempt. |
+| `claim` | `pending`, `failed`, `sending` | `sending` | The dispatcher claims a due row with attempts left, counts an attempt and takes a 10-minute lease (`scheduled_for`). A `sending` row whose lease ran out (its dispatcher died) is claimed again. |
 | `sent` | `sending` | `sent` | The provider accepted the email. |
 | `retry` | `sending` | `pending` | A transient send error with attempts left; rescheduled with backoff. |
-| `give_up` | `sending` | `failed` | A permanent error, the last attempt, an unknown template or a skipped send; attempts are set to max. |
+| `give_up` | `sending` | `failed` | A permanent error, the last attempt, an unknown template or a skipped send; attempts are set to max. Also a stale `sending` row with no attempts left. |
 | `cancel` | `pending` | `canceled` | An invite or your-turn email whose envelope was taken back (unsend). |
 
 ## `bulk_batch`
@@ -207,6 +208,7 @@ stateDiagram-v2
   processing --> failed: fail
   processing --> pending: release
   pending --> canceled: cancel
+  processing --> canceled: cancel
   sent --> [*]
   failed --> [*]
   canceled --> [*]
@@ -219,7 +221,7 @@ stateDiagram-v2
 | `sent` | `processing` | `sent` | The envelope for the row was sent. |
 | `fail` | `processing` | `failed` | The row could not be sent. |
 | `release` | `processing` | `pending` | The worker hit the per-minute rate limit and hands the row back. |
-| `cancel` | `pending` | `canceled` | The batch was canceled. |
+| `cancel` | `pending`, `processing` | `canceled` | The batch was canceled: pending rows at once, a row a dead worker left `processing` once its lock is stale. |
 
 ## `scan_session`
 
@@ -271,7 +273,7 @@ stateDiagram-v2
 | `complete` | `running` | `done` | Delivered; the failure streak resets. |
 | `retry` | `running` | `retrying` | A retryable failure with attempts left. |
 | `defer` | `running` | `queued` | Rate or daily cap reached; tried again later without spending an attempt. |
-| `fail` | `running`, `queued`, `retrying` | `failed` | Out of attempts or not retryable (streak +1), or parked while the recipe needs approval. |
+| `fail` | `running`, `queued`, `retrying` | `failed` | Out of attempts or not retryable (streak +1), or parked (retryable) because the recipe changed, needs approval or was turned off. |
 | `requeue` | `failed` | `queued` | The owner retries a failed, retryable run. |
 
 ## `approval`

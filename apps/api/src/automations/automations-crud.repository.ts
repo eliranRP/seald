@@ -83,6 +83,9 @@ export interface CursorRow<T> {
  * Every method is owner scoped. Separate from `AutomationsPgRepository`
  * (the matcher and worker queue) so the two tracks do not share a file.
  */
+/** Why queued runs of a recipe were parked (`automation_runs.last_error`). */
+export type ParkReason = 'recipe_changed' | 'recipe_disabled';
+
 export abstract class AutomationsCrudRepository {
   abstract count(ownerId: string): Promise<number>;
   abstract insert(input: NewAutomation): Promise<AutomationRecord>;
@@ -112,11 +115,13 @@ export abstract class AutomationsCrudRepository {
    */
   abstract supersedeApprovals(ownerId: string, id: string, now: Date): Promise<number>;
   /**
-   * Queued jobs of a recipe whose destination just changed: the job goes,
-   * the run is marked failed and retryable (`recipe_changed`), so nothing
-   * queued for the old destination is sent to an unapproved one.
+   * Queued jobs of a recipe whose destination just changed (`recipe_changed`)
+   * or that was turned off (`recipe_disabled`): the job goes, the run is
+   * marked failed and retryable, so nothing queued is sent to an unapproved
+   * destination or by a recipe the owner switched off. The owner can retry
+   * the run once the recipe is on again.
    */
-  abstract parkPendingJobs(automationId: string): Promise<number>;
+  abstract parkPendingJobs(automationId: string, reason?: ParkReason): Promise<number>;
 
   abstract listRuns(ownerId: string, query: ListRunsQuery): Promise<CursorRow<RunRecord>[]>;
   abstract findRun(ownerId: string, runId: string): Promise<RunRecord | null>;

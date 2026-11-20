@@ -62,7 +62,7 @@ export function statusLine(status: RowStatus, reason: string): string {
     case 'expired':
       return `Expired ${reason}`;
     case 'canceled':
-      return `Canceled ${reason}`;
+      return `Withdrawn ${reason}`;
     case 'draft':
       return 'Draft, not sent';
   }

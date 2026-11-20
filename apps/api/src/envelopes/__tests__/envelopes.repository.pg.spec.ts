@@ -994,6 +994,35 @@ describe('EnvelopesPgRepository — enqueueJob', () => {
     expect(row.last_error).toBeNull();
   });
 
+  it('a stale worker cannot finish, fail or yield a job another worker re-claimed', async () => {
+    const e = await repo.createDraft(draftInput(ownerId));
+    const jobId = await repo.enqueueJob(e.id, 'seal');
+    const claimAt = async (iso: string): Promise<string> => {
+      await handle.db
+        .updateTable('envelope_jobs')
+        .set({ status: 'running', attempts: 1, started_at: iso })
+        .where('id', '=', jobId)
+        .execute();
+      return iso;
+    };
+    const claimA = await claimAt('2026-11-20T10:00:00.000Z');
+    // Cancel during sealing re-arms it as audit_only; worker B claims it.
+    await repo.enqueueJob(e.id, 'audit_only');
+    const claimB = await claimAt('2026-11-20T10:00:05.000Z');
+    await repo.finishJob(jobId, claimA);
+    await repo.failJob(jobId, 'late', claimA);
+    await repo.yieldJob(jobId, { stale: true }, claimA);
+    const read = () =>
+      handle.db
+        .selectFrom('envelope_jobs')
+        .selectAll()
+        .where('id', '=', jobId)
+        .executeTakeFirstOrThrow();
+    expect(await read()).toMatchObject({ kind: 'audit_only', status: 'running', last_error: null });
+    await repo.finishJob(jobId, claimB);
+    expect((await read()).status).toBe('done');
+  });
+
   it('finishes and fails a running job', async () => {
     const e = await repo.createDraft(draftInput(ownerId));
     const jobId = await repo.enqueueJob(e.id, 'seal');

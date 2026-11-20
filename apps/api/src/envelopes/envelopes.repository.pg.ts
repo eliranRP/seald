@@ -128,6 +128,11 @@ function asNullableNumber(v: unknown): number | null {
 }
 
 /** The signer machine's single derivation (shared `signerStatusOf`). */
+/** `started_at` still holds the claim a worker was handed (see ClaimedJob.claim). */
+function sameClaim(claim: string | undefined): RawBuilder<boolean> {
+  return sql<boolean>`started_at = ${claim ?? null}::timestamptz`;
+}
+
 function deriveSignerStatus(row: SignerRow): EnvelopeSigner['status'] {
   return signerStatusOf(row);
 }
@@ -1843,6 +1848,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       attempts: number;
       max_attempts: number;
       progress: unknown;
+      claim: string;
     }>`
       with next_job as (
         select id from envelope_jobs
@@ -1860,7 +1866,8 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
           last_error = null
       from next_job
       where j.id = next_job.id
-      returning j.id, j.envelope_id, j.kind, j.attempts, j.max_attempts, j.progress
+      returning j.id, j.envelope_id, j.kind, j.attempts, j.max_attempts, j.progress,
+        j.started_at::text as claim
     `.execute(this.db);
     const row = result.rows[0];
     if (!row) return null;
@@ -1871,10 +1878,11 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       attempts: row.attempts,
       max_attempts: row.max_attempts,
       progress: row.progress ?? null,
+      claim: row.claim,
     };
   }
 
-  override async yieldJob(job_id: string, progress: unknown): Promise<void> {
+  override async yieldJob(job_id: string, progress: unknown, claim?: string): Promise<void> {
     await this.db
       .updateTable('envelope_jobs')
       .set({
@@ -1885,10 +1893,11 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       })
       .where('id', '=', job_id)
       .where('status', 'in', SEAL_JOB_MACHINE.sources('yield'))
+      .$if(claim !== undefined, (qb) => qb.where(sameClaim(claim)))
       .execute();
   }
 
-  async finishJob(job_id: string): Promise<void> {
+  async finishJob(job_id: string, claim?: string): Promise<void> {
     await this.db
       .updateTable('envelope_jobs')
       .set({
@@ -1899,10 +1908,11 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       // A row re-armed while this run was in flight (cancel → audit_only,
       // or the sweep reclaimed it) is no longer ours to finish.
       .where('status', 'in', SEAL_JOB_MACHINE.sources('finish'))
+      .$if(claim !== undefined, (qb) => qb.where(sameClaim(claim)))
       .execute();
   }
 
-  async failJob(job_id: string, error: string): Promise<void> {
+  async failJob(job_id: string, error: string, claim?: string): Promise<void> {
     // If attempts < max_attempts, `retry`: back to pending with exponential
     // backoff (2^attempts minutes, capped). Otherwise `give_up`: failed.
     // Both only fire from `running`; a row re-armed meanwhile is left alone.
@@ -1923,6 +1933,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
         })
         .where('id', '=', job_id)
         .where('status', 'in', SEAL_JOB_MACHINE.sources('give_up'))
+        .$if(claim !== undefined, (qb) => qb.where(sameClaim(claim)))
         .execute();
       return;
     }
@@ -1937,6 +1948,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       })
       .where('id', '=', job_id)
       .where('status', 'in', SEAL_JOB_MACHINE.sources('retry'))
+      .$if(claim !== undefined, (qb) => qb.where(sameClaim(claim)))
       .execute();
   }
 

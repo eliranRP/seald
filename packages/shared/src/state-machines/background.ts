@@ -18,9 +18,11 @@ export const OUTBOUND_EMAIL_MACHINE = defineMachine({
   terminal: ['sent', 'canceled'],
   transitions: {
     claim: {
-      from: ['pending', 'failed'],
+      from: ['pending', 'failed', 'sending'],
       to: 'sending',
-      description: 'The dispatcher claims a due row with attempts left and counts an attempt.',
+      description:
+        'The dispatcher claims a due row with attempts left, counts an attempt and takes a 10-minute lease ' +
+        '(`scheduled_for`). A `sending` row whose lease ran out (its dispatcher died) is claimed again.',
     },
     sent: { from: ['sending'], to: 'sent', description: 'The provider accepted the email.' },
     retry: {
@@ -32,7 +34,8 @@ export const OUTBOUND_EMAIL_MACHINE = defineMachine({
       from: ['sending'],
       to: 'failed',
       description:
-        'A permanent error, the last attempt, an unknown template or a skipped send; attempts are set to max.',
+        'A permanent error, the last attempt, an unknown template or a skipped send; attempts are set to max. ' +
+        'Also a stale `sending` row with no attempts left.',
     },
     cancel: {
       from: ['pending'],
@@ -96,7 +99,12 @@ export const BULK_ROW_MACHINE = defineMachine({
       to: 'pending',
       description: 'The worker hit the per-minute rate limit and hands the row back.',
     },
-    cancel: { from: ['pending'], to: 'canceled', description: 'The batch was canceled.' },
+    cancel: {
+      from: ['pending', 'processing'],
+      to: 'canceled',
+      description:
+        'The batch was canceled: pending rows at once, a row a dead worker left `processing` once its lock is stale.',
+    },
   },
 });
 
@@ -163,7 +171,8 @@ export const AUTOMATION_RUN_MACHINE = defineMachine({
       from: ['running', 'queued', 'retrying'],
       to: 'failed',
       description:
-        'Out of attempts or not retryable (streak +1), or parked while the recipe needs approval.',
+        'Out of attempts or not retryable (streak +1), or parked (retryable) because the recipe changed, ' +
+        'needs approval or was turned off.',
     },
     requeue: {
       from: ['failed'],

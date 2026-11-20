@@ -977,7 +977,10 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     last_error: string | null;
     scheduled_for: string;
     progress?: unknown;
+    /** Mirrors pg `started_at`: changes on every claim, cleared by a re-arm. */
+    claim?: string | undefined;
   }> = [];
+  private claimSeq = 0;
 
   async enqueueJob(envelope_id: string, kind: 'seal' | 'audit_only'): Promise<string> {
     // Mirror PG's ON CONFLICT (envelope_id) DO UPDATE — one live job per envelope.
@@ -990,6 +993,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       existing.last_error = null;
       existing.scheduled_for = now;
       existing.progress = null;
+      existing.claim = undefined;
       return existing.id;
     }
     const id = randomUUID();
@@ -1018,6 +1022,8 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     candidate.status = 'running';
     candidate.attempts += 1;
     candidate.last_error = null;
+    this.claimSeq += 1;
+    candidate.claim = `claim-${this.claimSeq}`;
     return {
       id: candidate.id,
       envelope_id: candidate.envelope_id,
@@ -1025,26 +1031,34 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       attempts: candidate.attempts,
       max_attempts: candidate.max_attempts,
       progress: candidate.progress ?? null,
+      claim: candidate.claim,
     };
   }
 
-  override async yieldJob(job_id: string, progress: unknown): Promise<void> {
+  override async yieldJob(job_id: string, progress: unknown, claim?: string): Promise<void> {
     const j = this.jobs.find((x) => x.id === job_id);
-    if (!j || j.status !== 'running') return;
+    if (!j || j.status !== 'running' || (claim !== undefined && j.claim !== claim)) return;
     j.status = 'pending';
     j.attempts = Math.max(j.attempts - 1, 0);
     j.scheduled_for = new Date().toISOString();
     j.progress = JSON.parse(JSON.stringify(progress)) as unknown;
   }
 
-  async finishJob(job_id: string): Promise<void> {
+  async finishJob(job_id: string, claim?: string): Promise<void> {
     const j = this.jobs.find((x) => x.id === job_id);
-    if (j && SEAL_JOB_MACHINE.can(j.status, 'finish')) j.status = 'done';
+    if (
+      j &&
+      SEAL_JOB_MACHINE.can(j.status, 'finish') &&
+      (claim === undefined || j.claim === claim)
+    ) {
+      j.status = 'done';
+    }
   }
 
-  async failJob(job_id: string, error: string): Promise<void> {
+  async failJob(job_id: string, error: string, claim?: string): Promise<void> {
     const j = this.jobs.find((x) => x.id === job_id);
     if (!j || !SEAL_JOB_MACHINE.can(j.status, 'retry')) return;
+    if (claim !== undefined && j.claim !== claim) return;
     const trimmed = error.length > 2000 ? error.slice(0, 2000) : error;
     if (j.attempts >= j.max_attempts) {
       j.status = 'failed';

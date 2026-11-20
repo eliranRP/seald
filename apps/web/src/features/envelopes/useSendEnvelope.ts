@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useReducer, useRef } from 'react';
 import { isFeatureEnabled, resolveExpiresAt } from 'shared';
 import {
   addEnvelopeSigner,
@@ -167,9 +167,87 @@ export type SendEnvelopePhase =
   | 'done'
   | 'error';
 
+/** A step of the pipeline: every phase except the resting ones. */
+export type SendEnvelopeStep = Exclude<SendEnvelopePhase, 'idle' | 'done' | 'error'>;
+
+/**
+ * The pipeline as one explicit state machine. `error` is non-null exactly
+ * in the `error` phase, which also keeps the step that failed and the
+ * draft the run had already created (so "nothing was sent" can be told
+ * apart from "a draft exists").
+ */
+export type SendEnvelopeState =
+  | {
+      readonly phase: 'idle' | SendEnvelopeStep;
+      readonly error: null;
+      readonly envelopeId: string | null;
+    }
+  | { readonly phase: 'done'; readonly error: null; readonly envelopeId: string }
+  | {
+      readonly phase: 'error';
+      readonly error: Error;
+      readonly failedStep: SendEnvelopeStep;
+      readonly envelopeId: string | null;
+    };
+
+export type SendEnvelopeAction =
+  | { readonly type: 'step'; readonly step: SendEnvelopeStep }
+  | { readonly type: 'created'; readonly envelopeId: string }
+  | { readonly type: 'done'; readonly envelopeId: string }
+  | { readonly type: 'fail'; readonly error: Error }
+  | { readonly type: 'reset' };
+
+export const SEND_ENVELOPE_IDLE: SendEnvelopeState = {
+  phase: 'idle',
+  error: null,
+  envelopeId: null,
+};
+
+/**
+ * Pure transitions. Steps only move forward from `idle` or another step;
+ * `fail` records the step it interrupted; `reset` is the only way out of
+ * `done` or `error`. Anything else leaves the state unchanged.
+ */
+export function sendEnvelopeReducer(
+  state: SendEnvelopeState,
+  action: SendEnvelopeAction,
+): SendEnvelopeState {
+  switch (action.type) {
+    case 'reset':
+      return SEND_ENVELOPE_IDLE;
+    case 'step':
+      if (state.phase === 'done' || state.phase === 'error') return state;
+      return { phase: action.step, error: null, envelopeId: state.envelopeId };
+    case 'created':
+      if (state.phase === 'done' || state.phase === 'error') return state;
+      return { ...state, envelopeId: action.envelopeId };
+    case 'done':
+      if (state.phase === 'idle' || state.phase === 'done' || state.phase === 'error') return state;
+      return { phase: 'done', error: null, envelopeId: action.envelopeId };
+    case 'fail':
+      if (state.phase === 'idle' || state.phase === 'done' || state.phase === 'error') return state;
+      return {
+        phase: 'error',
+        error: action.error,
+        failedStep: state.phase,
+        envelopeId: state.envelopeId,
+      };
+  }
+}
+
 export interface UseSendEnvelope {
   readonly phase: SendEnvelopePhase;
   readonly error: Error | null;
+  /** The step that failed, while `phase` is `error`. */
+  readonly failedStep: SendEnvelopeStep | null;
+  /** The draft this run created, once `creating` succeeded. */
+  readonly envelopeId: string | null;
+  /**
+   * Run the pipeline. A second call while one is in flight joins it
+   * instead of creating a second envelope. `reset` drops the in-flight
+   * run: its late results no longer move the state, and the next call
+   * starts a new run.
+   */
   readonly run: (input: SendEnvelopeInput) => Promise<SendEnvelopeResult>;
   readonly reset: () => void;
 }
@@ -190,25 +268,36 @@ export interface UseSendEnvelope {
  * for a spinner UX and ordered aborts on the first failure.
  */
 export function useSendEnvelope(): UseSendEnvelope {
-  const [phase, setPhase] = useState<SendEnvelopePhase>('idle');
-  const [error, setError] = useState<Error | null>(null);
+  const [state, rawDispatch] = useReducer(sendEnvelopeReducer, SEND_ENVELOPE_IDLE);
+  const inFlight = useRef<Promise<SendEnvelopeResult> | null>(null);
+  // Bumped by reset and by every new run: a run only moves the state while
+  // it is still the current one, so a reset run cannot drag the UI out of
+  // `idle` when its requests settle later.
+  const generation = useRef(0);
 
   const reset = useCallback((): void => {
-    setPhase('idle');
-    setError(null);
+    generation.current += 1;
+    inFlight.current = null;
+    rawDispatch({ type: 'reset' });
   }, []);
 
-  const run = useCallback(async (input: SendEnvelopeInput): Promise<SendEnvelopeResult> => {
-    setError(null);
+  const pipeline = useCallback(async (input: SendEnvelopeInput): Promise<SendEnvelopeResult> => {
+    generation.current += 1;
+    const mine = generation.current;
+    const dispatch = (action: SendEnvelopeAction): void => {
+      if (generation.current === mine) rawDispatch(action);
+    };
+    dispatch({ type: 'reset' });
     try {
-      setPhase('creating');
+      dispatch({ type: 'step', step: 'creating' });
       const envelope = await createEnvelope({ title: input.title });
+      dispatch({ type: 'created', envelopeId: envelope.id });
       const draftPatch = buildDraftPatch(input);
       if (draftPatch !== null) {
         await patchEnvelope(envelope.id, draftPatch);
       }
 
-      setPhase('uploading');
+      dispatch({ type: 'step', step: 'uploading' });
       const localDocumentIdToServerDocumentId = new Map<string, string>();
       if (input.documents !== undefined && input.documents.length > 0) {
         // Sequential: the server assigns `ord` by arrival, so call order is
@@ -221,7 +310,7 @@ export function useSendEnvelope(): UseSendEnvelope {
         await uploadEnvelopeFile(envelope.id, input.file);
       }
 
-      setPhase('adding-signers');
+      dispatch({ type: 'step', step: 'adding-signers' });
       const localSignerIdToServerSignerId = new Map<string, string>();
       // Sequential — `addSigner` assigns deterministic `signing_order` based
       // on call order. Parallelising would scramble that.
@@ -238,7 +327,7 @@ export function useSendEnvelope(): UseSendEnvelope {
         localSignerIdToServerSignerId.set(s.localId, signer.id);
       }
 
-      setPhase('placing-fields');
+      dispatch({ type: 'step', step: 'placing-fields' });
       const fields = input.buildFields(
         localSignerIdToServerSignerId,
         localDocumentIdToServerDocumentId,
@@ -257,21 +346,42 @@ export function useSendEnvelope(): UseSendEnvelope {
         if (body !== null) await patchEnvelopeAccessAuth(envelope.id, body);
       }
 
-      setPhase('sending');
+      dispatch({ type: 'step', step: 'sending' });
       const payload: { sender_email?: string; sender_name?: string } = {};
       if (input.senderEmail !== undefined) payload.sender_email = input.senderEmail;
       if (input.senderName !== undefined) payload.sender_name = input.senderName;
       const sent = await sendEnvelope(envelope.id, payload);
 
-      setPhase('done');
+      dispatch({ type: 'done', envelopeId: sent.id });
       return { envelope_id: sent.id, short_code: sent.short_code };
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));
-      setError(e);
-      setPhase('error');
+      dispatch({ type: 'fail', error: e });
       throw e;
     }
   }, []);
 
-  return { phase, error, run, reset };
+  const run = useCallback(
+    (input: SendEnvelopeInput): Promise<SendEnvelopeResult> => {
+      // A double click (callers build a fresh input per click) must not
+      // create a second envelope: join the run already in flight. reset()
+      // drops it, so a send after reset always starts a new run.
+      if (inFlight.current !== null) return inFlight.current;
+      const promise = pipeline(input).finally(() => {
+        if (inFlight.current === promise) inFlight.current = null;
+      });
+      inFlight.current = promise;
+      return promise;
+    },
+    [pipeline],
+  );
+
+  return {
+    phase: state.phase,
+    error: state.error,
+    failedStep: state.phase === 'error' ? state.failedStep : null,
+    envelopeId: state.envelopeId,
+    run,
+    reset,
+  };
 }

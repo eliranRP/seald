@@ -155,8 +155,7 @@ const SIX_TO_FOUR = cidr('2002::/16', '6to4');
 const GLOBAL_UNICAST_V6 = cidr('2000::/3', 'global_unicast');
 
 export type IpVerdict =
-  | { readonly allowed: true }
-  | { readonly allowed: false; readonly reason: string };
+  { readonly allowed: true } | { readonly allowed: false; readonly reason: string };
 
 function checkV4(bytes: Uint8Array, via?: string): IpVerdict {
   for (const range of BLOCKED_V4) {

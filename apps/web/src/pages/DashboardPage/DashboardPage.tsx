@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import type { EnvelopeListItem } from 'shared';
+import { ENVELOPE_MACHINE, type EnvelopeListItem } from 'shared';
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
@@ -130,13 +130,13 @@ function parseTab(raw: string | null): DashboardTab {
 
 function removeTitle(single: EnvelopeListItem | undefined, count: number): string {
   if (single === undefined) return `Remove ${plural(count, 'document', 'documents')}?`;
-  return single.status === 'draft' ? 'Delete this draft?' : 'Cancel this request?';
+  return single.status === 'draft' ? 'Delete this draft?' : 'Withdraw this request?';
 }
 
 /** Bulk Delete label: what actually happens to the selection. */
 function removeLabel(envs: ReadonlyArray<EnvelopeListItem>): string {
   if (envs.every((e) => e.status === 'draft')) return 'Delete';
-  if (envs.every((e) => e.status !== 'draft')) return 'Cancel request';
+  if (envs.every((e) => e.status !== 'draft')) return 'Withdraw request';
   return 'Remove';
 }
 
@@ -301,10 +301,8 @@ export function DashboardPage() {
 
   const askRemove = useCallback(
     (envs: ReadonlyArray<EnvelopeListItem>): void => {
-      const drafts = envs.filter((e) => e.status === 'draft').length;
-      const out = envs.filter(
-        (e) => e.status === 'awaiting_others' || e.status === 'sealing',
-      ).length;
+      const drafts = envs.filter((e) => ENVELOPE_MACHINE.allows(e.status, 'delete')).length;
+      const out = envs.filter((e) => ENVELOPE_MACHINE.can(e.status, 'cancel')).length;
       // Only drafts and requests still out for signature can be removed;
       // the bulk bar and row menus offer Delete for nothing else.
       if (drafts + out === 0) return;
@@ -315,7 +313,7 @@ export function DashboardPage() {
           out > 0
             ? 'Signers who have not signed will be told it was withdrawn.'
             : 'This cannot be undone.',
-        confirmLabel: single && single.status !== 'draft' ? 'Cancel request' : 'Delete',
+        confirmLabel: single && single.status !== 'draft' ? 'Withdraw request' : 'Delete',
         run: async () => {
           const s = await removeEnvelopes(envs);
           summarize(plural(s.ok, 'document removed', 'documents removed'), s, 'Could not remove');
@@ -405,7 +403,7 @@ export function DashboardPage() {
       if (canRemove(env)) {
         out.push({
           id: 'remove',
-          label: env.status === 'draft' ? 'Delete draft' : 'Cancel request',
+          label: env.status === 'draft' ? 'Delete draft' : 'Withdraw request',
           icon: env.status === 'draft' ? Trash2 : Ban,
           danger: true,
           onSelect: () => askRemove([env]),

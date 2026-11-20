@@ -177,6 +177,13 @@ export interface ClaimedJob {
   readonly max_attempts: number;
   /** Migration 0048: what earlier steps of this job finished (SealProgress JSON), or null. */
   readonly progress?: unknown;
+  /**
+   * Identity of this claim (the row's `started_at`, as text). Every re-arm
+   * or re-claim changes it, so passing it to finish / fail / yield makes a
+   * stale worker's write a no-op (SM.3) even after another worker claimed
+   * the same row again.
+   */
+  readonly claim?: string;
 }
 
 /**
@@ -601,14 +608,14 @@ export abstract class EnvelopesRepository {
   abstract claimNextJob(): Promise<ClaimedJob | null>;
 
   /** Mark a claimed job done. Idempotent — callers should always call on success. */
-  abstract finishJob(job_id: string): Promise<void>;
+  abstract finishJob(job_id: string, claim?: string): Promise<void>;
 
   /**
    * Mark a claimed job failed. If attempts < max_attempts, flips back to
    * `pending` with a delayed `scheduled_for` (exponential backoff); otherwise
    * terminal `failed`. `last_error` is always recorded.
    */
-  abstract failJob(job_id: string, error: string): Promise<void>;
+  abstract failJob(job_id: string, error: string, claim?: string): Promise<void>;
 
   /**
    * A claimed job finished one step and has more (the edge worker runs one
@@ -617,7 +624,7 @@ export abstract class EnvelopesRepository {
    * step that succeeded is not a failed try. Implemented by the PG
    * repository and the in-memory double; other doubles never run steps.
    */
-  async yieldJob(_job_id: string, _progress: unknown): Promise<void> {
+  async yieldJob(_job_id: string, _progress: unknown, _claim?: string): Promise<void> {
     throw new Error('yieldJob is not implemented by this repository');
   }
 

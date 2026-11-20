@@ -79,15 +79,13 @@ export function buildUploadPlan(input: UploadPlanInput): ReadonlyArray<UploadPla
   const base = sanitizeFileBase(input.title);
   const tag = input.envelopeId.replace(/-/g, '').slice(0, 8);
   const multi = input.documents.length > 1;
-  const sealed = input.documents.map(
-    (doc): UploadPlanItem => ({
-      kind: 'sealed',
-      path: doc.sealedPath,
-      name: multi
-        ? `${base} - ${sanitizeFileBase(doc.title)} (sealed) [${tag}-${doc.ord}].pdf`
-        : `${base} (sealed) [${tag}].pdf`,
-    }),
-  );
+  const sealed = input.documents.map((doc): UploadPlanItem => ({
+    kind: 'sealed',
+    path: doc.sealedPath,
+    name: multi
+      ? `${base} - ${sanitizeFileBase(doc.title)} (sealed) [${tag}-${doc.ord}].pdf`
+      : `${base} (sealed) [${tag}].pdf`,
+  }));
   return [
     ...sealed,
     { kind: 'audit', path: input.auditPath, name: `${base} (audit trail) [${tag}].pdf` },
