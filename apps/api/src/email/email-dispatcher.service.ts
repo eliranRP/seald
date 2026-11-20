@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { DEFAULT_LOCALE, isFeatureEnabled } from 'shared';
+import { ENVELOPE_MACHINE, DEFAULT_LOCALE, isFeatureEnabled } from 'shared';
 import { EmailCopyLinkMinter } from '../automations/actions/email/email-copy-link-minter.service';
 import { ApprovalLinkMinter } from '../approvals/approval-link-minter.service';
 import { APP_ENV } from '../config/config.module';
@@ -140,7 +140,7 @@ export class EmailDispatcherService {
         this.log.warn(
           `reminder skipped reminder_no_longer_due envelope=${claimed.envelope_id ?? ''} signer=${claimed.signer_id ?? ''}`,
         );
-        await this.repo.markSkipped(claimed.id, 'reminder_no_longer_due');
+        await this.repo.markSkipped(claimed.id, 'reminder_no_longer_due', claimed.attempts);
         return { id: claimed.id, status: 'skipped', error: 'reminder_no_longer_due' };
       }
       // Rows queued before 0027 may still carry a plaintext link. It is
@@ -154,7 +154,7 @@ export class EmailDispatcherService {
           this.log.warn(
             `${claimed.kind} skipped signer_not_pending envelope=${claimed.envelope_id ?? ''} signer=${claimed.signer_id ?? ''}`,
           );
-          await this.repo.markSkipped(claimed.id, 'signer_not_pending');
+          await this.repo.markSkipped(claimed.id, 'signer_not_pending', claimed.attempts);
           return { id: claimed.id, status: 'skipped', error: 'signer_not_pending' };
         }
         payload = { ...payload, sign_url: signUrl };
@@ -166,7 +166,7 @@ export class EmailDispatcherService {
           this.log.warn(
             `access_code skipped challenge_not_open envelope=${claimed.envelope_id ?? ''} signer=${claimed.signer_id ?? ''}`,
           );
-          await this.repo.markSkipped(claimed.id, 'challenge_not_open');
+          await this.repo.markSkipped(claimed.id, 'challenge_not_open', claimed.attempts);
           return { id: claimed.id, status: 'skipped', error: 'challenge_not_open' };
         }
         payload = { ...payload, ...minted };
@@ -178,7 +178,7 @@ export class EmailDispatcherService {
         const minted = this.approvalLinks ? await this.approvalLinks.mint(claimed) : null;
         if (!minted) {
           this.log.warn(`approval_request skipped approval_not_pending outbound=${claimed.id}`);
-          await this.repo.markSkipped(claimed.id, 'approval_not_pending');
+          await this.repo.markSkipped(claimed.id, 'approval_not_pending', claimed.attempts);
           return { id: claimed.id, status: 'skipped', error: 'approval_not_pending' };
         }
         payload = { ...payload, ...minted };
@@ -189,7 +189,7 @@ export class EmailDispatcherService {
         const minted = this.copyLinks ? await this.copyLinks.mint(claimed) : null;
         if (!minted) {
           this.log.warn(`automation_copy skipped recipient_stopped outbound=${claimed.id}`);
-          await this.repo.markSkipped(claimed.id, 'recipient_stopped');
+          await this.repo.markSkipped(claimed.id, 'recipient_stopped', claimed.attempts);
           return { id: claimed.id, status: 'skipped', error: 'recipient_stopped' };
         }
         payload = { ...payload, ...minted };
@@ -208,6 +208,7 @@ export class EmailDispatcherService {
         await this.repo.markFailed(claimed.id, {
           error: `unknown_template_kind:${claimed.kind}`,
           final: true,
+          claimedAttempts: claimed.attempts,
         });
         return { id: claimed.id, status: 'failed', error: `unknown_template_kind:${claimed.kind}` };
       }
@@ -227,7 +228,7 @@ export class EmailDispatcherService {
       };
 
       const result = await this.sender.send(message);
-      await this.repo.markSent(claimed.id, result.providerId, new Date());
+      await this.repo.markSent(claimed.id, result.providerId, new Date(), claimed.attempts);
       if (
         claimed.kind === 'reminder' &&
         claimed.payload['automated'] === true &&
@@ -268,7 +269,7 @@ export class EmailDispatcherService {
     const envelope = await this.envelopes.findByIdWithAll(row.envelope_id);
     const signer = envelope?.signers.find((item) => item.id === row.signer_id) ?? null;
     if (!envelope || !signer) return false;
-    if (envelope.status !== 'awaiting_others') return false;
+    if (!ENVELOPE_MACHINE.allows(envelope.status, 'remind')) return false;
     if (!(Date.parse(envelope.expires_at) > Date.now())) return false;
     if (signer.signed_at !== null || signer.declined_at !== null) return false;
     // A bounced address cannot receive the reminder; the sender is already told.
@@ -373,7 +374,11 @@ export class EmailDispatcherService {
     const hitsMax = attemptsSoFar >= row.max_attempts;
 
     if (!transient || hitsMax) {
-      await this.repo.markFailed(row.id, { error: message, final: true });
+      await this.repo.markFailed(row.id, {
+        error: message,
+        final: true,
+        claimedAttempts: row.attempts,
+      });
       this.log.warn(
         `outbound_email ${row.id} (${row.kind} → ${row.to_email}) failed ${
           hitsMax ? '(max attempts)' : '(permanent)'
@@ -387,6 +392,7 @@ export class EmailDispatcherService {
       error: message,
       final: false,
       nextAttemptAt,
+      claimedAttempts: row.attempts,
     });
     this.log.warn(
       `outbound_email ${row.id} (${row.kind} → ${row.to_email}) will retry at ${nextAttemptAt.toISOString()}: ${message}`,

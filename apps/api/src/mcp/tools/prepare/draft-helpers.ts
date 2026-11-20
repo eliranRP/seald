@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import {
+  ENVELOPE_MACHINE,
   isDateFormat,
   isExpiryWithinBounds,
   isFeatureEnabled,
@@ -37,7 +38,9 @@ export async function loadMcpEnvelope(
 /** Dry-run check: the envelope is the owner's and still a draft. */
 export async function requireDraft(ctx: McpToolContext, envelope_id: string): Promise<Envelope> {
   const envelope = await loadEnvelope(ctx, envelope_id);
-  if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
+  if (!ENVELOPE_MACHINE.allows(envelope.status, 'edit_draft')) {
+    throw new ConflictException('envelope_not_draft');
+  }
   return envelope;
 }
 

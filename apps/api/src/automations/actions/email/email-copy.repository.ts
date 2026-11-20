@@ -13,8 +13,7 @@ export interface EmailCopyContext {
 export type ReserveSendsResult = 'reserved' | 'capped';
 
 export type ConsumeStopResult =
-  | { readonly kind: 'stopped'; readonly email: string }
-  | { readonly kind: 'invalid' };
+  { readonly kind: 'stopped'; readonly email: string } | { readonly kind: 'invalid' };
 
 /**
  * Port for the email-copy action (migration 0034). Implemented over

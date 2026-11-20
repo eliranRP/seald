@@ -1,4 +1,4 @@
-import type { EnvelopeListItem } from 'shared';
+import { ENVELOPE_MACHINE, type EnvelopeListItem } from 'shared';
 import {
   cancelEnvelope,
   deleteEnvelope,
@@ -37,7 +37,7 @@ export function pendingSigners(env: EnvelopeListItem, viewerEmail: string | null
 }
 
 export function canRemind(env: EnvelopeListItem): boolean {
-  return env.status === 'awaiting_others';
+  return ENVELOPE_MACHINE.allows(env.status, 'remind');
 }
 
 /** Re-send the invite to everyone who has not signed yet. */
@@ -70,7 +70,7 @@ export async function downloadEnvelopes(
   let ok = 0;
   let failed = 0;
   for (const env of envelopes) {
-    if (env.status !== 'completed') continue;
+    if (!ENVELOPE_MACHINE.allows(env.status, 'download_sealed')) continue;
     try {
       const { url } = await getEnvelopeDownloadUrl(env.id, 'sealed');
       window.open(url, '_blank', 'noopener');
@@ -90,10 +90,9 @@ export async function removeEnvelopes(
   let failed = 0;
   for (const env of envelopes) {
     try {
-      if (env.status === 'draft') await deleteEnvelope(env.id);
-      else if (env.status === 'awaiting_others' || env.status === 'sealing') {
-        await cancelEnvelope(env.id);
-      } else continue;
+      if (ENVELOPE_MACHINE.allows(env.status, 'delete')) await deleteEnvelope(env.id);
+      else if (ENVELOPE_MACHINE.can(env.status, 'cancel')) await cancelEnvelope(env.id);
+      else continue;
       ok += 1;
     } catch {
       failed += 1;

@@ -232,6 +232,39 @@ describePg('A8 auto-disable (real Postgres)', () => {
     expect(JSON.stringify(mail[0]!.payload)).not.toMatch(/token|\?t=/i);
   });
 
+  it('turning off parks the runs still queued (AUTOMATION_RUN_MACHINE fail, recipe_disabled)', async () => {
+    const owner = await makeOwner('owner-park@example.com');
+    const recipe = await makeRecipe(owner);
+    // A run queued for later, behind the failing ones.
+    const queued = await pool!.query<{ id: string }>(
+      `insert into public.automation_runs (automation_id, owner_id, trigger, action)
+       values ($1, $2, 'envelope_sealed', 'webhook') returning id`,
+      [recipe, owner],
+    );
+    const queuedRun = queued.rows[0]!.id;
+    await pool!.query(
+      'insert into public.automation_jobs (run_id, automation_id, scheduled_for) values ($1, $2, $3)',
+      [queuedRun, recipe, new Date(Date.now() + 3_600_000).toISOString()],
+    );
+    for (let i = 0; i < AUTO_DISABLE_THRESHOLD; i += 1) await runOne(owner, recipe);
+    expect((await streakOf(recipe)).enabled).toBe(false);
+
+    const run = await pool!.query<{ status: string; retryable: boolean; last_error: string }>(
+      'select status, retryable, last_error from public.automation_runs where id = $1',
+      [queuedRun],
+    );
+    expect(run.rows[0]).toEqual({
+      status: 'failed',
+      retryable: true,
+      last_error: 'recipe_disabled',
+    });
+    expect(
+      await count('select count(*)::int as n from public.automation_jobs where run_id = $1', [
+        queuedRun,
+      ]),
+    ).toBe(0);
+  });
+
   it('a failure after the disable, and a second flip attempt, add no second notice', async () => {
     const owner = await makeOwner('owner-c@example.com');
     const recipe = await makeRecipe(owner);

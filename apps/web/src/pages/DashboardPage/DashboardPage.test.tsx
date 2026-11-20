@@ -257,7 +257,7 @@ describe('DashboardPage', () => {
       screen.getByRole('button', { name: 'More actions for Advisory agreement — Farrow' }),
     );
     const menu = screen.getByRole('menu', { name: 'Actions for Advisory agreement — Farrow' });
-    for (const name of ['Open', 'Remind all', 'Copy link', 'Add tag', 'Cancel request']) {
+    for (const name of ['Open', 'Remind all', 'Copy link', 'Add tag', 'Withdraw request']) {
       expect(within(menu).getByRole('menuitem', { name })).toBeInTheDocument();
     }
   });
@@ -281,7 +281,9 @@ describe('DashboardPage', () => {
     await screen.findByRole('checkbox', { name: 'Select Offer letter — M. Chen' });
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select Offer letter — M. Chen' }));
     const bar = screen.getByRole('toolbar', { name: 'Bulk actions' });
-    expect(within(bar).queryByRole('button', { name: /Delete|Cancel request|Remove/ })).toBeNull();
+    expect(
+      within(bar).queryByRole('button', { name: /Delete|Withdraw request|Remove/ }),
+    ).toBeNull();
     expect(within(bar).queryByRole('button', { name: 'Remind' })).toBeNull();
     expect(within(bar).getByRole('button', { name: 'Archive' })).toBeInTheDocument();
   });

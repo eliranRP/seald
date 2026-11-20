@@ -188,6 +188,24 @@ export class InMemoryBulkRepository extends BulkRepository {
     }
   }
 
+  async cancelStaleRows(staleBefore: Date, _now: Date): Promise<ReadonlyArray<string>> {
+    const touched = new Set<string>();
+    for (const r of this.rows.values()) {
+      const batch = this.batches.get(r.batch_id);
+      if (
+        batch?.status === 'canceled' &&
+        r.status === 'processing' &&
+        r.locked_at !== null &&
+        r.locked_at < staleBefore.toISOString()
+      ) {
+        r.status = 'canceled';
+        r.error_code = 'interrupted';
+        touched.add(r.batch_id);
+      }
+    }
+    return [...touched];
+  }
+
   async finishIfDone(batch_id: string, now: Date): Promise<boolean> {
     const b = this.batches.get(batch_id);
     if (!b || b.completed_at !== null) return false;

@@ -297,6 +297,9 @@ export class AutomationsService {
       return { automation: await this.get(ownerId, id), needsApproval: true };
     }
     await this.repo.update(ownerId, id, { enabled });
+    // Off means nothing more is sent: runs still queued are parked (failed,
+    // retryable `recipe_disabled`) instead of firing from a disabled recipe.
+    if (!enabled) await this.repo.parkPendingJobs(id, 'recipe_disabled');
     // The owner turned it on in the app: that is their approval.
     if (enabled && !opts.requireApproval) await this.repo.supersedeApprovals(ownerId, id, now);
     return { automation: await this.get(ownerId, id), needsApproval: false };

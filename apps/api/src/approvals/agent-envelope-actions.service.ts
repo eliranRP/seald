@@ -5,6 +5,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import {
+  ENVELOPE_MACHINE,
   MCP_CONFIRMATION_TTL_SECONDS,
   SIGNER_IS_ACCOUNT_OWNER_NOTE,
   type ApprovalKind,
@@ -299,7 +300,7 @@ export class AgentEnvelopeActionsService {
   ): Promise<Record<string, unknown>> {
     await this.assertNotSuspended(cred, now);
     const envelope = await this.envelopes.getById(cred.ownerId, envelopeId);
-    if (envelope.status !== 'awaiting_others' && envelope.status !== 'sealing') {
+    if (!ENVELOPE_MACHINE.can(envelope.status, 'cancel')) {
       throw new ConflictException('envelope_terminal');
     }
     return {

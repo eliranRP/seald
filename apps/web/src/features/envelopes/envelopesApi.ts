@@ -4,18 +4,21 @@ import type {
   DeliveryMode,
   EnvelopeDocument,
   EnvelopeListItem,
+  EnvelopeStatus as SharedEnvelopeStatus,
   FieldMetaOptions,
+  SignerUiStatus as SharedSignerUiStatus,
 } from 'shared';
 import { apiClient } from '@/lib/api/apiClient';
 import { readViaOwnerRpc } from '@/lib/supabase/ownerRpc';
 
 /* ---------------- Wire-level types (mirror the Nest responses) ---------------- */
 
-export type EnvelopeStatus =
-  'draft' | 'awaiting_others' | 'sealing' | 'completed' | 'declined' | 'expired' | 'canceled';
+/** The envelope machine's states (`ENVELOPE_MACHINE` in `shared`). */
+export type EnvelopeStatus = SharedEnvelopeStatus;
 
 export type SignerRole = 'proposer' | 'signatory' | 'validator' | 'witness';
-export type SignerUiStatus = 'awaiting' | 'viewing' | 'completed' | 'declined' | 'bounced';
+/** The signer machine's states (`SIGNER_MACHINE` in `shared`). */
+export type SignerUiStatus = SharedSignerUiStatus;
 /** Every kind the API knows; name, number, radio and dropdown only while `fieldMetaV2` is on (WP-07). */
 export type FieldKind = AnyFieldKind;
 

@@ -44,7 +44,7 @@ describe('StatusBadge', () => {
     ['sealed', 'Sealed'],
     ['declined', 'Declined'],
     ['expired', 'Expired'],
-    ['canceled', 'Canceled'],
+    ['canceled', 'Withdrawn'],
     ['draft', 'Draft'],
   ])('maps envelope status %s → %s with an icon', (status, label) => {
     const { getByText, container } = renderWithTheme(<StatusBadge status={status} />);

@@ -137,9 +137,11 @@ export class InMemoryAutomationsRepo extends AutomationsCrudRepository {
 
   readonly pendingJobs = new Set<string>();
   readonly parked: string[] = [];
+  readonly parkReasons: string[] = [];
 
-  async parkPendingJobs(automationId: string): Promise<number> {
+  async parkPendingJobs(automationId: string, reason = 'recipe_changed'): Promise<number> {
     this.parked.push(automationId);
+    this.parkReasons.push(reason);
     return 0;
   }
 

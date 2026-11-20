@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { sql, type Kysely } from 'kysely';
+import { AUTOMATION_RUN_MACHINE } from 'shared';
 import type { Database } from '../../db/schema';
 import { DB_TOKEN } from '../db/db.provider';
 import {
@@ -10,6 +11,7 @@ import {
   type ListRunsQuery,
   type NewAutomation,
   type PageCursor,
+  type ParkReason,
   type RunRecord,
 } from './automations-crud.repository';
 import { supersedeRecipeApprovals, unapprovedRecipeIds } from './automation-approval-state';
@@ -183,31 +185,13 @@ export class AutomationsCrudPgRepository extends AutomationsCrudRepository {
     return supersedeRecipeApprovals(this.db, ownerId, id, now);
   }
 
-  async parkPendingJobs(automationId: string): Promise<number> {
-    return this.db.transaction().execute(async (trx) => {
-      const jobs = await trx
-        .deleteFrom('automation_jobs')
-        .where('automation_id', '=', automationId)
-        .where('status', '=', 'pending')
-        .returning(['run_id'])
-        .execute();
-      if (jobs.length === 0) return 0;
-      await trx
-        .updateTable('automation_runs')
-        .set({
-          status: 'failed',
-          retryable: true,
-          last_error: 'recipe_changed',
-          finished_at: new Date().toISOString(),
-        })
-        .where(
-          'id',
-          'in',
-          jobs.map((j) => j.run_id),
-        )
-        .execute();
-      return jobs.length;
-    });
+  async parkPendingJobs(
+    automationId: string,
+    reason: ParkReason = 'recipe_changed',
+  ): Promise<number> {
+    return this.db
+      .transaction()
+      .execute((trx) => parkPendingAutomationJobs(trx, automationId, reason));
   }
 
   async listRuns(ownerId: string, query: ListRunsQuery): Promise<CursorRow<RunRecord>[]> {
@@ -322,4 +306,39 @@ export class AutomationsCrudPgRepository extends AutomationsCrudRepository {
       return 'queued' as const;
     });
   }
+}
+
+/**
+ * Delete a recipe's pending jobs and fail their runs (retryable) with
+ * `reason`, in the caller's transaction (AUTOMATION_RUN_MACHINE `fail`).
+ * Shared by an owner's edit or disable and by auto-disable.
+ */
+export async function parkPendingAutomationJobs(
+  trx: Kysely<AutomationsDatabase>,
+  automationId: string,
+  reason: ParkReason,
+): Promise<number> {
+  const jobs = await trx
+    .deleteFrom('automation_jobs')
+    .where('automation_id', '=', automationId)
+    .where('status', '=', 'pending')
+    .returning(['run_id'])
+    .execute();
+  if (jobs.length === 0) return 0;
+  await trx
+    .updateTable('automation_runs')
+    .set({
+      status: 'failed',
+      retryable: true,
+      last_error: reason,
+      finished_at: new Date().toISOString(),
+    })
+    .where(
+      'id',
+      'in',
+      jobs.map((j) => j.run_id),
+    )
+    .where('status', 'in', AUTOMATION_RUN_MACHINE.sources('fail'))
+    .execute();
+  return jobs.length;
 }

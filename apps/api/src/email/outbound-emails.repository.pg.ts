@@ -1,5 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { type Kysely, sql } from 'kysely';
+import { OUTBOUND_EMAIL_MACHINE } from 'shared';
+import { OUTBOUND_EMAIL_CLAIM_LEASE_MS } from './outbound-emails.repository';
 import type { Database } from '../../db/schema';
 import { DB_TOKEN } from '../db/db.provider';
 import {
@@ -177,18 +179,35 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
     // status to `sending`, bump attempts. The sub-select uses
     // `for update skip locked` so concurrent dispatchers don't contend.
     // An envelope list keeps a test flush from draining unrelated rows.
+    //
+    // OUTBOUND_EMAIL_MACHINE `claim` also takes a `sending` row whose lease
+    // ran out: the claim sets `scheduled_for` to the end of the lease, so a
+    // dispatcher killed between claim and markSent no longer strands the
+    // row. A stale row with no attempts left is given up first.
     const envelopeClause =
       envelopeIds && envelopeIds.length > 0
         ? sql`and envelope_id in (${sql.join(envelopeIds.map((id) => sql.lit(id)))})`
         : sql``;
+    const nowIso = now.toISOString();
+    const leaseEnd = new Date(now.getTime() + OUTBOUND_EMAIL_CLAIM_LEASE_MS).toISOString();
+    await sql`
+      update public.outbound_emails
+      set status = 'failed',
+          last_error = coalesce(last_error, 'claim_lease_expired')
+      where status = 'sending'
+        and scheduled_for <= ${nowIso}
+        and attempts >= max_attempts
+        ${envelopeClause}
+    `.execute(this.db);
     const result = await sql<Record<string, unknown>>`
       update public.outbound_emails
       set status = 'sending',
-          attempts = attempts + 1
+          attempts = attempts + 1,
+          scheduled_for = ${leaseEnd}
       where id = (
         select id from public.outbound_emails
-        where status in ('pending', 'failed')
-          and scheduled_for <= ${now.toISOString()}
+        where status in (${sql.join(OUTBOUND_EMAIL_MACHINE.sources('claim').map((st) => sql.lit(st)))})
+          and scheduled_for <= ${nowIso}
           and attempts < max_attempts
           ${envelopeClause}
         order by scheduled_for asc, created_at asc
@@ -201,7 +220,12 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
     return row ? toDomain(rowRecord(row)) : null;
   }
 
-  async markSent(id: string, provider_id: string, sent_at: Date): Promise<void> {
+  async markSent(
+    id: string,
+    provider_id: string,
+    sent_at: Date,
+    claimedAttempts?: number,
+  ): Promise<void> {
     await this.db
       .updateTable('outbound_emails')
       .set({
@@ -211,10 +235,11 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
         last_error: null,
       })
       .where('id', '=', id)
+      .$if(claimedAttempts !== undefined, (qb) => qb.where(stillClaimed(claimedAttempts)))
       .execute();
   }
 
-  async markSkipped(id: string, reason: string): Promise<void> {
+  async markSkipped(id: string, reason: string, claimedAttempts?: number): Promise<void> {
     const safeError = reason.length > 500 ? `${reason.slice(0, 497)}…` : reason;
     await sql`
       update public.outbound_emails
@@ -222,6 +247,8 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
           last_error = ${safeError},
           attempts = max_attempts
       where id = ${id}
+        and (${claimedAttempts ?? null}::int is null
+             or (status = 'sending' and attempts = ${claimedAttempts ?? null}::int))
     `.execute(this.db);
   }
 
@@ -254,16 +281,22 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
       readonly error: string;
       readonly final: boolean;
       readonly nextAttemptAt?: Date;
+      readonly claimedAttempts?: number;
     },
   ): Promise<void> {
+    const claimed = args.claimedAttempts;
     // Cap `last_error` at a reasonable length — DB column is `text` (no
     // limit) but we don't want huge stack traces crowding the audit log.
     const safeError = args.error.length > 500 ? `${args.error.slice(0, 497)}…` : args.error;
     if (args.final) {
       await this.db
         .updateTable('outbound_emails')
-        .set({ status: 'failed', last_error: safeError })
+        // `give_up` is terminal: spend the attempts too, as `markSkipped`
+        // does, or `claimNext` (failed and attempts < max) re-sends a
+        // permanent failure on its next tick.
+        .set({ status: 'failed', last_error: safeError, attempts: sql<number>`max_attempts` })
         .where('id', '=', id)
+        .$if(claimed !== undefined, (qb) => qb.where(stillClaimed(claimed)))
         .execute();
       return;
     }
@@ -275,6 +308,12 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
         ...(args.nextAttemptAt ? { scheduled_for: args.nextAttemptAt.toISOString() } : {}),
       })
       .where('id', '=', id)
+      .$if(claimed !== undefined, (qb) => qb.where(stillClaimed(claimed)))
       .execute();
   }
+}
+
+/** The row is still the claim that returned `attempts` (SM.3). */
+function stillClaimed(attempts: number | undefined) {
+  return sql<boolean>`status = 'sending' and attempts = ${attempts ?? null}::int`;
 }

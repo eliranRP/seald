@@ -8,7 +8,7 @@ import type {
   EnvelopeFieldsTable,
   EnvelopeEventsTable,
 } from '../../db/schema';
-import { isFeatureEnabled } from 'shared';
+import { ENVELOPE_MACHINE, SEAL_JOB_MACHINE, isFeatureEnabled, signerStatusOf } from 'shared';
 import { isInAmbientTransaction, runAfterCommit } from '../db/ambient-transaction';
 import { DB_TOKEN } from '../db/db.provider';
 import type { Envelope, EnvelopeSigner, EnvelopeField, EnvelopeEvent } from './envelope.entity';
@@ -127,12 +127,14 @@ function asNullableNumber(v: unknown): number | null {
   return asNumber(v);
 }
 
+/** The signer machine's single derivation (shared `signerStatusOf`). */
+/** `started_at` still holds the claim a worker was handed (see ClaimedJob.claim). */
+function sameClaim(claim: string | undefined): RawBuilder<boolean> {
+  return sql<boolean>`started_at = ${claim ?? null}::timestamptz`;
+}
+
 function deriveSignerStatus(row: SignerRow): EnvelopeSigner['status'] {
-  if (row.declined_at !== null) return 'declined';
-  if (row.signed_at !== null) return 'completed';
-  if (row.delivery_status === 'bounced') return 'bounced';
-  if (row.viewed_at !== null) return 'viewing';
-  return 'awaiting';
+  return signerStatusOf(row);
 }
 
 function toSignerDomain(row: SignerRow): EnvelopeSigner {
@@ -756,7 +758,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       const draftsDel = await trx
         .deleteFrom('envelopes')
         .where('owner_id', '=', input.owner_id)
-        .where('status', '=', 'draft')
+        .where('status', 'in', ENVELOPE_MACHINE.statesAllowing('delete'))
         .executeTakeFirst();
       const drafts_deleted = Number(draftsDel?.numDeletedRows ?? 0n);
 
@@ -883,11 +885,12 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       .where('id', '=', envelope_id)
       .executeTakeFirst();
     if (!existing) return null;
-    if (draftOnlyKeys.length > 0 && existing.status !== 'draft') return null;
+    if (draftOnlyKeys.length > 0 && !ENVELOPE_MACHINE.allows(existing.status, 'edit_draft')) {
+      return null;
+    }
     if (
       reminders_enabled !== undefined &&
-      existing.status !== 'draft' &&
-      existing.status !== 'awaiting_others'
+      !ENVELOPE_MACHINE.allows(existing.status, 'toggle_reminders')
     ) {
       return null;
     }
@@ -899,7 +902,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
         .set(set)
         .where('owner_id', '=', owner_id)
         .where('id', '=', envelope_id)
-        .where('status', '=', 'draft')
+        .where('status', 'in', ENVELOPE_MACHINE.statesAllowing('edit_draft'))
         .executeTakeFirst();
       if ((res?.numUpdatedRows ?? 0n) === 0n) return null;
       return this.findByIdForOwner(owner_id, envelope_id);
@@ -910,7 +913,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
         .set(set)
         .where('owner_id', '=', owner_id)
         .where('id', '=', envelope_id)
-        .where('status', 'in', ['draft', 'awaiting_others'])
+        .where('status', 'in', ENVELOPE_MACHINE.statesAllowing('toggle_reminders'))
         .executeTakeFirst();
       if ((res?.numUpdatedRows ?? 0n) === 0n) return null;
       return this.findByIdForOwner(owner_id, envelope_id);
@@ -930,7 +933,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       .deleteFrom('envelopes')
       .where('owner_id', '=', owner_id)
       .where('id', '=', envelope_id)
-      .where('status', '=', 'draft')
+      .where('status', 'in', ENVELOPE_MACHINE.statesAllowing('delete'))
       .executeTakeFirst();
     return (res?.numDeletedRows ?? 0n) > 0n;
   }
@@ -963,7 +966,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
         updated_at: new Date().toISOString(),
       })
       .where('id', '=', envelope_id)
-      .where('status', '=', 'draft')
+      .where('status', 'in', ENVELOPE_MACHINE.statesAllowing('edit_draft'))
       .executeTakeFirst();
     if ((res?.numUpdatedRows ?? 0n) === 0n) return null;
     return this.findByIdWithAll(envelope_id);
@@ -1058,7 +1061,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
           ...(input.delivery_mode !== undefined ? { delivery_mode: input.delivery_mode } : {}),
         })
         .where('id', '=', input.envelope_id)
-        .where('status', '=', 'draft')
+        .where('status', 'in', ENVELOPE_MACHINE.sources('send'))
         .returning(['delivery_mode'])
         .executeTakeFirst();
       if (!res) return null;
@@ -1091,7 +1094,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
         .select(['status'])
         .where('id', '=', signer.envelope_id)
         .executeTakeFirst();
-      if (!envelope || envelope.status !== 'awaiting_others') return false;
+      if (!envelope || !ENVELOPE_MACHINE.allows(envelope.status, 'remind')) return false;
 
       const res = await trx
         .updateTable('envelope_signers')
@@ -1124,7 +1127,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
           .where('id', '=', envelope_id)
           .forUpdate()
           .executeTakeFirst();
-        if (!envelope || envelope.status !== 'awaiting_others') return null;
+        if (!envelope || !ENVELOPE_MACHINE.allows(envelope.status, 'correct_signer')) return null;
         const before = await trx
           .selectFrom('envelope_signers')
           .selectAll()
@@ -1222,7 +1225,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
         .where('owner_id', '=', owner_id)
         .forUpdate()
         .executeTakeFirst();
-      if (!before || before.status !== 'awaiting_others') return null;
+      if (!before || !ENVELOPE_MACHINE.allows(before.status, 'extend_expiry')) return null;
       await trx
         .updateTable('envelopes')
         .set({ expires_at, updated_at: new Date().toISOString() })
@@ -1373,11 +1376,15 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       // lock; the real-Postgres concurrency test covers that.
       const locked = await trx
         .selectFrom('envelopes')
-        .select(['id'])
+        .select(['id', 'status'])
         .where('id', '=', existing.envelope_id)
         .forUpdate()
         .executeTakeFirst();
       if (!locked) return null;
+      // A cancel or expiry that landed after the session guard read the
+      // envelope must win: no signature on a stopped request (in-memory
+      // repo already refused this).
+      if (!ENVELOPE_MACHINE.allows(locked.status, 'sign')) return null;
 
       const now = new Date().toISOString();
       const signerRow = await trx
@@ -1415,7 +1422,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
           .updateTable('envelopes')
           .set({ status: 'sealing', updated_at: now })
           .where('id', '=', existing.envelope_id)
-          .where('status', '=', 'awaiting_others')
+          .where('status', 'in', ENVELOPE_MACHINE.sources('all_signed'))
           .returning(['status'])
           .executeTakeFirst();
         if (transition) {
@@ -1484,7 +1491,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
         .updateTable('envelopes')
         .set({ status: 'declined', updated_at: now })
         .where('id', '=', existing.envelope_id)
-        .where('status', '=', 'awaiting_others')
+        .where('status', 'in', ENVELOPE_MACHINE.sources('decline'))
         .returning(['status'])
         .executeTakeFirst();
       if (!envTransition) {
@@ -1523,7 +1530,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
         .executeTakeFirst();
       if (!env) return null;
       if (env.owner_id !== owner_id) return null;
-      if (env.status !== 'awaiting_others' && env.status !== 'sealing') return null;
+      if (!ENVELOPE_MACHINE.can(env.status, 'cancel')) return null;
 
       const now = new Date().toISOString();
       const updated = await trx
@@ -1531,7 +1538,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
         .set({ status: 'canceled', updated_at: now })
         .where('id', '=', envelope_id)
         .where('owner_id', '=', owner_id)
-        .where('status', 'in', ['awaiting_others', 'sealing'])
+        .where('status', 'in', ENVELOPE_MACHINE.sources('cancel'))
         .executeTakeFirst();
       if ((updated?.numUpdatedRows ?? 0n) === 0n) return null;
 
@@ -1586,7 +1593,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
         .forUpdate()
         .executeTakeFirst();
       if (!env || env.owner_id !== owner_id) return { ok: false, reason: 'not_found' } as const;
-      if (env.status !== 'awaiting_others' || env.sent_at === null) {
+      if (!ENVELOPE_MACHINE.can(env.status, 'unsend') || env.sent_at === null) {
         return { ok: false, reason: 'not_sent' } as const;
       }
       if (now.getTime() - new Date(env.sent_at).getTime() > windowMs) {
@@ -1608,7 +1615,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
         .set({ status: 'draft', sent_at: null, updated_at: stamp })
         .where('id', '=', envelope_id)
         .where('owner_id', '=', owner_id)
-        .where('status', '=', 'awaiting_others')
+        .where('status', 'in', ENVELOPE_MACHINE.sources('unsend'))
         .executeTakeFirst();
       if ((updated?.numUpdatedRows ?? 0n) === 0n) return { ok: false, reason: 'not_sent' } as const;
       await trx
@@ -1632,7 +1639,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       .selectFrom('envelope_signers as s')
       .innerJoin('envelopes as e', 'e.id', 's.envelope_id')
       .select(['s.id', 's.envelope_id', 's.access_token_sent_at', 's.last_reminded_at'])
-      .where('e.status', '=', 'awaiting_others')
+      .where('e.status', 'in', ENVELOPE_MACHINE.statesAllowing('remind'))
       .where('e.reminders_enabled', '=', true)
       .where('e.expires_at', '>', now)
       .where('s.signed_at', 'is', null)
@@ -1691,7 +1698,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       const expiresAt = envelope ? toIso(envelope.expires_at) : null;
       if (
         !envelope ||
-        envelope.status !== 'awaiting_others' ||
+        !ENVELOPE_MACHINE.allows(envelope.status, 'remind') ||
         envelope.reminders_enabled !== true ||
         !expiresAt ||
         Date.parse(expiresAt) <= now.getTime()
@@ -1722,7 +1729,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
     const candidates = await this.db
       .selectFrom('envelopes')
       .select(['id'])
-      .where('status', '=', 'awaiting_others')
+      .where('status', 'in', ENVELOPE_MACHINE.sources('expire'))
       .where(sql<boolean>`expires_at < ${sql.lit(now.toISOString())}::timestamptz`)
       .orderBy('expires_at', 'asc')
       .limit(limit)
@@ -1733,7 +1740,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
         .updateTable('envelopes')
         .set({ status: 'expired', updated_at: new Date().toISOString() })
         .where('id', '=', c.id)
-        .where('status', '=', 'awaiting_others')
+        .where('status', 'in', ENVELOPE_MACHINE.sources('expire'))
         .executeTakeFirst();
       if ((res?.numUpdatedRows ?? 0n) > 0n) transitioned.push(c.id);
     }
@@ -1841,6 +1848,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       attempts: number;
       max_attempts: number;
       progress: unknown;
+      claim: string;
     }>`
       with next_job as (
         select id from envelope_jobs
@@ -1858,7 +1866,8 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
           last_error = null
       from next_job
       where j.id = next_job.id
-      returning j.id, j.envelope_id, j.kind, j.attempts, j.max_attempts, j.progress
+      returning j.id, j.envelope_id, j.kind, j.attempts, j.max_attempts, j.progress,
+        j.started_at::text as claim
     `.execute(this.db);
     const row = result.rows[0];
     if (!row) return null;
@@ -1869,34 +1878,44 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       attempts: row.attempts,
       max_attempts: row.max_attempts,
       progress: row.progress ?? null,
+      claim: row.claim,
     };
   }
 
-  override async yieldJob(job_id: string, progress: unknown): Promise<void> {
+  override async yieldJob(job_id: string, progress: unknown, claim?: string): Promise<void> {
     await this.db
       .updateTable('envelope_jobs')
       .set({
-        status: 'pending',
+        status: SEAL_JOB_MACHINE.transitions.yield.to,
         attempts: sql<number>`greatest(attempts - 1, 0)`,
         scheduled_for: new Date().toISOString(),
         progress: JSON.stringify(progress),
       })
       .where('id', '=', job_id)
-      .where('status', '=', 'running')
+      .where('status', 'in', SEAL_JOB_MACHINE.sources('yield'))
+      .$if(claim !== undefined, (qb) => qb.where(sameClaim(claim)))
       .execute();
   }
 
-  async finishJob(job_id: string): Promise<void> {
+  async finishJob(job_id: string, claim?: string): Promise<void> {
     await this.db
       .updateTable('envelope_jobs')
-      .set({ status: 'done', finished_at: new Date().toISOString() })
+      .set({
+        status: SEAL_JOB_MACHINE.transitions.finish.to,
+        finished_at: new Date().toISOString(),
+      })
       .where('id', '=', job_id)
+      // A row re-armed while this run was in flight (cancel → audit_only,
+      // or the sweep reclaimed it) is no longer ours to finish.
+      .where('status', 'in', SEAL_JOB_MACHINE.sources('finish'))
+      .$if(claim !== undefined, (qb) => qb.where(sameClaim(claim)))
       .execute();
   }
 
-  async failJob(job_id: string, error: string): Promise<void> {
-    // If attempts < max_attempts, reset to pending with exponential backoff
-    // (2^attempts minutes, capped). Otherwise terminal failed.
+  async failJob(job_id: string, error: string, claim?: string): Promise<void> {
+    // If attempts < max_attempts, `retry`: back to pending with exponential
+    // backoff (2^attempts minutes, capped). Otherwise `give_up`: failed.
+    // Both only fire from `running`; a row re-armed meanwhile is left alone.
     const current = await this.db
       .selectFrom('envelope_jobs')
       .select(['attempts', 'max_attempts'])
@@ -1908,11 +1927,13 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       await this.db
         .updateTable('envelope_jobs')
         .set({
-          status: 'failed',
+          status: SEAL_JOB_MACHINE.transitions.give_up.to,
           last_error: trimmed,
           finished_at: new Date().toISOString(),
         })
         .where('id', '=', job_id)
+        .where('status', 'in', SEAL_JOB_MACHINE.sources('give_up'))
+        .$if(claim !== undefined, (qb) => qb.where(sameClaim(claim)))
         .execute();
       return;
     }
@@ -1921,11 +1942,13 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
     await this.db
       .updateTable('envelope_jobs')
       .set({
-        status: 'pending',
+        status: SEAL_JOB_MACHINE.transitions.retry.to,
         last_error: trimmed,
         scheduled_for: scheduledFor,
       })
       .where('id', '=', job_id)
+      .where('status', 'in', SEAL_JOB_MACHINE.sources('retry'))
+      .$if(claim !== undefined, (qb) => qb.where(sameClaim(claim)))
       .execute();
   }
 
@@ -1945,7 +1968,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
           updated_at: new Date().toISOString(),
         })
         .where('id', '=', envelope_id)
-        .where('status', '=', 'sealing')
+        .where('status', 'in', ENVELOPE_MACHINE.sources('sealed'))
         .returning(['id'])
         .executeTakeFirst();
       if (!updated) return null;

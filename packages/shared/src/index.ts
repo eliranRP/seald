@@ -242,3 +242,4 @@ export {
 } from './contacts';
 export * from './user-settings';
 export * from './scan-sessions';
+export * from './state-machines';

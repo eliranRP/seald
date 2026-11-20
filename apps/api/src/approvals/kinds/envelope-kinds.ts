@@ -1,5 +1,5 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { isFeatureEnabled, uuid, type Envelope } from 'shared';
+import { ENVELOPE_MACHINE, isFeatureEnabled, uuid, type Envelope } from 'shared';
 import { z } from 'zod';
 import type { EnvelopeDocumentsService } from '../../envelopes/documents/envelope-documents.service';
 import type { EnvelopesService } from '../../envelopes/envelopes.service';
@@ -138,7 +138,9 @@ export function envelopeSendKind(svc: EnvelopeKindServices): ApprovalKindHandler
         ctx.ownerId,
         args.envelope_id,
       );
-      if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
+      if (!ENVELOPE_MACHINE.can(envelope.status, 'send')) {
+        throw new ConflictException('envelope_not_draft');
+      }
       refuseOwnerAsSigner(envelope.signers, ctx);
       return {
         subjectKey: `envelope:${envelope.id}`,
@@ -187,7 +189,9 @@ export function envelopeRemindKind(svc: EnvelopeKindServices): ApprovalKindHandl
         ctx.ownerId,
         args.envelope_id,
       );
-      if (envelope.status !== 'awaiting_others') throw new ConflictException('envelope_terminal');
+      if (!ENVELOPE_MACHINE.allows(envelope.status, 'remind')) {
+        throw new ConflictException('envelope_terminal');
+      }
       const signer = envelope.signers.find((s) => s.id === args.signer_id);
       if (!signer) throw new NotFoundException('signer_not_found');
       if (signer.signed_at !== null) throw new ConflictException('already_signed');
@@ -237,7 +241,7 @@ export function envelopeCancelKind(svc: EnvelopeKindServices): ApprovalKindHandl
         ctx.ownerId,
         args.envelope_id,
       );
-      if (envelope.status !== 'awaiting_others' && envelope.status !== 'sealing') {
+      if (!ENVELOPE_MACHINE.can(envelope.status, 'cancel')) {
         throw new ConflictException('envelope_terminal');
       }
       return {

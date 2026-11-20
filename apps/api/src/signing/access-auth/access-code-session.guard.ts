@@ -6,6 +6,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ENVELOPE_MACHINE } from 'shared';
 import { parseCookies } from '../../common/cookies';
 import { requireFlag } from '../../common/feature-flag.guard';
 import { EnvelopesRepository } from '../../envelopes/envelopes.repository';
@@ -56,7 +57,9 @@ export class AccessCodeSessionGuard implements CanActivate {
     const envelope = await this.repo.findByIdWithAll(claims.envelope_id);
     const signer = envelope?.signers.find((s) => s.id === claims.signer_id);
     if (!envelope || !signer) throw new UnauthorizedException('invalid_signer_session');
-    if (envelope.status !== 'awaiting_others') throw new GoneException('envelope_terminal');
+    if (!ENVELOPE_MACHINE.allows(envelope.status, 'sign')) {
+      throw new GoneException('envelope_terminal');
+    }
     if (signer.signed_at !== null || signer.declined_at !== null) {
       throw new GoneException('envelope_terminal');
     }

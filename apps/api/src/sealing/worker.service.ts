@@ -67,12 +67,12 @@ export class WorkerService implements OnModuleInit, OnModuleDestroy {
           } else {
             await this.sealing.processAuditOnlyJob(job.envelope_id);
           }
-          await this.repo.finishJob(job.id);
+          await this.repo.finishJob(job.id, job.claim);
           this.logger.log(`finished job ${job.id}`);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           this.logger.error(`job ${job.id} failed: ${msg}`);
-          await this.repo.failJob(job.id, msg);
+          await this.repo.failJob(job.id, msg, job.claim);
           // Audit the failure so the sender sees it in their event stream.
           await this.repo
             .appendEvent({

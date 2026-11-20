@@ -39,7 +39,7 @@ export const ENVELOPE_BADGE_MAP: Readonly<Record<EnvelopeBadgeStatus, BadgeEntry
   sealed: { tone: 'emerald', label: 'Sealed', icon: ShieldCheck },
   declined: { tone: 'red', label: 'Declined', icon: XCircle },
   expired: { tone: 'red', label: 'Expired', icon: TimerOff },
-  canceled: { tone: 'neutral', label: 'Canceled', icon: Ban },
+  canceled: { tone: 'neutral', label: 'Withdrawn', icon: Ban },
   draft: { tone: 'neutral', label: 'Draft', icon: FilePen },
 });
 

@@ -1,5 +1,5 @@
 import { ConflictException, HttpException, Injectable, Logger } from '@nestjs/common';
-import { isFeatureEnabled } from 'shared';
+import { ENVELOPE_MACHINE, isFeatureEnabled } from 'shared';
 import { EnvelopeDocumentsService } from '../envelopes/documents/envelope-documents.service';
 import {
   EnvelopesRepository,
@@ -95,7 +95,7 @@ export class BulkRowProcessor {
       ? await this.envelopesRepo.findByIdForOwner(owner, row.envelope_id)
       : null;
     // An earlier attempt already sent this envelope: done, and nothing more is sent.
-    if (envelope && envelope.status !== 'draft') return;
+    if (envelope && !ENVELOPE_MACHINE.can(envelope.status, 'send')) return;
 
     const pdf = await this.storage.download(pdfPath);
     if (!envelope) {

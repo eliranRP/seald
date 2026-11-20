@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { sql, type Kysely, type Selectable } from 'kysely';
-import type { BulkRecipient, BulkRowError } from 'shared';
+import { ENVELOPE_MACHINE, type BulkRecipient, type BulkRowError } from 'shared';
 import type { BulkBatchesTable, BulkBatchRowsTable, Database } from '../../db/schema';
 import { DB_TOKEN } from '../db/db.provider';
 import {
@@ -271,6 +271,33 @@ export class BulkPgRepository extends BulkRepository {
       .where('id', '=', row_id)
       .where('status', '=', 'processing')
       .execute();
+  }
+
+  async cancelStaleRows(staleBefore: Date, now: Date): Promise<ReadonlyArray<string>> {
+    const ts = now.toISOString();
+    // A row whose envelope already left draft was sent before the worker
+    // died: record it as sent (BULK_ROW_MACHINE `sent`), so the summary does
+    // not call a live request canceled. Otherwise `cancel`.
+    const notSent = sql.join(ENVELOPE_MACHINE.sources('send').map((st) => sql.lit(st)));
+    const res = await sql<{ batch_id: string }>`
+      update public.bulk_batch_rows r
+         set status = case when e.status is not null and e.status not in (${notSent})
+                           then 'sent' else 'canceled' end,
+             sent_at = case when e.status is not null and e.status not in (${notSent})
+                            then coalesce(r.sent_at, ${ts}::timestamptz) else r.sent_at end,
+             error_code = case when e.status is not null and e.status not in (${notSent})
+                               then null else 'interrupted' end,
+             updated_at = ${ts}
+        from public.bulk_batches b, public.bulk_batch_rows r2
+        left join public.envelopes e on e.id = r2.envelope_id
+       where r2.id = r.id
+         and b.id = r.batch_id
+         and b.status = 'canceled'
+         and r.status = 'processing'
+         and r.locked_at < ${staleBefore.toISOString()}
+      returning r.batch_id
+    `.execute(this.db);
+    return [...new Set(res.rows.map((r) => r.batch_id))];
   }
 
   async finishIfDone(batch_id: string, now: Date): Promise<boolean> {

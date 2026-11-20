@@ -80,6 +80,14 @@ export class BulkWorkerService implements OnModuleInit, OnModuleDestroy {
     let sent = 0;
     let failed = 0;
     let retried = 0;
+    // Rows a dead worker left in a canceled batch: nothing claims them, so
+    // close them here and let the batch finish and send its summary.
+    const start = now();
+    const stuck = await this.repo.cancelStaleRows(
+      new Date(start.getTime() - BULK_STALE_LOCK_MS),
+      start,
+    );
+    for (const batchId of stuck) await this.summary.finishAndNotify(batchId, start);
     while (claimed < limit) {
       const at = now();
       const row = await this.repo.claimNextRow(at, new Date(at.getTime() - BULK_STALE_LOCK_MS), {

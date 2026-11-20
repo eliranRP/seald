@@ -11,6 +11,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import {
+  ENVELOPE_MACHINE,
   ACCESS_CODE_POLICY,
   effectiveSignerAuth,
   isFeatureEnabled,
@@ -90,7 +91,9 @@ export class AccessAuthService {
   ): Promise<AccessAuthSettings> {
     const envelope = await this.envelopes.findByIdForOwner(owner_id, envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
-    if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
+    if (!ENVELOPE_MACHINE.allows(envelope.status, 'edit_draft')) {
+      throw new ConflictException('envelope_not_draft');
+    }
     const known = new Set(envelope.signers.map((s) => s.id));
     const seen = new Set<string>();
     for (const s of patch.signers ?? []) {

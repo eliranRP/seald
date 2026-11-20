@@ -4,6 +4,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ENVELOPE_MACHINE } from 'shared';
 import { parseCookies } from '../common/cookies';
 import type { Request } from 'express';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
@@ -80,7 +81,7 @@ export class SignerSessionGuard implements CanActivate {
     if (!signer) {
       throw new UnauthorizedException('invalid_signer_session');
     }
-    if (envelope.status !== 'awaiting_others') {
+    if (!ENVELOPE_MACHINE.allows(envelope.status, 'sign')) {
       throw terminalGone(envelope, signer);
     }
     if (signer.signed_at !== null || signer.declined_at !== null) {

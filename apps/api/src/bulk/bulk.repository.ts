@@ -153,6 +153,14 @@ export abstract class BulkRepository {
   abstract releaseRow(row_id: string, error_code: string): Promise<void>;
 
   /**
+   * BULK_ROW_MACHINE `cancel` for a row a dead worker left `processing`
+   * (lock older than `staleBefore`) in a canceled batch. Nothing claims
+   * rows of a canceled batch, so without this the batch never finishes and
+   * its summary never goes out. Returns the batches it touched.
+   */
+  abstract cancelStaleRows(staleBefore: Date, now: Date): Promise<ReadonlyArray<string>>;
+
+  /**
    * Stamp `completed_at` (and `completed` status for a processing batch) once
    * no row is pending or processing. Returns true when this call finished it.
    */

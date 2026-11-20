@@ -5,6 +5,7 @@ import {
   type InsertOutboundEmailInput,
   OutboundEmailsRepository,
   type OutboundEmailRow,
+  OUTBOUND_EMAIL_CLAIM_LEASE_MS,
 } from '../src/email/outbound-emails.repository';
 
 /** Hermetic in-memory email outbox for e2e tests. Mirrors the PG adapter's
@@ -117,10 +118,27 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
   async claimNext(now: Date, envelopeIds?: readonly string[]): Promise<OutboundEmailRow | null> {
     const nowIso = now.toISOString();
     const allowed = envelopeIds && envelopeIds.length > 0 ? new Set(envelopeIds) : null;
+    const inScope = (r: OutboundEmailRow): boolean =>
+      allowed === null || (r.envelope_id !== null && allowed.has(r.envelope_id));
+    // Same as pg: a stale `sending` row with no attempts left gives up.
+    this.rows.forEach((r, i) => {
+      if (
+        r.status === 'sending' &&
+        r.scheduled_for <= nowIso &&
+        r.attempts >= r.max_attempts &&
+        inScope(r)
+      ) {
+        this.rows[i] = {
+          ...r,
+          status: 'failed',
+          last_error: r.last_error ?? 'claim_lease_expired',
+        };
+      }
+    });
     const due = this.rows
       .filter(
         (r) =>
-          (r.status === 'pending' || r.status === 'failed') &&
+          (r.status === 'pending' || r.status === 'failed' || r.status === 'sending') &&
           r.scheduled_for <= nowIso &&
           r.attempts < r.max_attempts &&
           (allowed === null || (r.envelope_id !== null && allowed.has(r.envelope_id))),
@@ -133,15 +151,22 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
       ...picked,
       status: 'sending',
       attempts: picked.attempts + 1,
+      scheduled_for: new Date(now.getTime() + OUTBOUND_EMAIL_CLAIM_LEASE_MS).toISOString(),
     };
     this.rows[idx] = updated;
     return updated;
   }
 
-  async markSent(id: string, provider_id: string, sent_at: Date): Promise<void> {
+  async markSent(
+    id: string,
+    provider_id: string,
+    sent_at: Date,
+    claimedAttempts?: number,
+  ): Promise<void> {
     const idx = this.rows.findIndex((r) => r.id === id);
     if (idx === -1) return;
     const row = this.rows[idx]!;
+    if (!stillClaimed(row, claimedAttempts)) return;
     this.rows[idx] = {
       ...row,
       status: 'sent',
@@ -170,10 +195,11 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
     return { canceled, alreadyHandled };
   }
 
-  async markSkipped(id: string, reason: string): Promise<void> {
+  async markSkipped(id: string, reason: string, claimedAttempts?: number): Promise<void> {
     const idx = this.rows.findIndex((r) => r.id === id);
     if (idx === -1) return;
     const row = this.rows[idx]!;
+    if (!stillClaimed(row, claimedAttempts)) return;
     this.rows[idx] = {
       ...row,
       status: 'failed',
@@ -188,13 +214,20 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
       readonly error: string;
       readonly final: boolean;
       readonly nextAttemptAt?: Date;
+      readonly claimedAttempts?: number;
     },
   ): Promise<void> {
     const idx = this.rows.findIndex((r) => r.id === id);
     if (idx === -1) return;
     const row = this.rows[idx]!;
+    if (!stillClaimed(row, args.claimedAttempts)) return;
     if (args.final) {
-      this.rows[idx] = { ...row, status: 'failed', last_error: args.error };
+      this.rows[idx] = {
+        ...row,
+        status: 'failed',
+        last_error: args.error,
+        attempts: row.max_attempts,
+      };
       return;
     }
     this.rows[idx] = {
@@ -204,4 +237,11 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
       ...(args.nextAttemptAt ? { scheduled_for: args.nextAttemptAt.toISOString() } : {}),
     };
   }
+}
+
+/** Mirrors the pg guard: a stale dispatcher cannot write over a newer claim. */
+function stillClaimed(row: OutboundEmailRow, claimedAttempts: number | undefined): boolean {
+  return (
+    claimedAttempts === undefined || (row.status === 'sending' && row.attempts === claimedAttempts)
+  );
 }

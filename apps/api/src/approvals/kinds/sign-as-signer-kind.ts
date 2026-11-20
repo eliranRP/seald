@@ -6,6 +6,7 @@ import {
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import {
+  ENVELOPE_MACHINE,
   API_KEY_FRESH_LOGIN_MAX_AGE_SECONDS,
   APPROVAL_SIGNATURE_MAX_BYTES,
   ESIGN_DISCLOSURE_VERSION,
@@ -121,7 +122,9 @@ export function planSignature(envelope: Envelope, signer: Signer, now: Date): Si
 }
 
 function signableSigner(envelope: Envelope, signerId: string, ownerEmail: string): Signer {
-  if (envelope.status !== 'awaiting_others') throw new GoneException('envelope_terminal');
+  if (!ENVELOPE_MACHINE.allows(envelope.status, 'sign')) {
+    throw new GoneException('envelope_terminal');
+  }
   const signer = envelope.signers.find((s) => s.id === signerId);
   if (!signer) throw new NotFoundException('signer_not_found');
   // Never another signer: the row must carry the account's own mailbox.

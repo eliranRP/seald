@@ -39,6 +39,9 @@ describe('automations_set_enabled', () => {
       automation: { enabled: false, status_word: 'Off' },
     });
     expect(w.approvalRequests).toHaveLength(1);
+    // Nothing queued fires from a recipe the owner switched off.
+    expect(w.repo.parked).toEqual([id]);
+    expect(w.repo.parkReasons).toEqual(['recipe_disabled']);
   });
 
   it('turning an external recipe back on needs the owner again; nothing changes until then', async () => {

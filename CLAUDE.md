@@ -130,6 +130,34 @@ SHA-256(canonical-JSON of prior row)`; `GET /verify/:envelopeId`
   and about 1.5 s CPU per step. The seal sweep also reclaims `audit_only`
   jobs left `running` by a killed worker.
 
+### State machines
+
+Every persisted lifecycle is declared once in
+`packages/shared/src/state-machines/` (`ENVELOPE_MACHINE`,
+`SIGNER_MACHINE`, `SEAL_JOB_MACHINE`, `OUTBOUND_EMAIL_MACHINE`, bulk,
+scan, automation run, approval). [`docs/state-machines.md`](docs/state-machines.md)
+is generated from them (diagram + transition table per machine).
+
+- **SM.1** Never compare a status string to gate behavior. Writes guard
+  on `.where('status', 'in', MACHINE.sources('<event>'))` (transitions) or
+  `MACHINE.statesAllowing('<action>')` (status-gated actions); code checks
+  `MACHINE.can(status, event)` / `MACHINE.allows(status, action)`. Display
+  mappings (labels, tones) may still `switch` on the status.
+- **SM.2** The SPA and agents ask `ownerEnvelopeActions(status)`; MCP
+  `envelopes_status` returns it as `allowed_actions` (0.16.0). Its enum
+  (`MCP_ENVELOPE_ALLOWED_ACTIONS`) is type-checked against the machine.
+- **SM.3** A claim/finish queue's finishing writes must re-check the
+  claim itself, not only the state: `status IN sources('finish')` plus the
+  claim's identity (`envelope_jobs.started_at` via `ClaimedJob.claim`,
+  `outbound_emails.attempts` via `claimedAttempts`). Otherwise a stale
+  worker clobbers a row that was re-armed or re-claimed. Email claims hold
+  a 10-minute lease (`OUTBOUND_EMAIL_CLAIM_LEASE_MS`, migration 0053).
+- **SM.4** Changing a machine: edit it, then
+  `UPDATE_STATE_MACHINE_DOCS=1 pnpm --filter api test -- state-machines`.
+  `defineMachine` throws on unknown or unreachable states and on edges out
+  of a terminal state; `contract-sync.ts` fails typecheck when a machine
+  and its wire enum disagree.
+
 ### Google Drive integration env vars
 
 The `apps/api/src/integrations/gdrive/` module reads these at startup:
@@ -300,6 +328,7 @@ Parity-plan migrations (each has a paired down in `down/`; `0038` is unused):
 - `0050` owner read RPCs: `seald_list_envelopes(p_limit)`, `seald_list_contacts()`, `seald_list_templates()`, `security definer` on `auth.uid()`, the same JSON as the API routes; execute for `authenticated` only (step 4 of docs/supabase-native-architecture.md). Read by the SPA while `ownerReadRpcs` is on.
 - `0051` envelope archive: `envelopes.archived_at`; `POST /envelopes/:id/archive` and `/unarchive` (any status), MCP `envelopes_archive` / `envelopes_unarchive`, `envelopes_search` `archived` filter (MCP 0.14.0), and the same on `/api/v1`. Archived documents leave the Documents tabs and list under Archived. `seald_list_envelopes` (0050) is replaced to return `archived_at`.
 - `0052` unattended send default: `api_keys` and `oauth_grants` default to `require_owner_approval = false` and `allow_new_recipients = true`, and live rows move to those values, so agent and `/api/v1` sends no longer wait for the owner's Approve. OAuth grants honor their own setting. Remind, cancel and the other approval kinds still ask.
+- `0053` outbound email claim lease: one partial index over pending, failed and sending rows (`outbound_emails_claimable_idx`); rows stuck in `sending` from before the lease are leased (due within the last hour) or given up (`stranded_before_claim_lease`). See SM.3.
 - `0048` envelope job progress: `envelope_jobs.progress`, the step state of a multi-step seal on the `seal-worker` Edge Function (S.9).
 - `0044` scan sessions: `scan_sessions`, the 10 minute phone-to-computer hand-off for "Scan with phone" (redesign v2 WS-J; only the code's hash is stored). The phone page `/scan/:code` needs `camera=(self)` in the Permissions-Policy of `apps/landing/_worker.js` and `public/_headers`.
 

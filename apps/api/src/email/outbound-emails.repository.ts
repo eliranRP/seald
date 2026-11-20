@@ -1,5 +1,13 @@
 import type { EmailKindDb, EmailStatusDb } from '../../db/schema';
 
+/**
+ * How long a claim holds a row in `sending`. A dispatcher that dies
+ * between claim and markSent leaves the row to be claimed again after
+ * this (OUTBOUND_EMAIL_MACHINE `claim` from `sending`). Far longer than a
+ * send takes, so a live dispatcher is never raced.
+ */
+export const OUTBOUND_EMAIL_CLAIM_LEASE_MS = 10 * 60 * 1000;
+
 export interface OutboundEmailRow {
   readonly id: string;
   readonly envelope_id: string | null;
@@ -95,9 +103,13 @@ export abstract class OutboundEmailsRepository {
   ): Promise<void>;
 
   /**
-   * Atomically claim one due email (status in pending|failed, scheduled_for
-   * <= now, attempts < max_attempts). Flips status to `sending` and bumps
-   * `attempts` so concurrent workers never pick the same row.
+   * Atomically claim one due email (status in pending|failed, or a
+   * `sending` row whose claim lease ran out; scheduled_for <= now,
+   * attempts < max_attempts). Flips status to `sending`, bumps `attempts`
+   * and sets `scheduled_for` to the end of the lease
+   * ({@link OUTBOUND_EMAIL_CLAIM_LEASE_MS}) so concurrent workers never
+   * pick the same row. A stale `sending` row with no attempts left becomes
+   * `failed`.
    *
    * Uses `for update skip locked` so multiple dispatchers can run in
    * parallel without fighting over rows. Returns null when the queue is
@@ -106,8 +118,19 @@ export abstract class OutboundEmailsRepository {
    */
   abstract claimNext(now: Date, envelopeIds?: readonly string[]): Promise<OutboundEmailRow | null>;
 
-  /** Mark a claimed row as delivered. */
-  abstract markSent(id: string, provider_id: string, sent_at: Date): Promise<void>;
+  /**
+   * Mark a claimed row as delivered. With `claimedAttempts` (the `attempts`
+   * the claim returned) the write only lands while the row is still that
+   * claim (`sending` with the same attempt count): a dispatcher whose lease
+   * ran out and whose row was re-claimed cannot overwrite the new claim
+   * (SM.3). Same for {@link markFailed} and {@link markSkipped}.
+   */
+  abstract markSent(
+    id: string,
+    provider_id: string,
+    sent_at: Date,
+    claimedAttempts?: number,
+  ): Promise<void>;
 
   /**
    * Mark a claimed row as failed. When `final=true` the row stays `failed`
@@ -121,6 +144,8 @@ export abstract class OutboundEmailsRepository {
       readonly error: string;
       readonly final: boolean;
       readonly nextAttemptAt?: Date;
+      /** The claim's `attempts`: see {@link markSent}. */
+      readonly claimedAttempts?: number;
     },
   ): Promise<void>;
 
@@ -129,7 +154,7 @@ export abstract class OutboundEmailsRepository {
    * value, so this records `failed` with `attempts = max_attempts` and
    * `last_error` set to `reason`. The drain loop will not claim it again.
    */
-  abstract markSkipped(id: string, reason: string): Promise<void>;
+  abstract markSkipped(id: string, reason: string, claimedAttempts?: number): Promise<void>;
 
   /**
    * Undo after Send: flip every still-`pending` invite of the envelope to

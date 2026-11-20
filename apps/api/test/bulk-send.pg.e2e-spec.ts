@@ -377,6 +377,63 @@ describePg('bulk send (e2e, real Postgres)', () => {
       expect(await counts(batch.id)).toEqual({ envelopes: 1, sent: 1, invites: 2, summaries: 1 });
     });
 
+    it('a worker killed mid-row in a batch the owner then canceled still finishes it (BULK_ROW_MACHINE cancel)', async () => {
+      const batch = await preview([HEAD, row(1, 'h'), row(2, 'h')].join('\n'));
+      await confirm(batch.id);
+      const repo = app.get(BulkRepository);
+      jest.spyOn(repo, 'markRowSent').mockRejectedValueOnce(new Error('process killed'));
+      const t0 = new Date();
+      await expect(worker().flushOnce(1, () => t0)).rejects.toThrow('process killed');
+      await request(app.getHttpServer())
+        .post(`/bulk-batches/${batch.id}/cancel`)
+        .set(auth())
+        .expect(200);
+      // Nothing claims rows of a canceled batch: before the lock is stale
+      // the batch stays open.
+      await worker().flushOnce(10, () => t0);
+      const open = await q(`select completed_at from bulk_batches where id = $1`, [batch.id]);
+      expect(open.rows[0]?.completed_at).toBeNull();
+
+      const later = new Date(t0.getTime() + 11 * 60_000);
+      await worker().flushOnce(10, () => later);
+      const rows = await q(
+        `select status, error_code from bulk_batch_rows where batch_id = $1 order by row_index`,
+        [batch.id],
+      );
+      // Row 1's envelope went out before the crash: it counts as sent, not
+      // canceled. Row 2 never started.
+      expect(rows.rows).toEqual([
+        { status: 'sent', error_code: null },
+        { status: 'canceled', error_code: null },
+      ]);
+      const done = await q(`select status, completed_at from bulk_batches where id = $1`, [
+        batch.id,
+      ]);
+      expect(done.rows[0]?.status).toBe('canceled');
+      expect(done.rows[0]?.completed_at).not.toBeNull();
+      expect((await counts(batch.id)).summaries).toBe(1);
+    });
+
+    it('a row killed while its envelope was still a draft is canceled as interrupted', async () => {
+      const batch = await preview([HEAD, row(1, 'i')].join('\n'));
+      await confirm(batch.id);
+      const repo = app.get(BulkRepository);
+      jest.spyOn(app.get(EnvelopesService), 'send').mockRejectedValueOnce(new Error('boom'));
+      jest.spyOn(repo, 'releaseRow').mockRejectedValueOnce(new Error('process killed'));
+      const t0 = new Date();
+      await expect(worker().flushOnce(1, () => t0)).rejects.toThrow('process killed');
+      await request(app.getHttpServer())
+        .post(`/bulk-batches/${batch.id}/cancel`)
+        .set(auth())
+        .expect(200);
+      await worker().flushOnce(10, () => new Date(t0.getTime() + 11 * 60_000));
+      const rows = await q(`select status, error_code from bulk_batch_rows where batch_id = $1`, [
+        batch.id,
+      ]);
+      expect(rows.rows).toEqual([{ status: 'canceled', error_code: 'interrupted' }]);
+      expect((await counts(batch.id)).summaries).toBe(1);
+    });
+
     it('the summary is queued once even if the notified stamp was lost', async () => {
       const batch = await preview([HEAD, row(1, 'g')].join('\n'));
       await confirm(batch.id);

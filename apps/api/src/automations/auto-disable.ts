@@ -10,6 +10,7 @@ import {
 } from '../email/outbound-emails.repository';
 import { withAutomationTables, type AutomationsDatabase } from './automations.schema';
 import { automationsActive } from './matcher';
+import { parkPendingAutomationJobs } from './automations-crud.repository.pg';
 
 /**
  * A8 auto-disable (docs/design/workflow-automations.md): twenty consecutive
@@ -151,6 +152,8 @@ export class PgAutoDisableStore extends AutoDisableStore {
         .returning(['id', 'owner_id', 'name', 'consecutive_failures'])
         .executeTakeFirst();
       if (!flipped) return false;
+      // A switched-off recipe sends nothing more: park what was queued.
+      await parkPendingAutomationJobs(trx, flipped.id, 'recipe_disabled');
 
       const owner = await sql<{ email: string | null }>`
         select u.email::text as email from auth.users u where u.id = ${flipped.owner_id}::uuid`.execute(
