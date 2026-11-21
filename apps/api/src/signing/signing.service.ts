@@ -32,7 +32,7 @@ import type {
   SetSignerSignatureInput,
   SignatureKind,
 } from '../envelopes/envelopes.repository';
-import { EnvelopesRepository } from '../envelopes/envelopes.repository';
+import { EnvelopesRepository, EnvelopeTerminalError } from '../envelopes/envelopes.repository';
 import { StorageService } from '../storage/storage.service';
 import { AccessAuthService } from './access-auth/access-auth.service';
 import { validateFieldFill } from './field-value-validator';
@@ -256,8 +256,8 @@ export class SigningService {
     // WP-45: `{ via: 'mcp_approval' }` when the owner signs on the approval page.
     extraMetadata: Readonly<Record<string, unknown>> = {},
   ): Promise<void> {
-    await this.repo.acceptTerms(signer.id);
-    await this.repo.recordSignerViewed(signer.id, ip, userAgent);
+    await this.repo.acceptTerms(signer.id).catch(goneIfTerminal);
+    await this.repo.recordSignerViewed(signer.id, ip, userAgent).catch(goneIfTerminal);
 
     if (signer.tc_accepted_at === null) {
       await this.repo.appendEvent({
@@ -444,10 +444,12 @@ export class SigningService {
         )
       : body;
 
-    const updated = await this.repo.fillField(field_id, signer.id, {
-      value_text: checked.value_text ?? null,
-      value_boolean: checked.value_boolean ?? null,
-    });
+    const updated = await this.repo
+      .fillField(field_id, signer.id, {
+        value_text: checked.value_text ?? null,
+        value_boolean: checked.value_boolean ?? null,
+      })
+      .catch(goneIfTerminal);
     if (!updated) throw new NotFoundException('field_not_found');
 
     await this.repo.appendEvent({
@@ -680,7 +682,9 @@ export class SigningService {
     ip: string | null,
     userAgent: string | null,
   ): Promise<{ status: 'declined'; envelope_status: Envelope['status'] }> {
-    const updated = await this.repo.declineSigner(signer.id, reason, ip, userAgent);
+    const updated = await this.repo
+      .declineSigner(signer.id, reason, ip, userAgent)
+      .catch(goneIfTerminal);
     if (!updated) {
       const fresh = await this.repo.findByIdWithAll(envelope.id);
       const freshSigner = fresh?.signers.find((s) => s.id === signer.id);
@@ -855,7 +859,7 @@ export class SigningService {
       signature_stroke_count: meta.stroke_count ?? null,
       signature_source_filename: meta.source_filename ?? null,
     };
-    return this.repo.setSignerSignature(signer.id, input);
+    return this.repo.setSignerSignature(signer.id, input).catch(goneIfTerminal);
   }
 }
 
@@ -868,6 +872,16 @@ export function assertSignersTurn(envelope: Envelope, signer: EnvelopeSigner): v
   if (!isSignersTurn(envelope.delivery_mode, envelope.signers, signer.id)) {
     throw notYourTurn(envelope);
   }
+}
+
+/**
+ * A signer step write the repository refused because the envelope left
+ * `sign` after the session guard read it (a cancel or expiry raced it):
+ * the same 410 the guard gives for a stopped envelope.
+ */
+function goneIfTerminal(err: unknown): never {
+  if (err instanceof EnvelopeTerminalError) throw new GoneException('envelope_terminal');
+  throw err;
 }
 
 function assertStillSignable(envelope: Envelope, signer: EnvelopeSigner): void {

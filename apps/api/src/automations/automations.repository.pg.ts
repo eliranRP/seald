@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { sql, type Kysely, type Transaction } from 'kysely';
+import { sql, type Kysely, type RawBuilder, type Transaction } from 'kysely';
 import { automationTriggerForEvent, type AutomationAction, type AutomationTrigger } from 'shared';
 import type { Database } from '../../db/schema';
 import { DB_TOKEN } from '../db/db.provider';
@@ -34,6 +34,12 @@ export interface ClaimedAutomationJob {
   readonly trigger: AutomationTrigger;
   readonly action: AutomationAction;
   readonly config: Record<string, unknown>;
+  /**
+   * Identity of this claim (the job's `locked_at`, as text). A re-claim of
+   * a stale lock changes it, so passing it to the finishing writes makes a
+   * stale worker's write a no-op (SM.3).
+   */
+  readonly claim?: string;
 }
 
 export interface FinishRunInput {
@@ -41,6 +47,18 @@ export interface FinishRunInput {
   readonly run_id: string;
   readonly automation_id: string;
   readonly response_status?: number | null;
+  /** `ClaimedAutomationJob.claim`. When given, the write applies only while this claim still holds the job. */
+  readonly claim?: string;
+}
+
+/** The job row is still held by the claim a worker was handed (see ClaimedAutomationJob.claim). */
+function sameClaim(claim: string | undefined): RawBuilder<boolean> {
+  return sql<boolean>`locked_at = ${claim ?? null}::timestamptz`;
+}
+
+/** True when a claim-guarded job write hit no row: a stale worker must not touch the run. */
+function lostClaim(input: FinishRunInput, affected: bigint | undefined): boolean {
+  return input.claim !== undefined && Number(affected ?? 0n) === 0;
 }
 
 function toIso(v: Date | string): string {
@@ -267,6 +285,7 @@ export class AutomationsPgRepository {
       automation_id: string;
       attempts: number;
       max_attempts: number;
+      claim: string;
     }>`
       with next_job as (
         select id from public.automation_jobs
@@ -288,7 +307,8 @@ export class AutomationsPgRepository {
           attempts = j.attempts + 1
       from next_job
       where j.id = next_job.id
-      returning j.id, j.run_id, j.automation_id, j.attempts, j.max_attempts
+      returning j.id, j.run_id, j.automation_id, j.attempts, j.max_attempts,
+        j.locked_at::text as claim
     `.execute(this.db);
     const job = claimed.rows[0];
     if (!job) return null;
@@ -328,12 +348,22 @@ export class AutomationsPgRepository {
       trigger: detail.trigger,
       action: detail.action,
       config: parseConfig(detail.config),
+      claim: job.claim,
     };
   }
 
-  /** Success: run `done`, job deleted (the run remains), failure streak reset. */
-  async completeRun(input: FinishRunInput): Promise<void> {
-    await this.db.transaction().execute(async (trx) => {
+  /**
+   * Success: run `done`, job deleted (the run remains), failure streak reset.
+   * Resolves false, writing nothing, when `input.claim` no longer holds the job.
+   */
+  async completeRun(input: FinishRunInput): Promise<boolean> {
+    return this.db.transaction().execute(async (trx) => {
+      const del = await trx
+        .deleteFrom('automation_jobs')
+        .where('id', '=', input.job_id)
+        .$if(input.claim !== undefined, (qb) => qb.where(sameClaim(input.claim)))
+        .executeTakeFirst();
+      if (lostClaim(input, del.numDeletedRows)) return false;
       await trx
         .updateTable('automation_runs')
         .set({
@@ -344,21 +374,35 @@ export class AutomationsPgRepository {
         })
         .where('id', '=', input.run_id)
         .execute();
-      await trx.deleteFrom('automation_jobs').where('id', '=', input.job_id).execute();
       await trx
         .updateTable('automations')
         .set({ consecutive_failures: 0 })
         .where('id', '=', input.automation_id)
         .where('consecutive_failures', '>', 0)
         .execute();
+      return true;
     });
   }
 
-  /** Transient failure with attempts left: run `retrying`, job back to `pending`. */
+  /**
+   * Transient failure with attempts left: run `retrying`, job back to `pending`.
+   * Resolves false, writing nothing, when `input.claim` no longer holds the job.
+   */
   async retryRun(
     input: FinishRunInput & { readonly slug: string; readonly scheduled_for: Date },
-  ): Promise<void> {
-    await this.db.transaction().execute(async (trx) => {
+  ): Promise<boolean> {
+    return this.db.transaction().execute(async (trx) => {
+      const job = await trx
+        .updateTable('automation_jobs')
+        .set({
+          status: 'pending',
+          locked_at: null,
+          scheduled_for: input.scheduled_for.toISOString(),
+        })
+        .where('id', '=', input.job_id)
+        .$if(input.claim !== undefined, (qb) => qb.where(sameClaim(input.claim)))
+        .executeTakeFirst();
+      if (lostClaim(input, job.numUpdatedRows)) return false;
       await trx
         .updateTable('automation_runs')
         .set({
@@ -368,15 +412,7 @@ export class AutomationsPgRepository {
         })
         .where('id', '=', input.run_id)
         .execute();
-      await trx
-        .updateTable('automation_jobs')
-        .set({
-          status: 'pending',
-          locked_at: null,
-          scheduled_for: input.scheduled_for.toISOString(),
-        })
-        .where('id', '=', input.job_id)
-        .execute();
+      return true;
     });
   }
 
@@ -384,12 +420,25 @@ export class AutomationsPgRepository {
    * Hold a run until `scheduled_for` without spending an attempt (the
    * email-copy daily cap). The run goes back to `queued` with the slug as
    * its reason; the claim's attempt bump is undone so waiting a few days
-   * never reaches `max_attempts`.
+   * never reaches `max_attempts`. Resolves false, writing nothing, when
+   * `input.claim` no longer holds the job.
    */
   async deferRun(
     input: FinishRunInput & { readonly slug: string; readonly scheduled_for: Date },
-  ): Promise<void> {
-    await this.db.transaction().execute(async (trx) => {
+  ): Promise<boolean> {
+    return this.db.transaction().execute(async (trx) => {
+      const job = await trx
+        .updateTable('automation_jobs')
+        .set({
+          status: 'pending',
+          locked_at: null,
+          attempts: sql<number>`greatest(attempts - 1, 0)`,
+          scheduled_for: input.scheduled_for.toISOString(),
+        })
+        .where('id', '=', input.job_id)
+        .$if(input.claim !== undefined, (qb) => qb.where(sameClaim(input.claim)))
+        .executeTakeFirst();
+      if (lostClaim(input, job.numUpdatedRows)) return false;
       await trx
         .updateTable('automation_runs')
         .set({
@@ -399,28 +448,27 @@ export class AutomationsPgRepository {
         })
         .where('id', '=', input.run_id)
         .execute();
-      await trx
-        .updateTable('automation_jobs')
-        .set({
-          status: 'pending',
-          locked_at: null,
-          attempts: sql<number>`greatest(attempts - 1, 0)`,
-          scheduled_for: input.scheduled_for.toISOString(),
-        })
-        .where('id', '=', input.job_id)
-        .execute();
+      return true;
     });
   }
 
   /**
    * Terminal failure: run `failed` with `retryable`, job deleted, failure
    * streak bumped. `retryable` true is the one-tap Retry case (temporary
-   * failure out of attempts); false is Fix (permanent failure).
+   * failure out of attempts); false is Fix (permanent failure). Resolves
+   * false, writing nothing (the streak is not bumped), when `input.claim`
+   * no longer holds the job.
    */
   async failRun(
     input: FinishRunInput & { readonly slug: string; readonly retryable: boolean },
-  ): Promise<void> {
-    await this.db.transaction().execute(async (trx) => {
+  ): Promise<boolean> {
+    return this.db.transaction().execute(async (trx) => {
+      const del = await trx
+        .deleteFrom('automation_jobs')
+        .where('id', '=', input.job_id)
+        .$if(input.claim !== undefined, (qb) => qb.where(sameClaim(input.claim)))
+        .executeTakeFirst();
+      if (lostClaim(input, del.numDeletedRows)) return false;
       await trx
         .updateTable('automation_runs')
         .set({
@@ -432,12 +480,12 @@ export class AutomationsPgRepository {
         })
         .where('id', '=', input.run_id)
         .execute();
-      await trx.deleteFrom('automation_jobs').where('id', '=', input.job_id).execute();
       await trx
         .updateTable('automations')
         .set((eb) => ({ consecutive_failures: eb('consecutive_failures', '+', 1) }))
         .where('id', '=', input.automation_id)
         .execute();
+      return true;
     });
   }
 }

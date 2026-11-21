@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { SEAL_JOB_MACHINE, isFeatureEnabled, signerStatusOf } from 'shared';
+import { ENVELOPE_MACHINE, SEAL_JOB_MACHINE, isFeatureEnabled, signerStatusOf } from 'shared';
 import { eventHash } from '../src/envelopes/event-hash';
 import type {
   AddSignerInput,
@@ -27,6 +27,7 @@ import { initialInvitees, nextStepInvitees, stepOf } from '../src/signing/signin
 import { REMINDER_INTERVAL_MS } from '../src/reminders/reminder-eligibility';
 import {
   EnvelopeSignerEmailTakenError,
+  EnvelopeTerminalError,
   EnvelopesRepository,
   ShortCodeCollisionError,
 } from '../src/envelopes/envelopes.repository';
@@ -770,8 +771,12 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       const idx = env.signers.findIndex((s) => s.id === signer_id);
       if (idx < 0) continue;
       const current = env.signers[idx]!;
-      if (env.status !== 'awaiting_others') return null;
+      // Same order as the PG adapter: an already-acted signer is null; an
+      // envelope that cannot be declined (draft or terminal) throws.
       if (current.declined_at !== null || current.signed_at !== null) return null;
+      if (!ENVELOPE_MACHINE.can(env.status, 'decline')) {
+        throw new EnvelopeTerminalError(env.status);
+      }
       const now = new Date().toISOString();
       const declinedSigner: EnvelopeSigner = {
         ...current,

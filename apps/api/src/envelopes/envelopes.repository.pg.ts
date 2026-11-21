@@ -133,6 +133,15 @@ function sameClaim(claim: string | undefined): RawBuilder<boolean> {
   return sql<boolean>`started_at = ${claim ?? null}::timestamptz`;
 }
 
+/**
+ * SQL guard for a signer step write: the row's envelope still allows the
+ * `sign` action, so a write racing a cancel or an expiry is refused.
+ */
+function onSignableEnvelope(): RawBuilder<boolean> {
+  const signable = sql.join(ENVELOPE_MACHINE.statesAllowing('sign').map((st) => sql.lit(st)));
+  return sql<boolean>`envelope_id in (select e.id from public.envelopes e where e.status in (${signable}))`;
+}
+
 function deriveSignerStatus(row: SignerRow): EnvelopeSigner['status'] {
   return signerStatusOf(row);
 }
@@ -1077,9 +1086,11 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
     signer_id: string,
     new_access_token_hash: string,
   ): Promise<boolean> {
-    // Guarded: only rotate when the parent envelope is 'awaiting_others' and
-    // the signer has neither signed nor declined. Two-step look-before-update
+    // Guarded: only rotate when the parent envelope allows `remind` and the
+    // signer has neither signed nor declined. Two-step look-before-update
     // so we can condition on the parent's status without pg-mem's JOIN quirks.
+    // The envelope row is locked like correctSigner does, so a concurrent
+    // correct, cancel or expiry cannot change it between the check and the write.
     return this.db.transaction().execute(async (trx) => {
       const signer = await trx
         .selectFrom('envelope_signers')
@@ -1093,6 +1104,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
         .selectFrom('envelopes')
         .select(['status'])
         .where('id', '=', signer.envelope_id)
+        .forUpdate()
         .executeTakeFirst();
       if (!envelope || !ENVELOPE_MACHINE.allows(envelope.status, 'remind')) return false;
 
@@ -1262,10 +1274,12 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       })
       .where('id', '=', signer_id)
       .where('viewed_at', 'is', null)
+      .where(onSignableEnvelope())
       .returningAll()
       .executeTakeFirst();
     // If another request won the race, re-read.
     if (!row) {
+      await this.assertSignable(existing.envelope_id);
       const fresh = await this.db
         .selectFrom('envelope_signers')
         .selectAll()
@@ -1291,9 +1305,11 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       .set({ tc_accepted_at: now })
       .where('id', '=', signer_id)
       .where('tc_accepted_at', 'is', null)
+      .where(onSignableEnvelope())
       .returningAll()
       .executeTakeFirst();
     if (!row) {
+      await this.assertSignable(existing.envelope_id);
       const fresh = await this.db
         .selectFrom('envelope_signers')
         .selectAll()
@@ -1319,9 +1335,19 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       })
       .where('id', '=', field_id)
       .where('signer_id', '=', signer_id)
+      .where(onSignableEnvelope())
       .returningAll()
       .executeTakeFirst();
-    return row ? toFieldDomain(row) : null;
+    if (row) return toFieldDomain(row);
+    // The signer's own field, refused only because the envelope left `sign`.
+    const field = await this.db
+      .selectFrom('envelope_fields')
+      .select(['envelope_id'])
+      .where('id', '=', field_id)
+      .where('signer_id', '=', signer_id)
+      .executeTakeFirst();
+    if (field) await this.assertSignable(field.envelope_id);
+    return null;
   }
 
   async setSignerSignature(
@@ -1348,9 +1374,32 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       .updateTable('envelope_signers')
       .set(patch)
       .where('id', '=', signer_id)
+      .where(onSignableEnvelope())
       .returningAll()
+      .executeTakeFirst();
+    if (row) return toSignerDomain(row);
+    const signer = await this.db
+      .selectFrom('envelope_signers')
+      .select(['envelope_id'])
+      .where('id', '=', signer_id)
       .executeTakeFirstOrThrow();
-    return toSignerDomain(row);
+    await this.assertSignable(signer.envelope_id);
+    throw new Error('setSignerSignature: signer row was not updated');
+  }
+
+  /**
+   * After a signer step write matched no row: throws EnvelopeTerminalError
+   * when the envelope no longer allows `sign` (canceled, expired, sealed...).
+   */
+  private async assertSignable(envelope_id: string): Promise<void> {
+    const envelope = await this.db
+      .selectFrom('envelopes')
+      .select(['status'])
+      .where('id', '=', envelope_id)
+      .executeTakeFirstOrThrow();
+    if (!ENVELOPE_MACHINE.allows(envelope.status, 'sign')) {
+      throw new EnvelopeTerminalError(envelope.status);
+    }
   }
 
   async submitSigner(
@@ -1723,9 +1772,9 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
   async expireEnvelopes(now: Date, limit: number): Promise<ReadonlyArray<string>> {
     // pg-mem does not support UPDATE ... LIMIT, so we select-then-update.
     // On real Postgres this is also safe: the SELECT lists candidates and
-    // each UPDATE is row-conditional on status='awaiting_others', so concurrent
-    // transitions (e.g. signer submits at the same time) will return 0 rows
-    // for the losers without touching the row.
+    // each UPDATE re-checks both the status and `expires_at < now`, so a
+    // concurrent transition (a signer submits) or an expiry extension
+    // (updateOpenExpiry) returns 0 rows without the row being touched.
     const candidates = await this.db
       .selectFrom('envelopes')
       .select(['id'])
@@ -1738,9 +1787,13 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
     for (const c of candidates) {
       const res = await this.db
         .updateTable('envelopes')
-        .set({ status: 'expired', updated_at: new Date().toISOString() })
+        .set({
+          status: ENVELOPE_MACHINE.transitions.expire.to,
+          updated_at: new Date().toISOString(),
+        })
         .where('id', '=', c.id)
         .where('status', 'in', ENVELOPE_MACHINE.sources('expire'))
+        .where(sql<boolean>`expires_at < ${sql.lit(now.toISOString())}::timestamptz`)
         .executeTakeFirst();
       if ((res?.numUpdatedRows ?? 0n) > 0n) transitioned.push(c.id);
     }

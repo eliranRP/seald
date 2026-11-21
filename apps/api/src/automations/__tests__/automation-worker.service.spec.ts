@@ -8,6 +8,7 @@ import {
 import type { AppEnv } from '../../config/env.schema';
 import { backoffMs } from '../../email/email-dispatcher.service';
 import type { WebhookSecretsService } from '../actions/webhook/webhook-secrets.service';
+import type { AutoDisableService } from '../auto-disable';
 import type { AutomationActionExecutors } from '../automation-actions';
 import {
   AUTOMATION_WORKER_LOOP_ENABLED,
@@ -38,10 +39,10 @@ function job(overrides: Partial<ClaimedAutomationJob> = {}): ClaimedAutomationJo
 function mockRepo() {
   return {
     claimNextJob: jest.fn<Promise<ClaimedAutomationJob | null>, [Date, Date]>(),
-    completeRun: jest.fn().mockResolvedValue(undefined),
-    retryRun: jest.fn().mockResolvedValue(undefined),
-    deferRun: jest.fn().mockResolvedValue(undefined),
-    failRun: jest.fn().mockResolvedValue(undefined),
+    completeRun: jest.fn().mockResolvedValue(true),
+    retryRun: jest.fn().mockResolvedValue(true),
+    deferRun: jest.fn().mockResolvedValue(true),
+    failRun: jest.fn().mockResolvedValue(true),
   };
 }
 
@@ -192,6 +193,32 @@ describe('AutomationWorkerService', () => {
       retryable: false,
       response_status: 404,
     });
+  });
+
+  it('passes the claim to the finishing write and skips the streak when the claim was lost (SM.3)', async () => {
+    const repo = mockRepo();
+    repo.failRun.mockResolvedValue(false);
+    const afterFailure = jest.fn().mockResolvedValue(undefined);
+    const w = new AutomationWorkerService(
+      repo as unknown as AutomationsPgRepository,
+      ENV,
+      { webhook: { execute: async () => ({ kind: 'permanent', slug: 'http_404' }) } },
+      undefined,
+      { afterFailure } as unknown as AutoDisableService,
+    );
+    expect(await w.process(job({ claim: 'claim-1' }), NOW)).toBe('failed');
+    expect(repo.failRun).toHaveBeenCalledWith({
+      ...base,
+      claim: 'claim-1',
+      slug: 'http_404',
+      retryable: false,
+      response_status: null,
+    });
+    expect(afterFailure).not.toHaveBeenCalled();
+
+    repo.failRun.mockResolvedValue(true);
+    await w.process(job({ claim: 'claim-2' }), NOW);
+    expect(afterFailure).toHaveBeenCalledTimes(1);
   });
 
   it('retryAfterMs wins over a shorter backoff', async () => {

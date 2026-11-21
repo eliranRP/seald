@@ -124,12 +124,24 @@ export class AutomationWorkerService implements OnModuleInit, OnModuleDestroy {
 
   /** Run one claimed job's action and record the outcome. */
   async process(job: ClaimedAutomationJob, now: Date): Promise<ProcessedStatus> {
-    const base = { job_id: job.job_id, run_id: job.run_id, automation_id: job.automation_id };
+    // The claim rides on every finishing write, so a worker whose stale lock
+    // was reclaimed by another one writes nothing (SM.3).
+    const base = {
+      job_id: job.job_id,
+      run_id: job.run_id,
+      automation_id: job.automation_id,
+      ...(job.claim !== undefined ? { claim: job.claim } : {}),
+    };
+    // Only the write that still held the claim counts towards the streak.
+    const failed = async (applied: boolean): Promise<'failed'> => {
+      if (applied) await this.autoDisable?.afterFailure(job.automation_id, now);
+      return 'failed';
+    };
     if (job.attempts > job.max_attempts) {
       // A stale `running` job reclaimed after its last attempt.
-      await this.repo.failRun({ ...base, slug: 'attempts_exhausted', retryable: true });
-      await this.autoDisable?.afterFailure(job.automation_id, now);
-      return 'failed';
+      return failed(
+        await this.repo.failRun({ ...base, slug: 'attempts_exhausted', retryable: true }),
+      );
     }
     const outcome = await this.runAction(job);
     if (outcome.kind === 'done') {
@@ -142,14 +154,14 @@ export class AutomationWorkerService implements OnModuleInit, OnModuleDestroy {
     }
     const response_status = outcome.responseStatus ?? null;
     if (outcome.kind === 'permanent') {
-      await this.repo.failRun({ ...base, slug: outcome.slug, retryable: false, response_status });
-      await this.autoDisable?.afterFailure(job.automation_id, now);
-      return 'failed';
+      return failed(
+        await this.repo.failRun({ ...base, slug: outcome.slug, retryable: false, response_status }),
+      );
     }
     if (job.attempts >= job.max_attempts) {
-      await this.repo.failRun({ ...base, slug: outcome.slug, retryable: true, response_status });
-      await this.autoDisable?.afterFailure(job.automation_id, now);
-      return 'failed';
+      return failed(
+        await this.repo.failRun({ ...base, slug: outcome.slug, retryable: true, response_status }),
+      );
     }
     const delay = Math.max(backoffMs(job.attempts), outcome.retryAfterMs ?? 0);
     await this.repo.retryRun({

@@ -309,10 +309,12 @@ describe('A8 auto-disable', () => {
       return {
         completeRun: jest.fn(async (input: { automation_id: string }) => {
           store.succeed(input.automation_id);
+          return true;
         }),
-        retryRun: jest.fn().mockResolvedValue(undefined),
+        retryRun: jest.fn().mockResolvedValue(true),
         failRun: jest.fn(async (input: { automation_id: string }) => {
           store.bump(input.automation_id);
+          return true;
         }),
       };
     }

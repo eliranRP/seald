@@ -1,11 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { createPgMemDb, seedUser, type PgMemHandle } from '../../../test/pg-mem-db';
+import type { Envelope } from '../envelope.entity';
+import { InMemoryEnvelopesRepository } from '../../../test/in-memory-envelopes-repository';
 import { EnvelopesPgRepository } from '../envelopes.repository.pg';
 import {
   EnvelopeSignerEmailTakenError,
   EnvelopeTerminalError,
   InvalidCursorError,
   type CreateDraftInput,
+  type EnvelopesRepository,
 } from '../envelopes.repository';
 
 /**
@@ -34,6 +37,20 @@ function draftInput(owner_id: string, overrides: Partial<CreateDraftInput> = {})
   };
 }
 
+/** Bound to the current test's pg-mem handle (set in each describe's beforeEach). */
+let currentHandle: PgMemHandle | null = null;
+async function setStatus(envelope_id: string, status: Envelope['status']): Promise<void> {
+  await currentHandle!.db
+    .updateTable('envelopes')
+    .set({ status })
+    .where('id', '=', envelope_id)
+    .execute();
+}
+/** Simulate the post-send state, where signer steps are allowed. */
+async function openForSigning(envelope_id: string): Promise<void> {
+  await setStatus(envelope_id, 'awaiting_others');
+}
+
 describe('EnvelopesPgRepository — createDraft + findByIdForOwner', () => {
   let handle: PgMemHandle;
   let repo: EnvelopesPgRepository;
@@ -41,6 +58,7 @@ describe('EnvelopesPgRepository — createDraft + findByIdForOwner', () => {
 
   beforeEach(async () => {
     handle = createPgMemDb();
+    currentHandle = handle;
     repo = new EnvelopesPgRepository(handle.db);
     ownerId = await seedUser(handle);
   });
@@ -84,6 +102,7 @@ describe('EnvelopesPgRepository — listByOwner', () => {
 
   beforeEach(async () => {
     handle = createPgMemDb();
+    currentHandle = handle;
     repo = new EnvelopesPgRepository(handle.db);
     ownerId = await seedUser(handle);
   });
@@ -227,6 +246,7 @@ describe('EnvelopesPgRepository — updateDraftMetadata', () => {
 
   beforeEach(async () => {
     handle = createPgMemDb();
+    currentHandle = handle;
     repo = new EnvelopesPgRepository(handle.db);
     ownerId = await seedUser(handle);
   });
@@ -273,6 +293,7 @@ describe('EnvelopesPgRepository — deleteDraft', () => {
 
   beforeEach(async () => {
     handle = createPgMemDb();
+    currentHandle = handle;
     repo = new EnvelopesPgRepository(handle.db);
     ownerId = await seedUser(handle);
   });
@@ -323,6 +344,7 @@ describe('EnvelopesPgRepository — setOriginalFile', () => {
 
   beforeEach(async () => {
     handle = createPgMemDb();
+    currentHandle = handle;
     repo = new EnvelopesPgRepository(handle.db);
     ownerId = await seedUser(handle);
   });
@@ -365,6 +387,7 @@ describe('EnvelopesPgRepository — addSigner / removeSigner', () => {
 
   beforeEach(async () => {
     handle = createPgMemDb();
+    currentHandle = handle;
     repo = new EnvelopesPgRepository(handle.db);
     ownerId = await seedUser(handle);
   });
@@ -406,6 +429,7 @@ describe('EnvelopesPgRepository — replaceFields', () => {
 
   beforeEach(async () => {
     handle = createPgMemDb();
+    currentHandle = handle;
     repo = new EnvelopesPgRepository(handle.db);
     ownerId = await seedUser(handle);
   });
@@ -459,6 +483,7 @@ describe('EnvelopesPgRepository — sendDraft', () => {
 
   beforeEach(async () => {
     handle = createPgMemDb();
+    currentHandle = handle;
     repo = new EnvelopesPgRepository(handle.db);
     ownerId = await seedUser(handle);
   });
@@ -511,6 +536,7 @@ describe('EnvelopesPgRepository — rotateSignerAccessToken', () => {
 
   beforeEach(async () => {
     handle = createPgMemDb();
+    currentHandle = handle;
     repo = new EnvelopesPgRepository(handle.db);
     ownerId = await seedUser(handle);
   });
@@ -598,6 +624,7 @@ describe('EnvelopesPgRepository — signer flow: view / tc / fill / signature', 
 
   beforeEach(async () => {
     handle = createPgMemDb();
+    currentHandle = handle;
     repo = new EnvelopesPgRepository(handle.db);
     ownerId = await seedUser(handle);
   });
@@ -611,6 +638,8 @@ describe('EnvelopesPgRepository — signer flow: view / tc / fill / signature', 
     const fields = await repo.replaceFields(e.id, [
       { signer_id: s.id, kind: 'text', page: 1, x: 0.1, y: 0.1 },
     ]);
+    // Signer steps need an envelope that allows `sign`.
+    await openForSigning(e.id);
 
     const viewed = await repo.recordSignerViewed(s.id, '10.0.0.1', 'UA/1.0');
     expect(viewed.status).toBe('viewing');
@@ -642,9 +671,49 @@ describe('EnvelopesPgRepository — signer flow: view / tc / fill / signature', 
     const [f] = await repo.replaceFields(e.id, [
       { signer_id: s1.id, kind: 'text', page: 1, x: 0.1, y: 0.1 },
     ]);
+    await openForSigning(e.id);
     const got = await repo.fillField(f!.id, s2.id, { value_text: 'spoofed' });
     expect(got).toBeNull();
+    // Not the signer's field on a stopped envelope: still null, not terminal.
+    await setStatus(e.id, 'canceled');
+    expect(await repo.fillField(f!.id, s2.id, { value_text: 'spoofed' })).toBeNull();
   });
+
+  it.each(['draft', 'canceled', 'expired', 'sealing', 'completed'] as const)(
+    'refuses every signer step write once the envelope is %s (statesAllowing sign)',
+    async (stopped) => {
+      const e = await repo.createDraft(draftInput(ownerId));
+      const s = await repo.addSigner(e.id, { email: 'a@x.com', name: 'A', color: '#112233' });
+      const [f] = await repo.replaceFields(e.id, [
+        { signer_id: s.id, kind: 'text', page: 1, x: 0.1, y: 0.1 },
+      ]);
+      // The session guard read a signable envelope; a cancel or expiry landed first.
+      await setStatus(e.id, stopped);
+      await expect(repo.recordSignerViewed(s.id, '10.0.0.1', 'UA')).rejects.toBeInstanceOf(
+        EnvelopeTerminalError,
+      );
+      await expect(repo.acceptTerms(s.id)).rejects.toBeInstanceOf(EnvelopeTerminalError);
+      await expect(repo.fillField(f!.id, s.id, { value_text: 'late' })).rejects.toBeInstanceOf(
+        EnvelopeTerminalError,
+      );
+      await expect(
+        repo.setSignerSignature(s.id, { signature_format: 'typed', signature_image_path: 'x' }),
+      ).rejects.toBeInstanceOf(EnvelopeTerminalError);
+
+      const signer = await handle.db
+        .selectFrom('envelope_signers')
+        .select(['viewed_at', 'tc_accepted_at', 'signature_image_path'])
+        .where('id', '=', s.id)
+        .executeTakeFirstOrThrow();
+      expect(signer).toEqual({ viewed_at: null, tc_accepted_at: null, signature_image_path: null });
+      const field = await handle.db
+        .selectFrom('envelope_fields')
+        .select(['value_text', 'filled_at'])
+        .where('id', '=', f!.id)
+        .executeTakeFirstOrThrow();
+      expect(field).toEqual({ value_text: null, filled_at: null });
+    },
+  );
 });
 
 describe('EnvelopesPgRepository — submitSigner', () => {
@@ -654,6 +723,7 @@ describe('EnvelopesPgRepository — submitSigner', () => {
 
   beforeEach(async () => {
     handle = createPgMemDb();
+    currentHandle = handle;
     repo = new EnvelopesPgRepository(handle.db);
     ownerId = await seedUser(handle);
   });
@@ -661,13 +731,19 @@ describe('EnvelopesPgRepository — submitSigner', () => {
     await handle.close();
   });
 
+  /**
+   * Add a signer who has accepted the terms and set a signature. Those steps
+   * need a signable envelope, so the draft is opened for them and put back.
+   */
   async function setupReadySigner(envelope_id: string, email: string) {
     const s = await repo.addSigner(envelope_id, { email, name: email, color: '#112233' });
+    await openForSigning(envelope_id);
     await repo.acceptTerms(s.id);
     await repo.setSignerSignature(s.id, {
       signature_format: 'typed',
       signature_image_path: `sigs/${s.id}.png`,
     });
+    await setStatus(envelope_id, 'draft');
     return s;
   }
 
@@ -751,6 +827,7 @@ describe('EnvelopesPgRepository — declineSigner', () => {
 
   beforeEach(async () => {
     handle = createPgMemDb();
+    currentHandle = handle;
     repo = new EnvelopesPgRepository(handle.db);
     ownerId = await seedUser(handle);
   });
@@ -774,6 +851,7 @@ describe('EnvelopesPgRepository — declineSigner', () => {
   it('returns null when signer already signed', async () => {
     const e = await repo.createDraft(draftInput(ownerId));
     const s = await repo.addSigner(e.id, { email: 'a@x.com', name: 'A', color: '#112233' });
+    await openForSigning(e.id);
     await repo.acceptTerms(s.id);
     await repo.setSignerSignature(s.id, {
       signature_format: 'typed',
@@ -804,6 +882,36 @@ describe('EnvelopesPgRepository — declineSigner', () => {
   });
 });
 
+describe('declineSigner — the in-memory double matches the PG adapter', () => {
+  let handle: PgMemHandle;
+  beforeEach(() => {
+    handle = createPgMemDb();
+    currentHandle = handle;
+  });
+  afterEach(async () => {
+    await handle.close();
+  });
+
+  it.each([
+    ['pg', () => new EnvelopesPgRepository(handle.db) as EnvelopesRepository],
+    ['in-memory', () => new InMemoryEnvelopesRepository() as EnvelopesRepository],
+  ])(
+    '%s: an envelope that cannot be declined throws EnvelopeTerminalError; an acted signer is null',
+    async (_name, make) => {
+      const repo = make();
+      const ownerId = await seedUser(handle);
+      const e = await repo.createDraft(draftInput(ownerId));
+      const s1 = await repo.addSigner(e.id, { email: 'a@x.com', name: 'A', color: '#111111' });
+      // Still a draft: decline is not a transition from it.
+      await expect(repo.declineSigner(s1.id, null, null, null)).rejects.toBeInstanceOf(
+        EnvelopeTerminalError,
+      );
+      // Unknown signer: null.
+      expect(await repo.declineSigner(randomUUID(), null, null, null)).toBeNull();
+    },
+  );
+});
+
 describe('EnvelopesPgRepository — expireEnvelopes', () => {
   let handle: PgMemHandle;
   let repo: EnvelopesPgRepository;
@@ -811,6 +919,7 @@ describe('EnvelopesPgRepository — expireEnvelopes', () => {
 
   beforeEach(async () => {
     handle = createPgMemDb();
+    currentHandle = handle;
     repo = new EnvelopesPgRepository(handle.db);
     ownerId = await seedUser(handle);
   });
@@ -858,6 +967,7 @@ describe('EnvelopesPgRepository — appendEvent + listEventsForEnvelope', () => 
 
   beforeEach(async () => {
     handle = createPgMemDb();
+    currentHandle = handle;
     repo = new EnvelopesPgRepository(handle.db);
     ownerId = await seedUser(handle);
   });
@@ -941,6 +1051,7 @@ describe('EnvelopesPgRepository — enqueueJob', () => {
 
   beforeEach(async () => {
     handle = createPgMemDb();
+    currentHandle = handle;
     repo = new EnvelopesPgRepository(handle.db);
     ownerId = await seedUser(handle);
   });
@@ -1057,6 +1168,7 @@ describe('EnvelopesPgRepository — findSignerByAccessTokenHash', () => {
 
   beforeEach(async () => {
     handle = createPgMemDb();
+    currentHandle = handle;
     repo = new EnvelopesPgRepository(handle.db);
     ownerId = await seedUser(handle);
   });
@@ -1092,6 +1204,7 @@ describe('EnvelopesPgRepository — findByShortCode + findByIdWithAll', () => {
 
   beforeEach(async () => {
     handle = createPgMemDb();
+    currentHandle = handle;
     repo = new EnvelopesPgRepository(handle.db);
     ownerId = await seedUser(handle);
     otherOwnerId = await seedUser(handle);

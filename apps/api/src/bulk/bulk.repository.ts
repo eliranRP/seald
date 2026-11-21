@@ -147,10 +147,15 @@ export abstract class BulkRepository {
   ): Promise<BulkRowRecord | null>;
 
   abstract setRowEnvelope(row_id: string, envelope_id: string): Promise<void>;
-  abstract markRowSent(row_id: string, now: Date): Promise<void>;
-  abstract markRowFailed(row_id: string, error_code: string): Promise<void>;
+  /*
+   * The row markers apply only to a `processing` row. `claim` is the claimed
+   * row's `locked_at`: when given, a worker whose stale lock was reclaimed by
+   * another one writes nothing (SM.3).
+   */
+  abstract markRowSent(row_id: string, now: Date, claim?: string): Promise<void>;
+  abstract markRowFailed(row_id: string, error_code: string, claim?: string): Promise<void>;
   /** Put a claimed row back to `pending` for another attempt. */
-  abstract releaseRow(row_id: string, error_code: string): Promise<void>;
+  abstract releaseRow(row_id: string, error_code: string, claim?: string): Promise<void>;
 
   /**
    * BULK_ROW_MACHINE `cancel` for a row a dead worker left `processing`
