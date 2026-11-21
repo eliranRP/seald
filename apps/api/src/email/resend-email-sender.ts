@@ -43,8 +43,11 @@ export class ResendEmailSender extends EmailSender {
           'Idempotency-Key': msg.idempotencyKey,
         },
         body: JSON.stringify({
-          from: `${msg.from.name ?? this.fromDefault.name} <${msg.from.email ?? this.fromDefault.email}>`,
-          to: `${msg.to.name} <${msg.to.email}>`,
+          from: formatMailbox(
+            msg.from.name ?? this.fromDefault.name,
+            msg.from.email ?? this.fromDefault.email,
+          ),
+          to: formatMailbox(msg.to.name, msg.to.email),
           subject: msg.subject,
           html: msg.html,
           text: msg.text,
@@ -73,4 +76,18 @@ export class ResendEmailSender extends EmailSender {
     if (!json.id) throw new EmailSendError('resend', 502, true, 'response missing id');
     return { providerId: json.id };
   }
+}
+
+/**
+ * One RFC 5322 mailbox for Resend's `from` / `to`. An empty name sends the
+ * bare address: `" <a@b.co>"` (empty name, leading space) is rejected with
+ * 422 "Invalid `to` field", which made every owner notice without a name
+ * fail permanently. A name with an RFC 5322 special (comma, `<`, quote, …)
+ * is quoted so it cannot split or break the header; CR / LF are dropped.
+ */
+export function formatMailbox(name: string | null | undefined, email: string): string {
+  const clean = (name ?? '').replace(/[\r\n]+/g, ' ').trim();
+  if (clean.length === 0) return email;
+  if (!/[()<>[\]:;@\\,."]/.test(clean)) return `${clean} <${email}>`;
+  return `"${clean.replace(/(["\\])/g, '\\$1')}" <${email}>`;
 }

@@ -1,6 +1,6 @@
 import type { AppEnv } from '../../config/env.schema';
 import { EmailSendError, type EmailMessage } from '../email-sender';
-import { ResendEmailSender } from '../resend-email-sender';
+import { ResendEmailSender, formatMailbox } from '../resend-email-sender';
 
 /**
  * Coverage for the Resend HTTP adapter — provider-edge contract:
@@ -150,5 +150,34 @@ describe('ResendEmailSender', () => {
     }) as unknown as typeof fetch;
     const sender = new ResendEmailSender(baseEnv);
     await expect(sender.send(makeMessage())).rejects.toBe(boom);
+  });
+
+  it('sends the bare address when the name is empty (Resend rejects " <a@b.co>")', async () => {
+    let body: { to?: string } = {};
+    global.fetch = (async (_url: string, init: RequestInit) => {
+      body = JSON.parse(String(init.body)) as { to?: string };
+      return new Response(JSON.stringify({ id: 'prv_1' }), { status: 200 });
+    }) as unknown as typeof fetch;
+    await new ResendEmailSender(baseEnv).send(
+      makeMessage({ to: { email: 'owner@example.com', name: '' } }),
+    );
+    expect(body.to).toBe('owner@example.com');
+  });
+});
+
+describe('formatMailbox', () => {
+  it.each([
+    ['Maya', 'Maya <m@x.co>'],
+    ['  ', 'm@x.co'],
+    ['', 'm@x.co'],
+    ['Doe, Jane', '"Doe, Jane" <m@x.co>'],
+    ['Ann "The Boss" Lee', '"Ann \\"The Boss\\" Lee" <m@x.co>'],
+    ['Evil\r\nBcc: x@y.z', '"Evil Bcc: x@y.z" <m@x.co>'],
+  ])('%j → %s', (name, expected) => {
+    expect(formatMailbox(name, 'm@x.co')).toBe(expected);
+  });
+
+  it('treats a missing name as empty', () => {
+    expect(formatMailbox(undefined, 'm@x.co')).toBe('m@x.co');
   });
 });
