@@ -114,13 +114,15 @@ describePg('submitSigner concurrency (real Postgres)', () => {
       expires_at: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString(),
     });
     ownedEnvelopeIds.push(envelope.id);
-    const ada = await readySigner(envelopes, envelope.id, 'ada@example.com');
-    const bea = await readySigner(envelopes, envelope.id, 'bea@example.com');
+    // Out for signature first: terms and signature are signer steps, which
+    // the envelope must allow (ENVELOPE_MACHINE `sign`).
     await database
       .updateTable('envelopes')
       .set({ status: 'awaiting_others' })
       .where('id', '=', envelope.id)
       .execute();
+    const ada = await readySigner(envelopes, envelope.id, 'ada@example.com');
+    const bea = await readySigner(envelopes, envelope.id, 'bea@example.com');
 
     const holder = await pg.connect();
     let committed = false;
