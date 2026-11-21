@@ -409,6 +409,39 @@ describe('revocation endpoint and connected apps', () => {
     expect((await w.access.verify(t.access_token, NOW)).ok).toBe(false);
     expect(await tokenError(refresh(w, t.refresh_token))).toBe('invalid_grant');
     expect((await w.apps.list(owner())).items).toEqual([]);
-    await expect(w.apps.revoke(owner(), id)).rejects.toThrow('connected_app_not_found');
+    // A repeat revoke is idempotent; another owner still reads none.
+    await expect(w.apps.revoke(owner(), id)).resolves.toEqual({ revoked: true });
+    await expect(w.apps.revoke(owner(30, OTHER), id)).rejects.toThrow('connected_app_not_found');
+    await expect(w.apps.revoke(owner(), '00000000-0000-4000-8000-00000000dead')).rejects.toThrow(
+      'connected_app_not_found',
+    );
+  });
+
+  it('a repeat revoke retries the approval expiry a failed first revoke missed', async () => {
+    const w = oauthWorld();
+    await exchange(w, await approveCode(w));
+    const grantId = w.repo.grants[0]?.id ?? '';
+    w.approvals.rows.push({
+      id: '00000000-0000-4000-8000-00000000bbbb',
+      ownerId: OWNER,
+      apiKeyId: null,
+      oauthGrantId: grantId,
+      expiresAt: later(DAY).toISOString(),
+      approvedAt: null,
+      deniedAt: null,
+      failedAt: null,
+      expiredAt: null,
+    } as (typeof w.approvals.rows)[number]);
+    jest.spyOn(w.approvals, 'expireOpenForOAuthGrant').mockRejectedValueOnce(new Error('db down'));
+
+    // The grant is revoked even though its approvals could not be expired.
+    await expect(w.apps.revoke(owner(), grantId)).resolves.toEqual({ revoked: true });
+    expect(w.repo.grants[0]?.revokedAt).not.toBeNull();
+    expect(w.approvals.rows[0]?.expiredAt).toBeNull();
+
+    // The owner revokes again: the expiry runs and the approval closes.
+    await expect(w.apps.revoke(owner(), grantId)).resolves.toEqual({ revoked: true });
+    expect(w.approvals.rows[0]?.expiredReason).toBe('oauth_grant_revoked');
+    expect(w.repo.grants[0]?.revokedReason).toBe('owner_revoked');
   });
 });

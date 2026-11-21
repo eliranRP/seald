@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ENVELOPE_MACHINE } from 'shared';
+import { ACCESS_CODE_POLICY, ENVELOPE_MACHINE } from 'shared';
 import { type Kysely, type Selectable, sql } from 'kysely';
 import type { Database, SignerOtpChallengesTable } from '../../../db/schema';
 import { DB_TOKEN } from '../../db/db.provider';
@@ -185,7 +185,9 @@ export class AccessAuthPgRepository extends AccessAuthRepository {
       .where('c.purpose', '=', input.purpose)
       .where('c.superseded_at', 'is', null)
       .where('c.consumed_at', 'is', null)
+      // Locked means `locked_at` OR spent attempts, as in challengeState.
       .where('c.locked_at', 'is', null)
+      .where('c.attempts', '<', ACCESS_CODE_POLICY.maxAttempts)
       .where(({ exists, selectFrom }) =>
         exists(
           selectFrom('envelope_signers as s')

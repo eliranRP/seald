@@ -112,9 +112,14 @@ export class StagedUploadsPgRepository extends StagedUploadsRepository {
            set completed_at = now(), mime = ${input.mime}, sha256 = ${input.sha256},
                byte_length = ${input.byte_length}, page_count = ${input.page_count}
          where id = ${input.id}::uuid and owner_id = ${input.owner_id}::uuid
-           and completed_at is null
+           and completed_at is null and expires_at > now()
         returning id`.execute(trx);
-      return done.rows.length > 0 ? 'completed' : 'not_pending';
+      if (done.rows.length > 0) return 'completed';
+      const lapsed = await sql<{ id: string }>`
+        select id from public.mcp_uploads
+         where id = ${input.id}::uuid and owner_id = ${input.owner_id}::uuid
+           and completed_at is null and expires_at <= now()`.execute(trx);
+      return lapsed.rows.length > 0 ? 'expired' : 'not_pending';
     });
   }
 
@@ -129,7 +134,7 @@ export class StagedUploadsPgRepository extends StagedUploadsRepository {
 
   async consume(owner_id: string, id: string): Promise<StagedUploadRecord | null> {
     const res = await sql<Row>`
-      update public.mcp_uploads set consumed_at = now()
+      update public.mcp_uploads set consumed_at = date_trunc('milliseconds', now())
        where id = ${id}::uuid and owner_id = ${owner_id}::uuid
          and completed_at is not null and consumed_at is null and expires_at > now()
       returning *`.execute(this.db);
@@ -137,9 +142,11 @@ export class StagedUploadsPgRepository extends StagedUploadsRepository {
     return row ? toRecord(row) : null;
   }
 
-  async releaseClaim(owner_id: string, id: string): Promise<void> {
+  async releaseClaim(owner_id: string, id: string, consumed_at: string): Promise<void> {
+    // `consume` stores milliseconds, so the ISO stamp it returned matches exactly.
     await sql`update public.mcp_uploads set consumed_at = null
-               where id = ${id}::uuid and owner_id = ${owner_id}::uuid`.execute(this.db);
+               where id = ${id}::uuid and owner_id = ${owner_id}::uuid
+                 and consumed_at = ${consumed_at}::timestamptz`.execute(this.db);
   }
 
   async delete(owner_id: string, id: string): Promise<void> {

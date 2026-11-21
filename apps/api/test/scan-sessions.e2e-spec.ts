@@ -194,7 +194,9 @@ describe('Scan with phone (e2e)', () => {
 
     // Taken once: the object is gone and a second take is refused.
     await http().get(`/scan-sessions/${code}/pdf`).set(auth).expect(409);
-    expect(await storage.exists(`scan-sessions/${OWNER}/${sessions.all()[0]?.id}.pdf`)).toBe(false);
+    const key = sessions.all()[0]?.storage_key;
+    expect(key).toMatch(new RegExp(`^scan-sessions/${OWNER}/`));
+    expect(await storage.exists(key!)).toBe(false);
   });
 
   it('accepts only one PDF per code', async () => {
@@ -258,6 +260,47 @@ describe('Scan with phone (e2e)', () => {
       .post(`/scan-sessions/${code}/pdf`)
       .attach('file', await makePdf(1), 'a.pdf')
       .expect(410);
+  });
+
+  it('reports a received session expired once its code expired, as take refuses it', async () => {
+    const code = await createCode();
+    await http()
+      .post(`/scan-sessions/${code}/pdf`)
+      .attach('file', await makePdf(2), 'a.pdf')
+      .expect(201);
+    const row = sessions.all()[0];
+    sessions.setExpiry(row!.id, new Date(Date.now() - 1000).toISOString());
+    const view = await http().get(`/scan-sessions/${code}`).set(auth).expect(200);
+    expect(view.body.status).toBe('expired');
+    const phone = await http().get(`/scan-sessions/${code}/phone`).expect(200);
+    expect(phone.body.status).toBe('expired');
+    await http().get(`/scan-sessions/${code}/pdf`).set(auth).expect(410);
+  });
+
+  it('lets a new upload take over a session a crashed upload left uploading', async () => {
+    const code = await createCode();
+    const id = sessions.all()[0]!.id;
+    // A phone claimed the session and died before markReceived / release.
+    await sessions.claim(id, new Date(Date.now() - 30_000).toISOString());
+    expect(sessions.all()[0]?.status).toBe('uploading');
+    // A live upload is still protected...
+    await http()
+      .post(`/scan-sessions/${code}/pdf`)
+      .attach('file', await makePdf(1), 'a.pdf')
+      .expect(409);
+    // ...but once a claim is stale (here: one made 3 minutes ago), the
+    // next upload takes it over.
+    const fresh = await createCode();
+    const freshId = sessions.all().find((r) => r.id !== id)!.id;
+    await sessions.claim(freshId, new Date(Date.now() - 3 * 60_000).toISOString());
+    expect(sessions.all().find((r) => r.id === freshId)?.status).toBe('uploading');
+    const posted = await http()
+      .post(`/scan-sessions/${fresh}/pdf`)
+      .attach('file', await makePdf(2), 'b.pdf')
+      .expect(201);
+    expect(posted.body).toEqual({ page_count: 2 });
+    const view = await http().get(`/scan-sessions/${fresh}`).set(auth).expect(200);
+    expect(view.body).toMatchObject({ status: 'received', page_count: 2 });
   });
 
   it('purges expired sessions and caps open ones per owner', async () => {

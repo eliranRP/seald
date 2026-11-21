@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { SignerAuthMethod } from 'shared';
+import { ACCESS_CODE_POLICY, type SignerAuthMethod } from 'shared';
 import {
   AccessAuthRepository,
   type AccessAuthSettingsPatch,
@@ -127,7 +127,13 @@ export class InMemoryAccessAuthRepository extends AccessAuthRepository {
         x.signer_id === input.signer_id &&
         x.purpose === input.purpose,
     );
-    if (!c || c.superseded_at !== null || c.consumed_at !== null || c.locked_at !== null) {
+    if (
+      !c ||
+      c.superseded_at !== null ||
+      c.consumed_at !== null ||
+      c.locked_at !== null ||
+      c.attempts >= ACCESS_CODE_POLICY.maxAttempts
+    ) {
       return null;
     }
     const env = this.envelopes.envelopes.get(c.envelope_id);

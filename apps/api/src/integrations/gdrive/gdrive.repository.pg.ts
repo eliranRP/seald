@@ -109,7 +109,7 @@ export class GDrivePgRepository implements GDriveRepository {
     refreshTokenKmsKeyArn: string;
     scope: string;
     googleEmail: string;
-  }): Promise<GDriveAccount> {
+  }): Promise<GDriveAccount | null> {
     // `connected_at` is intentionally NOT bumped — it records the first
     // OAuth grant for this (user, googleUser) pair. Reconnects rotate
     // the token but preserve the original connection date for audit.
@@ -123,9 +123,11 @@ export class GDrivePgRepository implements GDriveRepository {
         last_used_at: null,
       })
       .where('id', '=', args.id)
+      // A disconnect that landed first wins: never put a token back on it.
+      .where('deleted_at', 'is', null)
       .returningAll()
-      .executeTakeFirstOrThrow();
-    return toDomain(updated);
+      .executeTakeFirst();
+    return updated ? toDomain(updated) : null;
   }
 
   async disconnect(id: string, userId: string): Promise<boolean> {

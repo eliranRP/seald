@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import {
   SCAN_MAX_BYTES,
+  SCAN_SESSION_MACHINE,
   SCAN_MAX_PAGES,
   SCAN_SESSION_TTL_SECONDS,
   type CreateScanSessionResponse,
@@ -35,8 +36,13 @@ export function hashScanCode(code: string): string {
   return createHash('sha256').update(code).digest('hex');
 }
 
-export function scanStorageKey(owner_id: string, id: string): string {
-  return `scan-sessions/${owner_id}/${id}.pdf`;
+/**
+ * One object per claim, so an upload that lost its claim to a takeover
+ * (SCAN_UPLOAD_CLAIM_STALE_MS) can never overwrite the PDF of the upload
+ * that replaced it.
+ */
+export function scanStorageKey(owner_id: string, id: string, claim: string): string {
+  return `scan-sessions/${owner_id}/${id}-${Date.parse(claim)}.pdf`;
 }
 
 /**
@@ -98,22 +104,27 @@ export class ScanSessionsService {
     if (new Date(row.expires_at).getTime() <= now.getTime()) {
       throw new GoneException('scan_session_expired');
     }
-    if (!(await this.repo.claim(row.id, now.toISOString()))) {
-      throw new ConflictException('scan_session_used');
-    }
-    const key = scanStorageKey(row.owner_id, row.id);
+    const claim = await this.repo.claim(row.id, now.toISOString());
+    if (claim === null) throw new ConflictException('scan_session_used');
+    const key = scanStorageKey(row.owner_id, row.id, claim);
+    let stored = false;
     try {
       const { pages } = await inspectPdfBytes(bytes);
       if (pages > SCAN_MAX_PAGES) throw new BadRequestException('too_many_pages');
       await this.storage.upload(key, bytes, 'application/pdf');
-      await this.repo.markReceived(
+      stored = true;
+      const received = await this.repo.markReceived(
         row.id,
+        claim,
         { storage_key: key, page_count: pages, byte_length: bytes.length },
         now.toISOString(),
       );
+      // A newer upload took the session over while this one stalled.
+      if (!received) throw new ConflictException('scan_session_used');
       return { page_count: pages };
     } catch (err) {
-      await this.repo.release(row.id);
+      await this.repo.release(row.id, claim);
+      if (stored) await this.removeQuietly(key);
       throw err;
     }
   }
@@ -128,23 +139,38 @@ export class ScanSessionsService {
     if (new Date(row.expires_at).getTime() <= now.getTime()) {
       throw new GoneException('scan_session_expired');
     }
-    if (row.status !== 'received' || row.storage_key === null) {
+    if (!SCAN_SESSION_MACHINE.can(row.status, 'consume') || row.storage_key === null) {
       throw new ConflictException('scan_not_received');
     }
     const pdf = await this.storage.download(row.storage_key);
     if (!(await this.repo.consume(row.id))) throw new ConflictException('scan_not_received');
-    try {
-      await this.storage.remove([row.storage_key]);
-    } catch {
-      this.log.warn(`scan-session: could not remove ${row.storage_key}`);
-    }
+    await this.removeQuietly(row.storage_key);
     return { pdf, page_count: row.page_count };
   }
 
+  private async removeQuietly(key: string): Promise<void> {
+    try {
+      await this.storage.remove([key]);
+    } catch {
+      this.log.warn(`scan-session: could not remove ${key}`);
+    }
+  }
+
+  /**
+   * Display mapping. Past `expires_at` every session reads `expired`, a
+   * received one too: `take` refuses it then, so the owner's poll must not
+   * offer a PDF it cannot download.
+   */
   private publicStatus(row: ScanSessionRecord, now: Date): ScanSessionStatus {
-    if (row.status === 'received') return 'received';
-    if (row.status === 'consumed') return 'expired';
-    return new Date(row.expires_at).getTime() <= now.getTime() ? 'expired' : 'pending';
+    if (new Date(row.expires_at).getTime() <= now.getTime()) return 'expired';
+    switch (row.status) {
+      case 'received':
+        return 'received';
+      case 'consumed':
+        return 'expired';
+      default:
+        return 'pending';
+    }
   }
 
   private async rowFor(code: string): Promise<ScanSessionRecord> {

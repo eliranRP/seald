@@ -54,7 +54,9 @@ export interface GDriveRepository {
   /**
    * Rotate an existing row's encrypted refresh token + scope + email
    * in place. The (userId, googleUserId) pair is immutable for the row;
-   * this is the idempotent counterpart to insert.
+   * this is the idempotent counterpart to insert. Only while the row is
+   * connected (`deleted_at` null): null when a disconnect got there first,
+   * so a token is never resurrected on a disconnected account.
    */
   replaceToken(args: {
     id: string;
@@ -62,7 +64,7 @@ export interface GDriveRepository {
     refreshTokenKmsKeyArn: string;
     scope: string;
     googleEmail: string;
-  }): Promise<GDriveAccount>;
+  }): Promise<GDriveAccount | null>;
   /**
    * One update: set `deleted_at` if it is still null, and set both
    * token columns to NULL. Keeps Google email and `connected_at`.

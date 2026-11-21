@@ -268,6 +268,28 @@ describePg('signer access code (real Postgres)', () => {
     ]);
   });
 
+  it('never re-arms a challenge whose attempts are spent, even without locked_at (challengeState agrees)', async () => {
+    const { envelopeId, signerId } = await sentSigner();
+    const id = await armed(envelopeId, signerId, '123456');
+    // Spent attempts with no lock stamp (e.g. the policy cap was lowered):
+    // challengeState already reads this as locked, so mailing a fresh code
+    // for it would send one that can never work.
+    await pool!.query(
+      'update public.signer_otp_challenges set attempts = $2, locked_at = null where id = $1',
+      [id, ACCESS_CODE_POLICY.maxAttempts],
+    );
+    expect((await attempt(signerId, '123456')).kind).toBe('locked');
+    const rearmed = await repo.armChallenge({
+      challenge_id: id,
+      signer_id: signerId,
+      purpose: 'access',
+      code_hash: 'b'.repeat(64),
+      now: new Date(),
+      ttl_seconds: ACCESS_CODE_POLICY.ttlSeconds,
+    });
+    expect(rearmed).toBeNull();
+  });
+
   it('never arms a replaced challenge or one whose signer cannot sign; settings are draft-only', async () => {
     const { envelopeId, signerId } = await sentSigner();
     expect(await repo.setSettings(envelopeId, { access_auth: 'none' })).toBe(false);

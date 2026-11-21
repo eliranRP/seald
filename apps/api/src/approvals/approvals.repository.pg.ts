@@ -77,10 +77,20 @@ function toApprovalRecord(row: Row): ApprovalRecord {
   };
 }
 
+/**
+ * No decision, failure or expiry recorded. The one definition of an open
+ * row's stamps: {@link openAt} adds the 24-hour window, and the writes that
+ * close an open row (TTL stamp, markExpired, revoke / email-change expiry)
+ * use this alone, so a row whose window lapsed unstamped is stamped too.
+ */
+function undecided(): RawBuilder<boolean> {
+  return sql<boolean>`(approved_at is null and denied_at is null and failed_at is null
+    and expired_at is null)`;
+}
+
 /** No decision, failure or expiry recorded, and inside the 24 hours. */
 function openAt(now: Date): RawBuilder<boolean> {
-  return sql<boolean>`(approved_at is null and denied_at is null and failed_at is null
-    and expired_at is null and expires_at > ${now.toISOString()}::timestamptz)`;
+  return sql<boolean>`(${undecided()} and expires_at > ${now.toISOString()}::timestamptz)`;
 }
 
 function utcDayStart(now: Date): Date {
@@ -233,10 +243,7 @@ export class ApprovalsPgRepository extends ApprovalsRepository {
         .where('owner_id', '=', input.ownerId)
         .where('action', '=', input.kind)
         .where('subject_key', '=', input.subjectKey)
-        .where('approved_at', 'is', null)
-        .where('denied_at', 'is', null)
-        .where('failed_at', 'is', null)
-        .where('expired_at', 'is', null)
+        .where(undecided())
         .where('expires_at', '<=', input.now)
         .execute();
 
@@ -246,10 +253,7 @@ export class ApprovalsPgRepository extends ApprovalsRepository {
         .where('owner_id', '=', input.ownerId)
         .where('action', '=', input.kind)
         .where('subject_key', '=', input.subjectKey)
-        .where('approved_at', 'is', null)
-        .where('denied_at', 'is', null)
-        .where('failed_at', 'is', null)
-        .where('expired_at', 'is', null)
+        .where(undecided())
         .forUpdate()
         .executeTakeFirst();
 
@@ -390,10 +394,7 @@ export class ApprovalsPgRepository extends ApprovalsRepository {
       .updateTable('mcp_approvals')
       .set({ expired_at: at, expired_reason: reason.slice(0, 64), updated_at: at })
       .where('id', '=', id)
-      .where('approved_at', 'is', null)
-      .where('denied_at', 'is', null)
-      .where('failed_at', 'is', null)
-      .where('expired_at', 'is', null)
+      .where(undecided())
       .returningAll()
       .executeTakeFirst();
     return row ? toApprovalRecord(row) : null;
@@ -563,10 +564,7 @@ export class ApprovalsPgRepository extends ApprovalsRepository {
       .updateTable('mcp_approvals')
       .set({ expired_at: at, expired_reason: reason.slice(0, 64), updated_at: at })
       .where('api_key_id', '=', apiKeyId)
-      .where('approved_at', 'is', null)
-      .where('denied_at', 'is', null)
-      .where('failed_at', 'is', null)
-      .where('expired_at', 'is', null)
+      .where(undecided())
       .returning('id')
       .execute();
     return rows.length;
@@ -578,10 +576,7 @@ export class ApprovalsPgRepository extends ApprovalsRepository {
       .updateTable('mcp_approvals')
       .set({ expired_at: at, expired_reason: reason.slice(0, 64), updated_at: at })
       .where('oauth_grant_id', '=', oauthGrantId)
-      .where('approved_at', 'is', null)
-      .where('denied_at', 'is', null)
-      .where('failed_at', 'is', null)
-      .where('expired_at', 'is', null)
+      .where(undecided())
       .returning('id')
       .execute();
     return rows.length;
@@ -593,10 +588,7 @@ export class ApprovalsPgRepository extends ApprovalsRepository {
       .updateTable('mcp_approvals')
       .set({ expired_at: at, expired_reason: reason.slice(0, 64), updated_at: at })
       .where('owner_id', '=', ownerId)
-      .where('approved_at', 'is', null)
-      .where('denied_at', 'is', null)
-      .where('failed_at', 'is', null)
-      .where('expired_at', 'is', null)
+      .where(undecided())
       .returning('id')
       .execute();
     return rows.length;

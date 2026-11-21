@@ -479,6 +479,7 @@ export class StagedUploadsService {
       daily_cap: MCP_UPLOAD_DAILY_CAP,
     });
     if (outcome === 'daily_cap') throw dailyCap(now);
+    if (outcome === 'expired') throw new GoneException('upload_expired');
     if (outcome === 'not_pending') throw new ConflictException('upload_already_completed');
   }
 
@@ -525,7 +526,10 @@ export class StagedUploadsService {
       const bytes = await this.storage.download(claimed.storage_key);
       out = await attach(claimed, bytes);
     } catch (err) {
-      await this.repo.releaseClaim(owner_id, upload_id);
+      // consume() only returns a claimed row, so consumed_at is set.
+      if (claimed.consumed_at !== null) {
+        await this.repo.releaseClaim(owner_id, upload_id, claimed.consumed_at);
+      }
       throw err;
     }
     await this.removeObject(claimed.storage_key);
