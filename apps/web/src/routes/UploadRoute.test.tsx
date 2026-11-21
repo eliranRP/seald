@@ -269,4 +269,24 @@ describe('UploadRoute (template integration)', () => {
     expect(await screen.findByRole('button', { name: /retry/i })).toBeInTheDocument();
     convertSpy.mockRestore();
   });
+
+  it('shows Retry when the conversion rejects with a non-Error value, and Retry converts again', async () => {
+    const convertSpy = vi
+      .spyOn(convertModule, 'convertUploadToPdf')
+      // A rejection that is not an Error used to leave the spinner up forever.
+      .mockRejectedValueOnce('network gone')
+      .mockResolvedValueOnce(makePdf('a.pdf'));
+    renderAt('/document/new');
+    const docx = new File([new Uint8Array([0x50, 0x4b])], 'a.docx', {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+    fireEvent.change(screen.getByLabelText(/choose file/i), { target: { files: [docx] } });
+    fireEvent.click(await screen.findByRole('button', { name: /retry/i }));
+    await waitFor(() => {
+      expect(screen.getByTestId('doc-probe').textContent).not.toBe('');
+    });
+    expect(convertSpy).toHaveBeenCalledTimes(2);
+    expect(convertSpy.mock.calls[1]?.[0]).toBe(docx);
+    convertSpy.mockRestore();
+  });
 });

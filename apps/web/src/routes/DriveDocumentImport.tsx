@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect } from 'react';
 import { DrivePicker } from '@/components/drive-picker';
-import { ConversionFailedDialog, ImportOverlay, useDriveImport } from '@/features/gdriveImport';
-import type { ImportPhase } from '@/features/gdriveImport';
+import {
+  ConversionFailedDialog,
+  ImportOverlay,
+  useDriveImportOverlay,
+} from '@/features/gdriveImport';
 import {
   useConnectGDrive,
   useGDriveAccounts,
@@ -31,39 +34,8 @@ export function DriveDocumentImport(props: DriveDocumentImportProps) {
   const accountId = accountsQuery.data?.[0]?.id ?? null;
   const connectDrive = useConnectGDrive();
   const reconnectDrive = useReconnectGDrive();
-  const [phase, setPhase] = useState<ImportPhase | null>(null);
-  const [fileName, setFileName] = useState('');
-  const doneTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  const driveImport = useDriveImport({
-    accountId: accountId ?? '',
-    onReady: (file) => {
-      setPhase('done');
-      doneTimerRef.current = setTimeout(() => {
-        setPhase(null);
-        onFile(file);
-      }, 800);
-    },
-  });
-
-  useEffect(
-    () => () => {
-      if (doneTimerRef.current) clearTimeout(doneTimerRef.current);
-    },
-    [],
-  );
-
-  const { state } = driveImport;
-  useEffect(() => {
-    if (state.kind === 'starting') {
-      setPhase('fetching');
-      setFileName(state.file.name);
-    } else if (state.kind === 'running') {
-      setPhase('converting');
-    } else if (state.kind === 'failed') {
-      setPhase(null);
-    }
-  }, [state]);
+  const driveImport = useDriveImportOverlay({ accountId: accountId ?? '', onFile });
+  const { state, phase } = driveImport;
 
   // No connected account yet: the button starts the OAuth popup.
   const needsConnect = open && accountsQuery.isSuccess && accountId === null;
@@ -88,7 +60,11 @@ export function DriveDocumentImport(props: DriveDocumentImportProps) {
           }}
         />
       ) : null}
-      <ImportOverlay open={phase !== null} phase={phase ?? 'fetching'} fileName={fileName} />
+      <ImportOverlay
+        open={phase !== null}
+        phase={phase ?? 'fetching'}
+        fileName={driveImport.fileName}
+      />
       <ConversionFailedDialog
         open={state.kind === 'failed'}
         errorCode={state.kind === 'failed' ? state.error : 'conversion-failed'}
