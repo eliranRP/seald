@@ -225,7 +225,7 @@ stateDiagram-v2
 
 ## `scan_session`
 
-"Scan with phone": a 10-minute hand-off from the phone to the computer. Expiry is read from `expires_at`; the public status reads `expired` for a consumed or timed-out session.
+"Scan with phone": a 10-minute hand-off from the phone to the computer. Expiry is read from `expires_at`; the public status reads `expired` for a consumed session and for any session past `expires_at`, a received one included. An `uploading` session whose claim (`claimed_at`, migration 0054) is older than SCAN_UPLOAD_CLAIM_STALE_MS (2 minutes) may be taken over by a new upload; markReceived and release re-check the claim (SM.3).
 
 Stored in `scan_sessions.status`. Initial: `pending`. Terminal: `consumed`.
 
@@ -241,7 +241,7 @@ stateDiagram-v2
 
 | Event | From | To | Meaning |
 | --- | --- | --- | --- |
-| `claim` | `pending` | `uploading` | The phone starts its single upload (session unexpired). |
+| `claim` | `pending` | `uploading` | The phone starts its single upload (session unexpired), or takes over an upload whose claim went stale. |
 | `received` | `uploading` | `received` | The PDF is stored. |
 | `release` | `uploading` | `pending` | The upload failed; the phone may try again. |
 | `consume` | `received` | `consumed` | The owner's browser downloaded the PDF. |

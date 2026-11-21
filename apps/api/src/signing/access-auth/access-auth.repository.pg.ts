@@ -194,7 +194,7 @@ export class AccessAuthPgRepository extends AccessAuthRepository {
             .innerJoin('envelopes as e', 'e.id', 's.envelope_id')
             .select(sql<number>`1`.as('one'))
             .whereRef('s.id', '=', 'c.signer_id')
-            .where('e.status', '=', 'awaiting_others')
+            .where('e.status', 'in', ENVELOPE_MACHINE.statesAllowing('sign'))
             .where('e.expires_at', '>', input.now)
             .where('s.signed_at', 'is', null)
             .where('s.declined_at', 'is', null),

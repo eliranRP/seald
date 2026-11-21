@@ -65,7 +65,11 @@ export class ScanSessionsPgRepository extends ScanSessionsRepository {
       .selectFrom('scan_sessions')
       .select(sql<string>`count(*)`.as('n'))
       .where('owner_id', '=', owner_id)
-      .where('status', 'in', ['pending', 'uploading'])
+      // Still waiting for the phone: the states a claim or an upload start from.
+      .where('status', 'in', [
+        ...SCAN_SESSION_MACHINE.sources('claim'),
+        ...SCAN_SESSION_MACHINE.sources('received'),
+      ])
       .where('expires_at', '>', new Date(now))
       .executeTakeFirstOrThrow();
     return Number(row.n);
