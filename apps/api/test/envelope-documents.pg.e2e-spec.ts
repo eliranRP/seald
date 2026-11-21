@@ -148,12 +148,16 @@ describePg('0022 envelope documents (real Postgres)', () => {
       max: 1,
       application_name: 'docs-0022-admin',
     });
+    // A force drop terminates idle clients with 57P01; without a listener
+    // the pool re-emits it as an unhandled error and fails the suite.
+    admin.on('error', () => undefined);
     await admin.query(`drop database if exists ${DB_NAME} with (force)`);
     await admin.query(`create database ${DB_NAME}`);
     const dedicated = new URL(databaseUrl);
     dedicated.pathname = `/${DB_NAME}`;
     dedicatedUrl = dedicated.toString();
     pool = new Pool({ connectionString: dedicatedUrl, max: 4, application_name: 'docs-0022' });
+    pool.on('error', () => undefined);
     db = new Kysely<Database>({ dialect: new PostgresDialect({ pool }) });
     await pool.query(`
       create schema if not exists auth;
