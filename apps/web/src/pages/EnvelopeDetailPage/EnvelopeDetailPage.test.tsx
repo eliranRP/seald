@@ -529,6 +529,65 @@ describe('EnvelopeDetailPage', () => {
         {},
       );
     });
+
+    it('a late answer for a closed fix neither marks nor closes the next signer’s fix', async () => {
+      mockApi();
+      let finish: (value: unknown) => void = () => undefined;
+      patch.mockReturnValueOnce(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+      renderAt('env-1');
+      const user = await ready();
+      await user.click(screen.getByRole('button', { name: 'More for Alex Reyes' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Fix email' }));
+      await user.click(screen.getByRole('button', { name: 'Resend' }));
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
+      await user.click(screen.getByRole('button', { name: 'More for Hannah Wills' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Fix email' }));
+      expect(screen.getByRole('textbox', { name: "Hannah's email" })).toBeInTheDocument();
+      // Hannah's form has sent nothing, so it is not busy.
+      expect(screen.getByRole('button', { name: 'Resend' })).not.toHaveAttribute('aria-busy');
+      finish({ data: { ...ALEX, email: ALEX.email }, status: 200 });
+      expect(await screen.findByRole('status')).toHaveTextContent(`Sent to ${ALEX.email}`);
+      expect(screen.getByRole('textbox', { name: "Hannah's email" })).toBeInTheDocument();
+    });
+
+    it('a bounced signer on a withdrawn envelope gets no Fix email action', async () => {
+      mockApi({
+        status: 'canceled',
+        signers: [YOU, { ...ALEX, status: 'bounced', email: 'alex@quil.vc' }],
+      });
+      renderAt('env-1');
+      await ready();
+      expect(screen.getByRole('alert')).toHaveTextContent('Email to Alex bounced');
+      expect(screen.queryByRole('button', { name: 'Fix email' })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('one reminder request at a time', () => {
+    it('a second Remind while one is in flight sends nothing and keeps the first spinner', async () => {
+      mockApi();
+      let finish: (value: unknown) => void = () => undefined;
+      post.mockReturnValueOnce(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+      renderAt('env-1');
+      const user = await ready();
+      await user.click(screen.getByRole('button', { name: 'Remind Hannah Wills' }));
+      await user.click(screen.getByRole('button', { name: 'Remind Alex Reyes' }));
+      expect(post).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('button', { name: 'Remind Hannah Wills' })).toHaveAttribute(
+        'aria-busy',
+        'true',
+      );
+      finish({ data: {}, status: 202 });
+      expect(await screen.findByRole('status')).toHaveTextContent('Reminded Hannah');
+      expect(screen.getByRole('button', { name: 'Remind Alex Reyes' })).toBeEnabled();
+    });
   });
 
   describe('withdraw', () => {

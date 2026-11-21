@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { ACCESS_CODE_PATTERN, ACCESS_CODE_POLICY } from 'shared';
 import type { AccessCodePurpose, AccessCodeSendResponse } from 'shared';
@@ -8,7 +8,14 @@ import { useT } from '@/lib/i18n';
 import type { CommonKey } from '@/lib/i18n';
 import { sendAccessCode } from './accessCodeApi';
 import { describeAccessCodeError } from './accessCodeErrors';
-import type { AccessCodeFailure } from './accessCodeErrors';
+import {
+  INITIAL_ACCESS_CODE_STATE,
+  accessCodeReducer,
+  failureOf,
+  isBusy,
+  showsCodeInput,
+} from './accessCodeState';
+import type { AccessCodePhase } from './accessCodeState';
 import {
   Actions,
   CodeInput,
@@ -40,12 +47,13 @@ export interface AccessCodeFormProps {
   readonly onSessionLost?: (() => void) | undefined;
 }
 
-type Phase = 'idle' | 'sending' | 'ready' | 'needs-new';
-
-const SEND_LABEL_KEYS: Record<Phase, CommonKey> = {
+const SEND_LABEL_KEYS: Record<AccessCodePhase['kind'], CommonKey> = {
   idle: 'signing.accessCode.sendCode',
   sending: 'signing.accessCode.sendCode',
   ready: 'signing.accessCode.resendCode',
+  resending: 'signing.accessCode.resendCode',
+  submitting: 'signing.accessCode.resendCode',
+  verified: 'signing.accessCode.resendCode',
   'needs-new': 'signing.accessCode.sendNewCode',
 };
 
@@ -75,12 +83,12 @@ export function AccessCodeForm({
   const hintId = useId();
   const errorId = useId();
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const [phase, setPhase] = useState<Phase>('idle');
+  const [state, dispatch] = useReducer(accessCodeReducer, INITIAL_ACCESS_CODE_STATE);
+  const { phase, cooldownUntil } = state;
+  const busy = isBusy(phase);
+  const failure = failureOf(phase);
   const [code, setCode] = useState('');
-  const [failure, setFailure] = useState<AccessCodeFailure | null>(null);
-  const [busy, setBusy] = useState(false);
   const [announcement, setAnnouncement] = useState('');
-  const [cooldownUntil, setCooldownUntil] = useState(0);
   const [now, setNow] = useState(() => Date.now());
 
   const secondsLeft = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
@@ -97,77 +105,66 @@ export function AccessCodeForm({
     return () => window.clearInterval(id);
   }, [cooldownUntil]);
 
-  // Move to the field as soon as it appears.
+  // Move to the field whenever it is ready for typing (first shown, or
+  // enabled again after a resend or a rejected code).
   useEffect(() => {
-    if (phase === 'ready') inputRef.current?.focus();
-  }, [phase]);
+    if (phase.kind === 'ready') inputRef.current?.focus();
+  }, [phase.kind]);
 
-  const startCooldown = useCallback((seconds: number) => {
-    const t = Date.now();
-    setNow(t);
-    setCooldownUntil(t + seconds * 1000);
-  }, []);
-
-  const handleFailure = useCallback(
-    (err: unknown): AccessCodeFailure => {
+  // Describes the error and runs its side effects; the reducer stores it.
+  const describeFailure = useCallback(
+    (err: unknown) => {
       const f = describeAccessCodeError(err, t);
-      setFailure(f);
-      if (f.retryAfterSeconds !== null) startCooldown(f.retryAfterSeconds);
       if (f.kind === 'session') onSessionLost?.();
       return f;
     },
-    [onSessionLost, startCooldown, t],
+    [onSessionLost, t],
   );
 
   const handleSend = useCallback(async () => {
     if (busy || secondsLeft > 0) return;
-    setBusy(true);
-    setFailure(null);
-    setPhase((p) => (p === 'ready' ? p : 'sending'));
+    dispatch({ type: 'send' });
     try {
       const sent = await sendCode(purpose);
-      startCooldown(sent.resend_after_seconds);
+      const at = Date.now();
+      setNow(at);
+      dispatch({ type: 'sent', at, resendAfterSeconds: sent.resend_after_seconds });
       setCode('');
-      setPhase('ready');
       setAnnouncement(t('signing.accessCode.sent', { email: sent.email_masked }));
     } catch (err) {
-      const f = handleFailure(err);
-      // A recent code may still be live; let the signer type it.
-      setPhase(f.kind === 'cooldown' ? 'ready' : 'idle');
-    } finally {
-      setBusy(false);
+      const f = describeFailure(err);
+      const at = Date.now();
+      setNow(at);
+      dispatch({ type: 'send-failed', at, failure: f });
     }
-  }, [busy, handleFailure, purpose, secondsLeft, sendCode, startCooldown, t]);
+  }, [busy, describeFailure, purpose, secondsLeft, sendCode, t]);
 
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if (phase !== 'ready' || busy || !ACCESS_CODE_PATTERN.test(code)) return;
-      setBusy(true);
-      setFailure(null);
+      if (phase.kind !== 'ready' || !ACCESS_CODE_PATTERN.test(code)) return;
+      dispatch({ type: 'submit' });
       setAnnouncement('');
       try {
         await onSubmitCode(code);
+        dispatch({ type: 'verified' });
       } catch (err) {
-        const f = handleFailure(err);
+        const f = describeFailure(err);
+        const at = Date.now();
+        setNow(at);
+        dispatch({ type: 'submit-failed', at, failure: f });
         setCode('');
-        if (f.kind === 'locked' || f.kind === 'expired' || f.kind === 'not-requested') {
-          setPhase('needs-new');
-        } else {
-          inputRef.current?.focus();
-        }
-        setBusy(false);
       }
     },
-    [busy, code, handleFailure, onSubmitCode, phase],
+    [code, describeFailure, onSubmitCode, phase.kind],
   );
 
   const onChange = (event: ChangeEvent<HTMLInputElement>): void => {
     setCode(normalizeCodeInput(event.target.value));
   };
 
-  const showInput = phase === 'ready';
-  const sendLabel = t(SEND_LABEL_KEYS[phase]);
+  const showInput = showsCodeInput(phase);
+  const sendLabel = t(SEND_LABEL_KEYS[phase.kind]);
   const waiting = secondsLeft > 0;
   const sendText = waiting
     ? t('signing.accessCode.inSeconds', { label: sendLabel, seconds: secondsLeft })
