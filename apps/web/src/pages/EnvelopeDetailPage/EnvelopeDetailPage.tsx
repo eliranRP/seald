@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { isFeatureEnabled, ownerEnvelopeActions } from 'shared';
+import { ENVELOPE_MACHINE, isFeatureEnabled, ownerEnvelopeActions } from 'shared';
 import type { EnvelopeDocument } from 'shared';
 import { Avatar } from '@/components/Avatar';
 import { Banner } from '@/components/Banner';
@@ -574,7 +574,7 @@ export function EnvelopeDetailPage() {
   // Closing one overlay never closes the other: the menu's own close runs
   // right after its item opened the withdraw dialog.
   const closeWithdraw = useCallback(() => setOverlay((o) => (o === 'withdraw' ? 'none' : o)), []);
-  const closeMore = useCallback(() => setOverlay((o) => (o === 'more' ? 'none' : o)), []);
+  const closeMore = (): void => setOverlay((o) => (o === 'more' ? 'none' : o));
   useEscapeKey(closeWithdraw, withdrawOpen);
 
   const mobileTop = (title: string, more: boolean) => (
@@ -685,8 +685,9 @@ export function EnvelopeDetailPage() {
   const total = envelope.signers.length;
   const signed = envelope.signers.filter((s) => s.status === 'completed').length;
   const pendingCount = envelope.signers.filter(isPending).length;
-  const isComplete = envelope.status === 'completed';
-  const isSealing = envelope.status === 'sealing';
+  // Sealed: the sealed PDF can be downloaded. Sealing: the seal worker can still finish it.
+  const isComplete = ENVELOPE_MACHINE.allows(envelope.status, 'download_sealed');
+  const isSealing = ENVELOPE_MACHINE.can(envelope.status, 'sealed');
   const isTerminal = TERMINAL_STATUSES.has(envelope.status);
   const allowed = ownerEnvelopeActions(envelope.status);
   const isLive = allowed.includes('remind');

@@ -152,10 +152,11 @@ export abstract class BulkRepository {
    * row's `locked_at`: when given, a worker whose stale lock was reclaimed by
    * another one writes nothing (SM.3).
    */
-  abstract markRowSent(row_id: string, now: Date, claim?: string): Promise<void>;
-  abstract markRowFailed(row_id: string, error_code: string, claim?: string): Promise<void>;
+  /** The row writes return false when the row was no longer this claim's (SM.3). */
+  abstract markRowSent(row_id: string, now: Date, claim?: string): Promise<boolean>;
+  abstract markRowFailed(row_id: string, error_code: string, claim?: string): Promise<boolean>;
   /** Put a claimed row back to `pending` for another attempt. */
-  abstract releaseRow(row_id: string, error_code: string, claim?: string): Promise<void>;
+  abstract releaseRow(row_id: string, error_code: string, claim?: string): Promise<boolean>;
 
   /**
    * BULK_ROW_MACHINE `cancel` for a row a dead worker left `processing`

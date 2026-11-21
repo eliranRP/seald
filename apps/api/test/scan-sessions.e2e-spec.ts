@@ -12,7 +12,10 @@ import { ContactsRepository } from '../src/contacts/contacts.repository';
 import { OutboundEmailsRepository } from '../src/email/outbound-emails.repository';
 import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
 import { EnvelopesRepository } from '../src/envelopes/envelopes.repository';
-import { SCAN_MAX_OPEN_PER_OWNER } from '../src/scan-sessions/scan-sessions.service';
+import {
+  SCAN_MAX_OPEN_PER_OWNER,
+  scanStorageKey,
+} from '../src/scan-sessions/scan-sessions.service';
 import { ScanSessionsRepository } from '../src/scan-sessions/scan-sessions.repository';
 import { AccessAuthRepository } from '../src/signing/access-auth/access-auth.repository';
 import { StepSweepRepository } from '../src/signing/step-sweep.service';
@@ -292,15 +295,21 @@ describe('Scan with phone (e2e)', () => {
     // next upload takes it over.
     const fresh = await createCode();
     const freshId = sessions.all().find((r) => r.id !== id)!.id;
-    await sessions.claim(freshId, new Date(Date.now() - 3 * 60_000).toISOString());
+    const staleClaim = new Date(Date.now() - 3 * 60_000).toISOString();
+    await sessions.claim(freshId, staleClaim);
     expect(sessions.all().find((r) => r.id === freshId)?.status).toBe('uploading');
+    // The dead upload reached storage before it died: nothing points at it.
+    const ownerId = sessions.all().find((r) => r.id === freshId)!.owner_id;
+    const orphan = scanStorageKey(ownerId, freshId, staleClaim);
+    await storage.upload(orphan, Buffer.from('%PDF-orphan'), 'application/pdf');
     const posted = await http()
       .post(`/scan-sessions/${fresh}/pdf`)
       .attach('file', await makePdf(2), 'b.pdf')
       .expect(201);
     expect(posted.body).toEqual({ page_count: 2 });
     const view = await http().get(`/scan-sessions/${fresh}`).set(auth).expect(200);
-    expect(view.body).toMatchObject({ status: 'received', page_count: 2 });
+    expect(view.body).toMatchObject({ status: 'received', page_count: 2 }); // The takeover removed the dead upload's object.
+    expect(await storage.exists(orphan)).toBe(false);
   });
 
   it('purges expired sessions and caps open ones per owner', async () => {

@@ -88,10 +88,12 @@ export function useDriveImport(args: UseDriveImportArgs): UseDriveImportReturn {
   const { accountId, onReady, pollIntervalMs = POLL_INTERVAL_MS_DEFAULT } = args;
   const [state, setState] = useState<DriveImportState>({ kind: 'idle' });
 
-  // Mutable refs prevent stale-state captures inside the async polling
-  // loop. The polling token also lets us cancel a stale loop when the
-  // user picks a second file before the first finishes.
-  const cancelledRef = useRef(false);
+  // Generation of the current import. Each import captures its own number;
+  // cancel, reset, unmount and a newer import bump it, so a loop that
+  // belongs to an older import sees itself stale and stops. One shared
+  // boolean could not do that: a new import reset it to "live" and a
+  // cancelled loop carried on with the old file.
+  const runRef = useRef(0);
   const onReadyRef = useRef(onReady);
   useEffect(() => {
     onReadyRef.current = onReady;
@@ -105,37 +107,38 @@ export function useDriveImport(args: UseDriveImportArgs): UseDriveImportReturn {
    * responsibility; this isn't an effect, it's a one-shot kick-off.)
    */
   const runPollLoop = useCallback(
-    async (jobId: string, file: DriveFile): Promise<void> => {
+    async (jobId: string, file: DriveFile, run: number): Promise<void> => {
+      const stale = (): boolean => runRef.current !== run;
       // Each iteration sleeps `POLL_INTERVAL_MS` after the FIRST poll,
       // not before — so the user sees progress nearly immediately on a
       // PDF passthrough (which the API completes in ~100ms).
       let firstIter = true;
-      while (!cancelledRef.current) {
+      while (!stale()) {
         if (!firstIter) {
           await new Promise((res) => setTimeout(res, pollIntervalMs));
-          if (cancelledRef.current) return;
+          if (stale()) return;
         }
         firstIter = false;
         let view: ConversionJobView;
         try {
           view = await pollConversion(jobId);
         } catch {
-          if (cancelledRef.current) return;
+          if (stale()) return;
           setState({ kind: 'failed', file, error: 'conversion-failed' });
           return;
         }
-        if (cancelledRef.current) return;
+        if (stale()) return;
         if (view.status === 'done' && view.assetUrl) {
           try {
             const blob = await fetchConvertedPdf(view.assetUrl);
-            if (cancelledRef.current) return;
+            if (stale()) return;
             const out = new File([blob], pdfFileName(file), {
               type: 'application/pdf',
             });
             setState({ kind: 'idle' });
             onReadyRef.current(out);
           } catch {
-            if (cancelledRef.current) return;
+            if (stale()) return;
             setState({ kind: 'failed', file, error: 'conversion-failed' });
           }
           return;
@@ -156,7 +159,9 @@ export function useDriveImport(args: UseDriveImportArgs): UseDriveImportReturn {
 
   const beginImport = useCallback(
     (file: DriveFile) => {
-      cancelledRef.current = false;
+      runRef.current += 1;
+      const run = runRef.current;
+      const stale = (): boolean => runRef.current !== run;
       setState({ kind: 'starting', file });
       void (async () => {
         try {
@@ -165,11 +170,11 @@ export function useDriveImport(args: UseDriveImportArgs): UseDriveImportReturn {
             fileId: file.id,
             mimeType: file.mimeType,
           });
-          if (cancelledRef.current) return;
+          if (stale()) return;
           setState({ kind: 'running', file, jobId: start.jobId });
-          await runPollLoop(start.jobId, file);
+          await runPollLoop(start.jobId, file, run);
         } catch (err) {
-          if (cancelledRef.current) return;
+          if (stale()) return;
           // Map the API's `{ error: '<code>' }` body onto our enum;
           // anything we can't recognise becomes 'conversion-failed'.
           setState({ kind: 'failed', file, error: extractStartErrorCode(err) });
@@ -180,7 +185,7 @@ export function useDriveImport(args: UseDriveImportArgs): UseDriveImportReturn {
   );
 
   const cancelImport = useCallback(async (): Promise<void> => {
-    cancelledRef.current = true;
+    runRef.current += 1;
     const current = state;
     if (current.kind === 'running') {
       try {
@@ -193,14 +198,14 @@ export function useDriveImport(args: UseDriveImportArgs): UseDriveImportReturn {
   }, [state]);
 
   const reset = useCallback(() => {
-    cancelledRef.current = true;
+    runRef.current += 1;
     setState({ kind: 'idle' });
   }, []);
 
   // Make sure a hot-unmounted parent doesn't keep a poll loop alive.
   useEffect(() => {
     return () => {
-      cancelledRef.current = true;
+      runRef.current += 1;
     };
   }, []);
 

@@ -46,6 +46,23 @@ export function scanStorageKey(owner_id: string, id: string, claim: string): str
 }
 
 /**
+ * Objects an earlier claim of this row may have written that no column
+ * points at: the claim-derived key of its last claim, or the one key a
+ * session had before migration 0054 (`{id}.pdf`). Storage has no listing,
+ * so takeover and purge remove these by name. Removing a missing object is
+ * a no-op.
+ */
+export function scanOrphanKeys(
+  row: Pick<ScanSessionRecord, 'owner_id' | 'id' | 'claimed_at' | 'storage_key'>,
+): string[] {
+  const keys =
+    row.claimed_at !== null
+      ? [scanStorageKey(row.owner_id, row.id, row.claimed_at)]
+      : [`scan-sessions/${row.owner_id}/${row.id}.pdf`];
+  return keys.filter((k) => k !== row.storage_key);
+}
+
+/**
  * Scan with phone. The code is a bearer secret: whoever holds it can post
  * one PDF into the owner's session, and nothing else. Only its hash is
  * stored. Unknown, malformed and foreign codes are the same 404.
@@ -106,6 +123,11 @@ export class ScanSessionsService {
     }
     const claim = await this.repo.claim(row.id, now.toISOString());
     if (claim === null) throw new ConflictException('scan_session_used');
+    // A takeover: the stale claim's upload may have reached storage before
+    // its process died. Nothing references that object, so drop it now.
+    if (!SCAN_SESSION_MACHINE.sources('claim').includes(row.status)) {
+      for (const k of scanOrphanKeys(row)) await this.removeQuietly(k);
+    }
     const key = scanStorageKey(row.owner_id, row.id, claim);
     let stored = false;
     try {
@@ -191,7 +213,12 @@ export class ScanSessionsService {
     try {
       const rows = await this.repo.listExpired(owner_id, now.toISOString(), PURGE_BATCH);
       if (rows.length === 0) return;
-      const keys = rows.flatMap((r) => (r.storage_key === null ? [] : [r.storage_key]));
+      const keys = rows.flatMap((r) => [
+        ...(r.storage_key === null ? [] : [r.storage_key]),
+        // An upload that died mid-way and then expired left an object no
+        // column points at (see scanOrphanKeys).
+        ...(SCAN_SESSION_MACHINE.sources('claim').includes(r.status) ? [] : scanOrphanKeys(r)),
+      ]);
       if (keys.length > 0) await this.storage.remove(keys);
       await this.repo.deleteMany(rows.map((r) => r.id));
     } catch (err) {

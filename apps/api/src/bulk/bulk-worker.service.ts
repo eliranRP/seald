@@ -100,27 +100,21 @@ export class BulkWorkerService implements OnModuleInit, OnModuleDestroy {
       // reclaimed by another one writes nothing (SM.3).
       const claim = row.locked_at ?? undefined;
       if (row.attempts > BULK_MAX_ATTEMPTS) {
-        await this.repo.markRowFailed(row.id, 'attempts_exhausted', claim);
-        failed += 1;
+        if (await this.repo.markRowFailed(row.id, 'attempts_exhausted', claim)) failed += 1;
       } else {
         const batch = await this.repo.findBatch(row.batch_id);
         if (!batch) {
-          await this.repo.markRowFailed(row.id, 'send_failed', claim);
-          failed += 1;
+          if (await this.repo.markRowFailed(row.id, 'send_failed', claim)) failed += 1;
         } else {
           const outcome = await this.processor.process(batch, row, at);
           if (outcome.kind === 'sent') {
-            await this.repo.markRowSent(row.id, now(), claim);
-            sent += 1;
+            if (await this.repo.markRowSent(row.id, now(), claim)) sent += 1;
           } else if (outcome.kind === 'failed') {
-            await this.repo.markRowFailed(row.id, outcome.code, claim);
-            failed += 1;
+            if (await this.repo.markRowFailed(row.id, outcome.code, claim)) failed += 1;
           } else if (row.attempts >= BULK_MAX_ATTEMPTS) {
-            await this.repo.markRowFailed(row.id, 'attempts_exhausted', claim);
-            failed += 1;
+            if (await this.repo.markRowFailed(row.id, 'attempts_exhausted', claim)) failed += 1;
           } else {
-            await this.repo.releaseRow(row.id, outcome.code, claim);
-            retried += 1;
+            if (await this.repo.releaseRow(row.id, outcome.code, claim)) retried += 1;
           }
         }
       }

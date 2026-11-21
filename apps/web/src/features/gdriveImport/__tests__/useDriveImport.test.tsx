@@ -219,4 +219,39 @@ describe('useDriveImport', () => {
     });
     expect(result.current.state.kind).toBe('idle');
   });
+
+  it('a reset import that resolves late does not take over the next one', async () => {
+    let resolveA: (v: { jobId: string; status: 'pending' }) => void = () => undefined;
+    startConversion
+      .mockReturnValueOnce(
+        new Promise((r) => {
+          resolveA = r;
+        }),
+      )
+      .mockResolvedValueOnce({ jobId: 'job-b', status: 'pending' });
+    pollConversion.mockImplementation(async (jobId: string) => ({
+      jobId,
+      status: 'pending' as const,
+    }));
+    const onReady = vi.fn();
+    const { result } = renderHook(
+      () => useDriveImport({ accountId: 'acct-1', onReady, pollIntervalMs: 5 }),
+      { wrapper },
+    );
+
+    act(() => result.current.beginImport(PDF_FILE));
+    act(() => result.current.reset());
+    act(() => result.current.beginImport(DOC_FILE));
+    await waitFor(() =>
+      expect(result.current.state).toMatchObject({ kind: 'running', jobId: 'job-b' }),
+    );
+    // Import A's start answers only now: it must not replace B.
+    await act(async () => {
+      resolveA({ jobId: 'job-a', status: 'pending' });
+      await new Promise((r) => setTimeout(r, 30));
+    });
+    expect(result.current.state).toMatchObject({ kind: 'running', jobId: 'job-b' });
+    expect(pollConversion).not.toHaveBeenCalledWith('job-a');
+    act(() => result.current.reset());
+  });
 });

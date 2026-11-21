@@ -206,7 +206,8 @@ describe('AutomationWorkerService', () => {
       undefined,
       { afterFailure } as unknown as AutoDisableService,
     );
-    expect(await w.process(job({ claim: 'claim-1' }), NOW)).toBe('failed');
+    // The write did not land: nothing to count, no streak.
+    expect(await w.process(job({ claim: 'claim-1' }), NOW)).toBe('lost');
     expect(repo.failRun).toHaveBeenCalledWith({
       ...base,
       claim: 'claim-1',

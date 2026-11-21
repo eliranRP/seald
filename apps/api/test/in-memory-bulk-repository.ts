@@ -178,26 +178,29 @@ export class InMemoryBulkRepository extends BulkRepository {
     return r;
   }
 
-  async markRowSent(row_id: string, now: Date, claim?: string): Promise<void> {
+  async markRowSent(row_id: string, now: Date, claim?: string): Promise<boolean> {
     const r = this.heldRow(row_id, 'sent', claim);
-    if (!r) return;
+    if (!r) return false;
     r.status = 'sent';
     r.sent_at = now.toISOString();
     r.error_code = null;
+    return true;
   }
 
-  async markRowFailed(row_id: string, error_code: string, claim?: string): Promise<void> {
+  async markRowFailed(row_id: string, error_code: string, claim?: string): Promise<boolean> {
     const r = this.heldRow(row_id, 'fail', claim);
-    if (!r) return;
+    if (!r) return false;
     r.status = 'failed';
     r.error_code = error_code;
+    return true;
   }
 
-  async releaseRow(row_id: string, error_code: string, claim?: string): Promise<void> {
+  async releaseRow(row_id: string, error_code: string, claim?: string): Promise<boolean> {
     const r = this.heldRow(row_id, 'release', claim);
-    if (!r) return;
+    if (!r) return false;
     r.status = 'pending';
     r.error_code = error_code;
+    return true;
   }
 
   async cancelStaleRows(staleBefore: Date, _now: Date): Promise<ReadonlyArray<string>> {

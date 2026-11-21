@@ -248,8 +248,8 @@ export class BulkPgRepository extends BulkRepository {
       .execute();
   }
 
-  async markRowSent(row_id: string, now: Date, claim?: string): Promise<void> {
-    await this.db
+  async markRowSent(row_id: string, now: Date, claim?: string): Promise<boolean> {
+    const res = await this.db
       .updateTable('bulk_batch_rows')
       .set({
         status: BULK_ROW_MACHINE.transitions.sent.to,
@@ -260,11 +260,12 @@ export class BulkPgRepository extends BulkRepository {
       .where('id', '=', row_id)
       .where('status', 'in', BULK_ROW_MACHINE.sources('sent'))
       .$if(claim !== undefined, (qb) => qb.where(sameClaim(claim)))
-      .execute();
+      .executeTakeFirst();
+    return (res?.numUpdatedRows ?? 0n) > 0n;
   }
 
-  async markRowFailed(row_id: string, error_code: string, claim?: string): Promise<void> {
-    await this.db
+  async markRowFailed(row_id: string, error_code: string, claim?: string): Promise<boolean> {
+    const res = await this.db
       .updateTable('bulk_batch_rows')
       .set({
         status: BULK_ROW_MACHINE.transitions.fail.to,
@@ -274,11 +275,12 @@ export class BulkPgRepository extends BulkRepository {
       .where('id', '=', row_id)
       .where('status', 'in', BULK_ROW_MACHINE.sources('fail'))
       .$if(claim !== undefined, (qb) => qb.where(sameClaim(claim)))
-      .execute();
+      .executeTakeFirst();
+    return (res?.numUpdatedRows ?? 0n) > 0n;
   }
 
-  async releaseRow(row_id: string, error_code: string, claim?: string): Promise<void> {
-    await this.db
+  async releaseRow(row_id: string, error_code: string, claim?: string): Promise<boolean> {
+    const res = await this.db
       .updateTable('bulk_batch_rows')
       .set({
         status: BULK_ROW_MACHINE.transitions.release.to,
@@ -288,7 +290,8 @@ export class BulkPgRepository extends BulkRepository {
       .where('id', '=', row_id)
       .where('status', 'in', BULK_ROW_MACHINE.sources('release'))
       .$if(claim !== undefined, (qb) => qb.where(sameClaim(claim)))
-      .execute();
+      .executeTakeFirst();
+    return (res?.numUpdatedRows ?? 0n) > 0n;
   }
 
   async cancelStaleRows(staleBefore: Date, now: Date): Promise<ReadonlyArray<string>> {

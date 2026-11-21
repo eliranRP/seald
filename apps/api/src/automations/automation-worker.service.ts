@@ -37,7 +37,11 @@ export const STALE_LOCK_MS = 15 * 60_000;
 /** Most actions this process runs at once (loop + manual flush together). */
 export const MAX_IN_FLIGHT = 2;
 
-export type ProcessedStatus = 'done' | 'retrying' | 'failed';
+/**
+ * `lost`: another worker reclaimed the job's stale lock, so this worker's
+ * finishing write did not land (SM.3) and it reports nothing.
+ */
+export type ProcessedStatus = 'done' | 'retrying' | 'failed' | 'lost';
 
 export interface AutomationFlushResult {
   readonly claimed: number;
@@ -114,7 +118,7 @@ export class AutomationWorkerService implements OnModuleInit, OnModuleDestroy {
         const status = await this.process(job, at);
         if (status === 'done') done += 1;
         else if (status === 'retrying') retrying += 1;
-        else failed += 1;
+        else if (status === 'failed') failed += 1;
       } finally {
         this.inFlight -= 1;
       }
@@ -133,8 +137,9 @@ export class AutomationWorkerService implements OnModuleInit, OnModuleDestroy {
       ...(job.claim !== undefined ? { claim: job.claim } : {}),
     };
     // Only the write that still held the claim counts towards the streak.
-    const failed = async (applied: boolean): Promise<'failed'> => {
-      if (applied) await this.autoDisable?.afterFailure(job.automation_id, now);
+    const failed = async (applied: boolean): Promise<'failed' | 'lost'> => {
+      if (!applied) return 'lost';
+      await this.autoDisable?.afterFailure(job.automation_id, now);
       return 'failed';
     };
     if (job.attempts > job.max_attempts) {
@@ -145,12 +150,19 @@ export class AutomationWorkerService implements OnModuleInit, OnModuleDestroy {
     }
     const outcome = await this.runAction(job);
     if (outcome.kind === 'done') {
-      await this.repo.completeRun({ ...base, response_status: outcome.responseStatus ?? null });
-      return 'done';
+      const applied = await this.repo.completeRun({
+        ...base,
+        response_status: outcome.responseStatus ?? null,
+      });
+      return applied ? 'done' : 'lost';
     }
     if (outcome.kind === 'deferred') {
-      await this.repo.deferRun({ ...base, slug: outcome.slug, scheduled_for: outcome.until });
-      return 'retrying';
+      const applied = await this.repo.deferRun({
+        ...base,
+        slug: outcome.slug,
+        scheduled_for: outcome.until,
+      });
+      return applied ? 'retrying' : 'lost';
     }
     const response_status = outcome.responseStatus ?? null;
     if (outcome.kind === 'permanent') {
@@ -164,13 +176,13 @@ export class AutomationWorkerService implements OnModuleInit, OnModuleDestroy {
       );
     }
     const delay = Math.max(backoffMs(job.attempts), outcome.retryAfterMs ?? 0);
-    await this.repo.retryRun({
+    const applied = await this.repo.retryRun({
       ...base,
       slug: outcome.slug,
       response_status,
       scheduled_for: new Date(now.getTime() + delay),
     });
-    return 'retrying';
+    return applied ? 'retrying' : 'lost';
   }
 
   private async runAction(job: ClaimedAutomationJob): Promise<AutomationActionOutcome> {
