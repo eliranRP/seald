@@ -194,7 +194,7 @@ stateDiagram-v2
 
 ## `bulk_row`
 
-One CSV row of a bulk batch. Rows that fail validation are created `invalid` and never sent.
+One CSV row of a bulk batch. Rows that fail validation are created `invalid` and never sent. sent / fail / release only land while the worker still holds its claim (`locked_at`, SM.3).
 
 Stored in `bulk_batch_rows.status`. Initial: `pending`, `invalid`. Terminal: `sent`, `failed`, `canceled`, `invalid`.
 
@@ -248,7 +248,7 @@ stateDiagram-v2
 
 ## `automation_run`
 
-One delivery of a workflow automation (webhook or email copy) for one trigger.
+One delivery of a workflow automation (webhook or email copy) for one trigger. complete / retry / defer / fail only land while the worker still holds the job claim (`locked_at`, SM.3).
 
 Stored in `automation_runs.status`. Initial: `queued`. Terminal: `done`.
 

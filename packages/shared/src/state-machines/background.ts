@@ -80,7 +80,8 @@ export const BULK_ROW_MACHINE = defineMachine({
   id: 'bulk_row',
   storedIn: 'bulk_batch_rows.status',
   description:
-    'One CSV row of a bulk batch. Rows that fail validation are created `invalid` and never sent.',
+    'One CSV row of a bulk batch. Rows that fail validation are created `invalid` and never sent. ' +
+    'sent / fail / release only land while the worker still holds its claim (`locked_at`, SM.3).',
   states: ['pending', 'processing', 'sent', 'failed', 'canceled', 'invalid'],
   initial: 'pending',
   entry: ['invalid'],
@@ -146,7 +147,9 @@ export const SCAN_SESSION_MACHINE = defineMachine({
 export const AUTOMATION_RUN_MACHINE = defineMachine({
   id: 'automation_run',
   storedIn: 'automation_runs.status',
-  description: 'One delivery of a workflow automation (webhook or email copy) for one trigger.',
+  description:
+    'One delivery of a workflow automation (webhook or email copy) for one trigger. ' +
+    'complete / retry / defer / fail only land while the worker still holds the job claim (`locked_at`, SM.3).',
   states: ['queued', 'running', 'done', 'retrying', 'failed'],
   initial: 'queued',
   terminal: ['done'],
