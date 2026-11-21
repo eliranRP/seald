@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type JSX } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type JSX,
+} from 'react';
 import {
   ArrowRight,
   Camera,
@@ -20,6 +28,7 @@ import { ProgressBar } from '../ProgressBar';
 import { SegmentedControl } from '../SegmentedControl';
 import { Spinner } from '../Spinner';
 import type { ScanCaptureProps, ScanPage } from './ScanCapture.types';
+import { INITIAL_SCAN_PHASE, scanPhaseReducer } from './scanPhase';
 import {
   AddTile,
   BarSlot,
@@ -59,8 +68,6 @@ import {
   Sheet,
 } from './ScanCapture.styles';
 
-type Phase = 'camera' | 'review' | 'making';
-
 const THUMB_EDGE = 360;
 const FLASH_MS = 700;
 
@@ -92,26 +99,29 @@ async function blobBytes(blob: Blob): Promise<Uint8Array> {
  */
 export function ScanCapture(props: ScanCaptureProps): JSX.Element {
   const { onComplete, onClose, title } = props;
-  const [phase, setPhase] = useState<Phase>('camera');
+  const [phase, dispatch] = useReducer(scanPhaseReducer, INITIAL_SCAN_PHASE);
   const [pages, setPages] = useState<ReadonlyArray<ScanPage>>([]);
   const [filter, setFilter] = useState<ScanFilter>('document');
   const [thumbs, setThumbs] = useState<Readonly<Record<string, string>>>({});
   const [flashKey, setFlashKey] = useState(0);
   const [captured, setCaptured] = useState<number | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [buildFailed, setBuildFailed] = useState(false);
-  const [captureFailed, setCaptureFailed] = useState(false);
   const fileInput = useRef<HTMLInputElement | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const { videoRef, status: cameraStatus, retry: retryCamera } = useScanCamera(phase === 'camera');
+  const {
+    videoRef,
+    status: cameraStatus,
+    retry: retryCamera,
+  } = useScanCamera(phase.kind === 'camera');
   const full = pages.length >= SCAN_MAX_PAGES;
+  const inReview = phase.kind === 'review';
+  const captureFailed = phase.kind !== 'making' && phase.captureFailed;
 
   useEffect(() => () => clearTimeout(flashTimer.current), []);
 
   // Thumbnails follow the pages and the filter.
   useEffect(() => {
-    if (phase !== 'review') return undefined;
+    if (!inReview) return undefined;
     let cancelled = false;
     const made: string[] = [];
     void Promise.all(
@@ -138,7 +148,7 @@ export function ScanCapture(props: ScanCaptureProps): JSX.Element {
       cancelled = true;
       made.forEach((u) => URL.revokeObjectURL(u));
     };
-  }, [pages, filter, phase]);
+  }, [pages, filter, inReview]);
 
   const countRef = useRef(0);
   useEffect(() => {
@@ -157,7 +167,7 @@ export function ScanCapture(props: ScanCaptureProps): JSX.Element {
   const handleShutter = useCallback(async (): Promise<void> => {
     const video = videoRef.current;
     if (!video || full) return;
-    setCaptureFailed(false);
+    dispatch({ type: 'capture-started' });
     try {
       const blob = await captureFrame(video);
       addBlobs([blob]);
@@ -165,7 +175,7 @@ export function ScanCapture(props: ScanCaptureProps): JSX.Element {
       clearTimeout(flashTimer.current);
       flashTimer.current = setTimeout(() => setFlashKey(0), FLASH_MS);
     } catch {
-      setCaptureFailed(true);
+      dispatch({ type: 'capture-failed' });
     }
   }, [addBlobs, videoRef, full]);
 
@@ -174,13 +184,15 @@ export function ScanCapture(props: ScanCaptureProps): JSX.Element {
       const files = Array.from(event.target.files ?? []);
       event.target.value = '';
       if (files.length === 0) return;
-      setCaptureFailed(false);
+      dispatch({ type: 'capture-started' });
       const results = await Promise.all(files.map((f) => normalizePhoto(f).catch(() => null)));
       const blobs = results.filter((b): b is Blob => b !== null);
-      if (blobs.length < files.length) setCaptureFailed(true);
-      if (blobs.length === 0) return;
+      if (blobs.length === 0) {
+        dispatch({ type: 'capture-failed' });
+        return;
+      }
       addBlobs(blobs);
-      setPhase('review');
+      dispatch({ type: 'photos-added', someUnreadable: blobs.length < files.length });
     },
     [addBlobs],
   );
@@ -206,26 +218,23 @@ export function ScanCapture(props: ScanCaptureProps): JSX.Element {
     setPages([]);
     setThumbs({});
     setCaptured(null);
-    setPhase('camera');
+    dispatch({ type: 'open-camera' });
   }, []);
 
   const handleUse = useCallback(async (): Promise<void> => {
     if (pages.length === 0) return;
-    setBuildFailed(false);
-    setProgress(0);
-    setPhase('making');
+    dispatch({ type: 'build-started' });
     try {
       const jpegs: Uint8Array[] = [];
       for (const page of pages) {
         const blob = await renderFiltered(page.blob, filter);
         jpegs.push(await blobBytes(blob));
-        setProgress((p) => p + 1);
+        dispatch({ type: 'page-processed' });
       }
       const pdf = await buildScanPdf(jpegs);
       await onComplete(pdf);
     } catch {
-      setBuildFailed(true);
-      setPhase('review');
+      dispatch({ type: 'build-failed' });
     }
   }, [filter, onComplete, pages]);
 
@@ -242,7 +251,8 @@ export function ScanCapture(props: ScanCaptureProps): JSX.Element {
   );
   const openPicker = (): void => fileInput.current?.click();
 
-  if (phase === 'making') {
+  if (phase.kind === 'making') {
+    const { progress } = phase;
     return (
       <Root>
         <Sheet>
@@ -262,7 +272,7 @@ export function ScanCapture(props: ScanCaptureProps): JSX.Element {
     );
   }
 
-  if (phase === 'review') {
+  if (phase.kind === 'review') {
     return (
       <Root>
         <Sheet>
@@ -322,7 +332,7 @@ export function ScanCapture(props: ScanCaptureProps): JSX.Element {
                   disabled={full}
                   onClick={() => {
                     if (cameraStatus === 'blocked') openPicker();
-                    else setPhase('camera');
+                    else dispatch({ type: 'open-camera' });
                   }}
                 >
                   <Plus size={20} aria-hidden />
@@ -331,7 +341,7 @@ export function ScanCapture(props: ScanCaptureProps): JSX.Element {
               </AddTile>
             </Grid>
             {full ? <Meta>{`${SCAN_MAX_PAGES} pages is the most one scan can hold.`}</Meta> : null}
-            {buildFailed ? (
+            {phase.buildFailed ? (
               <Meta $error role="alert">
                 {'Something went wrong. Try again.'}
               </Meta>
@@ -395,7 +405,7 @@ export function ScanCapture(props: ScanCaptureProps): JSX.Element {
                 Try the camera again
               </Button>
               {pages.length > 0 ? (
-                <Button variant="secondary" onClick={() => setPhase('review')}>
+                <Button variant="secondary" onClick={() => dispatch({ type: 'open-review' })}>
                   {`Review ${pagesLabel(pages.length)}`}
                 </Button>
               ) : null}
@@ -468,7 +478,7 @@ export function ScanCapture(props: ScanCaptureProps): JSX.Element {
             <CamThumb
               type="button"
               aria-label={`Review ${pagesLabel(pages.length)}`}
-              onClick={() => setPhase('review')}
+              onClick={() => dispatch({ type: 'open-review' })}
             >
               <CountBadge aria-hidden>{pages.length}</CountBadge>
             </CamThumb>

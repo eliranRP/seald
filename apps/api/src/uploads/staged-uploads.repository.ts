@@ -41,7 +41,7 @@ export interface CompleteStagedUpload {
   readonly daily_cap: number;
 }
 
-export type CompleteOutcome = 'completed' | 'not_pending' | 'daily_cap';
+export type CompleteOutcome = 'completed' | 'not_pending' | 'expired' | 'daily_cap';
 
 /**
  * Persistence port for staged uploads (docs/design/mcp-server.md §
@@ -59,8 +59,9 @@ export abstract class StagedUploadsRepository {
   /**
    * The doc's conditional complete, under a per-owner
    * `pg_advisory_xact_lock` that also counts today's completed uploads:
-   * `daily_cap` when the owner is at the cap, `not_pending` when the row
-   * is gone or already complete.
+   * `daily_cap` when the owner is at the cap, `expired` when the row is
+   * past `expires_at` (the sweep may be deleting it), `not_pending` when
+   * the row is gone or already complete.
    */
   abstract complete(input: CompleteStagedUpload): Promise<CompleteOutcome>;
 
@@ -73,8 +74,12 @@ export abstract class StagedUploadsRepository {
    */
   abstract consume(owner_id: string, id: string): Promise<StagedUploadRecord | null>;
 
-  /** Undo `consume` after the attach itself failed. */
-  abstract releaseClaim(owner_id: string, id: string): Promise<void>;
+  /**
+   * Undo `consume` after the attach itself failed, only while the row still
+   * carries that claim: `consumed_at` is the value `consume` returned.
+   * Never un-consumes a row another claim (or a finished attach) owns.
+   */
+  abstract releaseClaim(owner_id: string, id: string, consumed_at: string): Promise<void>;
 
   abstract delete(owner_id: string, id: string): Promise<void>;
 

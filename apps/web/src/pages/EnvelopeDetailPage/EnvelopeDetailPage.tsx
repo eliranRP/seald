@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useReducer, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Ban,
@@ -68,6 +68,18 @@ import { DownloadSplitButton } from './DownloadSplitButton';
 import type { DownloadKind } from './DownloadSplitButton';
 import { ReplaceSignerDialog } from './ReplaceSignerDialog';
 import { SignersCard } from './SignersCard';
+import {
+  DOWNLOAD_IDLE,
+  REMIND_IDLE,
+  SIGNER_EDIT_IDLE,
+  documentsCardBusy,
+  fixingSignerId,
+  remindingSignerId,
+  replacingSigner,
+  signerEditReducer,
+  splitButtonBusy,
+} from './envelopeDetailState';
+import type { DownloadState, HeaderOverlay, RemindState } from './envelopeDetailState';
 import { TERMINAL_STATUSES, activityRows, isPending } from './envelopeView';
 import {
   Anchor,
@@ -188,16 +200,11 @@ export function EnvelopeDetailPage() {
   const { save: saveToGdrive, inFlight: gdriveInFlight } = useSaveEnvelopeToGdrive();
 
   const [toast, setToast] = useState<ActionToast | null>(null);
-  const [withdrawOpen, setWithdrawOpen] = useState(false);
-  const [remindAllBusy, setRemindAllBusy] = useState(false);
-  const [remindBusyId, setRemindBusyId] = useState<string | null>(null);
+  const [overlay, setOverlay] = useState<HeaderOverlay>('none');
+  const [remind, setRemind] = useState<RemindState>(REMIND_IDLE);
   const [reminded, setReminded] = useState<ReadonlySet<string>>(new Set());
-  const [downloadInFlight, setDownloadInFlight] = useState<string | null>(null);
-  const [fixingId, setFixingId] = useState<string | null>(null);
-  const [fixBusy, setFixBusy] = useState(false);
-  const [replacing, setReplacing] = useState<EnvelopeSigner | null>(null);
-  const [replaceBusy, setReplaceBusy] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [download, setDownload] = useState<DownloadState>(DOWNLOAD_IDLE);
+  const [signerEdit, dispatchSignerEdit] = useReducer(signerEditReducer, SIGNER_EDIT_IDLE);
   const moreRef = useRef<HTMLButtonElement | null>(null);
 
   const envelope = q.data;
@@ -340,7 +347,7 @@ export function EnvelopeDetailPage() {
         await handleSaveToGdrive();
         return;
       }
-      setDownloadInFlight(kind);
+      setDownload({ kind: 'artifact', which: kind });
       setToast(null);
       try {
         if (kind === 'zip') {
@@ -353,7 +360,7 @@ export function EnvelopeDetailPage() {
           await openArtifact('original', 'Original PDF');
         }
       } finally {
-        setDownloadInFlight(null);
+        setDownload(DOWNLOAD_IDLE);
       }
     },
     [envelope, openArtifact, handleSaveToGdrive],
@@ -363,13 +370,13 @@ export function EnvelopeDetailPage() {
   const handleDownloadDocument = useCallback(
     async (d: EnvelopeDocument) => {
       if (!envelope) return;
-      setDownloadInFlight(d.id);
+      setDownload({ kind: 'document', documentId: d.id });
       setToast(null);
       try {
-        const sealed = envelope.status === 'completed';
+        const sealed = ownerEnvelopeActions(envelope.status).includes('download_sealed');
         await openArtifact(sealed ? 'sealed' : 'original', d.title, { documentId: d.id });
       } finally {
-        setDownloadInFlight(null);
+        setDownload(DOWNLOAD_IDLE);
       }
     },
     [envelope, openArtifact],
@@ -408,11 +415,11 @@ export function EnvelopeDetailPage() {
   const firstName = (name: string): string => name.trim().split(/\s+/)[0] ?? name;
 
   // One signer. The server allows one reminder per signer per hour: a 429
-  // reads as "Reminded", not as an error.
+  // reads as "Reminded", not as an error. One reminder request at a time.
   const handleRemindOne = useCallback(
     async (signer: EnvelopeSigner) => {
-      if (!envelope) return;
-      setRemindBusyId(signer.id);
+      if (!envelope || remind.kind !== 'idle') return;
+      setRemind({ kind: 'one', signerId: signer.id });
       setToast(null);
       try {
         await remindEnvelopeSigner(envelope.id, signer.id);
@@ -427,22 +434,22 @@ export function EnvelopeDetailPage() {
           showError('Could not send the reminder. Please try again.');
         }
       } finally {
-        setRemindBusyId(null);
+        setRemind(REMIND_IDLE);
       }
     },
-    [envelope, refreshEnvelope, showError, showOk],
+    [envelope, remind.kind, refreshEnvelope, showError, showOk],
   );
 
   const handleRemindAll = useCallback(async () => {
-    if (!envelope) return;
+    if (!envelope || remind.kind !== 'idle') return;
     const pending = envelope.signers.filter(isPending);
     if (pending.length === 0) return;
-    setRemindAllBusy(true);
+    setRemind({ kind: 'all' });
     setToast(null);
     const results = await Promise.allSettled(
       pending.map((s) => remindEnvelopeSigner(envelope.id, s.id)),
     );
-    setRemindAllBusy(false);
+    setRemind(REMIND_IDLE);
     const done = new Set(reminded);
     let sent = 0;
     let throttled = 0;
@@ -477,15 +484,15 @@ export function EnvelopeDetailPage() {
     } else {
       showOk(sent === 1 ? 'Reminded 1 signer' : `Reminded ${sent} signers`);
     }
-  }, [envelope, reminded, refreshEnvelope, showError, showOk]);
+  }, [envelope, remind.kind, reminded, refreshEnvelope, showError, showOk]);
 
   const handleFixSubmit = useCallback(
     async (signer: EnvelopeSigner, email: string) => {
       if (!envelope) return;
-      setFixBusy(true);
+      dispatchSignerEdit({ type: 'submit', signerId: signer.id });
       try {
         await fixEnvelopeSigner(envelope.id, signer.id, { email });
-        setFixingId(null);
+        dispatchSignerEdit({ type: 'succeeded', signerId: signer.id });
         setReminded((prev) => {
           const next = new Set(prev);
           next.delete(signer.id);
@@ -494,26 +501,25 @@ export function EnvelopeDetailPage() {
         showOk(`Sent to ${email}`);
         refreshEnvelope();
       } catch (err) {
+        dispatchSignerEdit({ type: 'failed', signerId: signer.id });
         const msg = err instanceof Error ? err.message : '';
         showError(
           /signer_email_taken/.test(msg)
             ? 'That email is already on this envelope.'
             : 'Could not update the email. Please try again.',
         );
-      } finally {
-        setFixBusy(false);
       }
     },
     [envelope, refreshEnvelope, showError, showOk],
   );
 
   const handleReplace = useCallback(
-    async (next: { readonly name: string; readonly email: string }) => {
-      if (!envelope || !replacing) return;
-      setReplaceBusy(true);
+    async (replacing: EnvelopeSigner, next: { readonly name: string; readonly email: string }) => {
+      if (!envelope) return;
+      dispatchSignerEdit({ type: 'submit', signerId: replacing.id });
       try {
         await replaceEnvelopeSigner(envelope.id, replacing.id, next);
-        setReplacing(null);
+        dispatchSignerEdit({ type: 'succeeded', signerId: replacing.id });
         setReminded((prev) => {
           const copy = new Set(prev);
           copy.delete(replacing.id);
@@ -522,25 +528,24 @@ export function EnvelopeDetailPage() {
         showOk(`Sent to ${next.email}`);
         refreshEnvelope();
       } catch (err) {
+        dispatchSignerEdit({ type: 'failed', signerId: replacing.id });
         const msg = err instanceof Error ? err.message : '';
         showError(
           /signer_email_taken/.test(msg)
             ? 'That email is already on this envelope.'
             : 'Could not replace the signer. Please try again.',
         );
-      } finally {
-        setReplaceBusy(false);
       }
     },
-    [envelope, replacing, refreshEnvelope, showError, showOk],
+    [envelope, refreshEnvelope, showError, showOk],
   );
 
   const handleConfirmWithdraw = useCallback(() => {
     if (!envelope) return;
-    setWithdrawOpen(false);
+    setOverlay('none');
     // Drafts: hard-delete (nobody was notified). Sent envelopes: the cancel
     // mutation flips the status server-side and fans out the cancel emails.
-    if (ENVELOPE_MACHINE.allows(envelope.status, 'delete')) {
+    if (ownerEnvelopeActions(envelope.status).includes('delete')) {
       deleteEnvelope.mutate(envelope.id, {
         onSuccess: () => {
           void qc.invalidateQueries({ queryKey: envelopeKeys.lists() });
@@ -564,7 +569,12 @@ export function EnvelopeDetailPage() {
     });
   }, [envelope, deleteEnvelope, cancelEnvelope, qc, navigate, showError, showOk]);
 
-  const closeWithdraw = useCallback(() => setWithdrawOpen(false), []);
+  const withdrawOpen = overlay === 'withdraw';
+  const moreOpen = overlay === 'more';
+  // Closing one overlay never closes the other: the menu's own close runs
+  // right after its item opened the withdraw dialog.
+  const closeWithdraw = useCallback(() => setOverlay((o) => (o === 'withdraw' ? 'none' : o)), []);
+  const closeMore = (): void => setOverlay((o) => (o === 'more' ? 'none' : o));
   useEscapeKey(closeWithdraw, withdrawOpen);
 
   const mobileTop = (title: string, more: boolean) => (
@@ -585,7 +595,7 @@ export function EnvelopeDetailPage() {
           iconOnly
           iconLeft={MoreHorizontal}
           aria-label="More"
-          onClick={() => setMoreOpen(true)}
+          onClick={() => setOverlay('more')}
         />
       ) : null}
     </MobileTop>
@@ -675,20 +685,24 @@ export function EnvelopeDetailPage() {
   const total = envelope.signers.length;
   const signed = envelope.signers.filter((s) => s.status === 'completed').length;
   const pendingCount = envelope.signers.filter(isPending).length;
-  const isComplete = envelope.status === 'completed';
-  const isSealing = envelope.status === 'sealing';
+  // Sealed: the sealed PDF can be downloaded. Sealing: the seal worker can still finish it.
+  const isComplete = ENVELOPE_MACHINE.allows(envelope.status, 'download_sealed');
+  const isSealing = ENVELOPE_MACHINE.can(envelope.status, 'sealed');
   const isTerminal = TERMINAL_STATUSES.has(envelope.status);
   const allowed = ownerEnvelopeActions(envelope.status);
   const isLive = allowed.includes('remind');
+  const canDownloadSealed = allowed.includes('download_sealed');
+  const canDelete = allowed.includes('delete');
+  const canCorrectSigner = allowed.includes('correct_signer');
   const barTone = barToneFor(envelope.status);
   const pct = total === 0 ? 0 : Math.round((signed / total) * 100);
   const bounced = envelope.signers.find((s) => s.status === 'bounced') ?? null;
   const badge = badgeFor(envelope, pendingCount);
-  const canWithdraw = allowed.includes('delete') || allowed.includes('cancel');
+  const canWithdraw = canDelete || allowed.includes('cancel');
   const showRemindAll = isLive && pendingCount > 0;
   const envelopeDocuments = envelope.documents ?? [];
   const multiDoc = isFeatureEnabled('multiDocumentEnvelopes') && envelopeDocuments.length > 1;
-  const downloadBusy = gdriveInFlight ? 'gdrive' : downloadInFlight;
+  const downloadBusy = splitButtonBusy(download, gdriveInFlight);
   const pendingNames = envelope.signers.filter(isPending);
   const reminderDays = envelope.reminder_interval_days;
   const autoLabel =
@@ -697,7 +711,8 @@ export function EnvelopeDetailPage() {
       : 'Auto-remind';
   const expiresText = formatShortDate(envelope.expires_at);
 
-  const isDraft = envelope.status === 'draft';
+  // Withdrawing a draft deletes it; the copy follows the action the machine allows.
+  const isDraft = canDelete;
   const moreEntries: MenuEntry[] = canWithdraw
     ? [
         {
@@ -706,14 +721,14 @@ export function EnvelopeDetailPage() {
           label: isDraft ? 'Delete draft' : 'Withdraw',
           icon: Ban,
           danger: true,
-          onSelect: () => setWithdrawOpen(true),
+          onSelect: () => setOverlay('withdraw'),
         },
       ]
     : [];
 
   const downloadButton = (fullWidth?: boolean) => (
     <DownloadSplitButton
-      sealed={isComplete}
+      sealed={canDownloadSealed}
       sealing={isSealing}
       originalAvailable={envelope.original_pages !== null}
       gdriveEnabled={gdriveEnabled}
@@ -738,7 +753,7 @@ export function EnvelopeDetailPage() {
       <Button
         variant={primary === true ? 'primary' : 'secondary'}
         iconLeft={Bell}
-        loading={remindAllBusy}
+        loading={remind.kind === 'all'}
         onClick={() => {
           void handleRemindAll();
         }}
@@ -762,9 +777,15 @@ export function EnvelopeDetailPage() {
           <Banner
             tone="error"
             action={
-              <Button size="sm" onClick={() => setFixingId(bounced.id)}>
-                Fix email
-              </Button>
+              // Only offer the fix while the machine still lets the owner correct a signer.
+              canCorrectSigner ? (
+                <Button
+                  size="sm"
+                  onClick={() => dispatchSignerEdit({ type: 'open-fix', signerId: bounced.id })}
+                >
+                  Fix email
+                </Button>
+              ) : undefined
             }
           >
             {`Email to ${firstName(bounced.name)} bounced`}
@@ -809,12 +830,12 @@ export function EnvelopeDetailPage() {
                   aria-haspopup="menu"
                   aria-expanded={moreOpen}
                   loading={deleteEnvelope.isPending || cancelEnvelope.isPending}
-                  onClick={() => setMoreOpen((v) => !v)}
+                  onClick={() => setOverlay((o) => (o === 'more' ? 'none' : 'more'))}
                 />
                 {!isMobile ? (
                   <Menu
                     open={moreOpen}
-                    onClose={() => setMoreOpen(false)}
+                    onClose={closeMore}
                     items={moreEntries}
                     anchorRef={moreRef}
                     aria-label="More actions"
@@ -858,7 +879,7 @@ export function EnvelopeDetailPage() {
                 <InfoChip icon={Link2}>Verify page</InfoChip>
               </ChipLink>
             ) : null}
-            {isLive || envelope.status === 'draft' ? (
+            {allowed.includes('toggle_reminders') ? (
               <InfoChip icon={Bell}>
                 {autoLabel}
                 <Switch
@@ -875,8 +896,8 @@ export function EnvelopeDetailPage() {
         {multiDoc ? (
           <EnvelopeDocumentsCard
             documents={envelopeDocuments}
-            sealed={isComplete}
-            busyId={downloadInFlight}
+            sealed={canDownloadSealed}
+            busyId={documentsCardBusy(download)}
             onDownload={(d) => {
               handleDownloadDocument(d).catch(() => {
                 /* surfaced via the toast inside openArtifact */
@@ -885,7 +906,7 @@ export function EnvelopeDetailPage() {
             onDownloadAll={() => {
               void handleDownload('zip');
             }}
-            {...(envelope.status === 'draft'
+            {...(allowed.includes('edit_draft')
               ? { onMove: handleMoveDocument, onRemove: handleRemoveDocument }
               : {})}
           />
@@ -894,17 +915,21 @@ export function EnvelopeDetailPage() {
         <SignersCard
           envelope={envelope}
           remindedIds={reminded}
-          fixingId={fixingId}
-          busyId={fixBusy && fixingId !== null ? fixingId : remindBusyId}
+          fixingId={fixingSignerId(signerEdit)}
+          busyId={
+            signerEdit.kind === 'fixing' && signerEdit.busy
+              ? signerEdit.signerId
+              : remindingSignerId(remind)
+          }
           onRemind={(s) => {
             void handleRemindOne(s);
           }}
-          onFixOpen={(s) => setFixingId(s.id)}
-          onFixCancel={() => setFixingId(null)}
+          onFixOpen={(s) => dispatchSignerEdit({ type: 'open-fix', signerId: s.id })}
+          onFixCancel={() => dispatchSignerEdit({ type: 'close' })}
           onFixSubmit={(s, email) => {
             void handleFixSubmit(s, email);
           }}
-          onReplace={(s) => setReplacing(s)}
+          onReplace={(s) => dispatchSignerEdit({ type: 'open-replace', signer: s })}
         />
 
         <SigningOrderSteps
@@ -923,7 +948,7 @@ export function EnvelopeDetailPage() {
       </MobileBar>
 
       {isMobile ? (
-        <MWBottomSheet open={moreOpen} onClose={() => setMoreOpen(false)} title="More">
+        <MWBottomSheet open={moreOpen} onClose={closeMore} title="More">
           <SheetList>
             {moreEntries.map((entry) =>
               entry.type === undefined || entry.type === 'item' ? (
@@ -934,7 +959,7 @@ export function EnvelopeDetailPage() {
                   fullWidth
                   iconLeft={entry.icon}
                   onClick={() => {
-                    setMoreOpen(false);
+                    closeMore();
                     entry.onSelect();
                   }}
                 >
@@ -947,12 +972,12 @@ export function EnvelopeDetailPage() {
       ) : null}
 
       <ReplaceSignerDialog
-        signer={replacing}
+        signer={replacingSigner(signerEdit)}
         takenEmails={envelope.signers.map((s) => s.email)}
-        busy={replaceBusy}
-        onCancel={() => setReplacing(null)}
+        busy={signerEdit.kind === 'replacing' && signerEdit.busy}
+        onCancel={() => dispatchSignerEdit({ type: 'close' })}
         onReplace={(next) => {
-          void handleReplace(next);
+          if (signerEdit.kind === 'replacing') void handleReplace(signerEdit.signer, next);
         }}
       />
 

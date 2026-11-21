@@ -225,14 +225,18 @@ export class GDriveService {
       args.userId,
       exchange.googleUserId,
     );
-    if (existing) {
-      await this.repo.replaceToken({
+    const rotated =
+      existing &&
+      (await this.repo.replaceToken({
         id: existing.id,
         refreshTokenCiphertext: enc.ciphertext,
         refreshTokenKmsKeyArn: enc.kmsKeyArn,
         scope: exchange.scope,
         googleEmail: exchange.googleEmail,
-      });
+      }));
+    // A disconnect that raced this reconnect leaves `rotated` null: the old
+    // row stays disconnected and the new grant gets a fresh row below.
+    if (existing && rotated) {
       // Drop any cached access token tied to the old refresh token so the
       // next getAccessToken() pulls a fresh one.
       this.cache.delete(existing.id);

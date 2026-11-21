@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ENVELOPE_MACHINE } from 'shared';
+import { ACCESS_CODE_POLICY, ENVELOPE_MACHINE } from 'shared';
 import { type Kysely, type Selectable, sql } from 'kysely';
 import type { Database, SignerOtpChallengesTable } from '../../../db/schema';
 import { DB_TOKEN } from '../../db/db.provider';
@@ -185,14 +185,16 @@ export class AccessAuthPgRepository extends AccessAuthRepository {
       .where('c.purpose', '=', input.purpose)
       .where('c.superseded_at', 'is', null)
       .where('c.consumed_at', 'is', null)
+      // Locked means `locked_at` OR spent attempts, as in challengeState.
       .where('c.locked_at', 'is', null)
+      .where('c.attempts', '<', ACCESS_CODE_POLICY.maxAttempts)
       .where(({ exists, selectFrom }) =>
         exists(
           selectFrom('envelope_signers as s')
             .innerJoin('envelopes as e', 'e.id', 's.envelope_id')
             .select(sql<number>`1`.as('one'))
             .whereRef('s.id', '=', 'c.signer_id')
-            .where('e.status', '=', 'awaiting_others')
+            .where('e.status', 'in', ENVELOPE_MACHINE.statesAllowing('sign'))
             .where('e.expires_at', '>', input.now)
             .where('s.signed_at', 'is', null)
             .where('s.declined_at', 'is', null),

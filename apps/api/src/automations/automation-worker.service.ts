@@ -37,7 +37,11 @@ export const STALE_LOCK_MS = 15 * 60_000;
 /** Most actions this process runs at once (loop + manual flush together). */
 export const MAX_IN_FLIGHT = 2;
 
-export type ProcessedStatus = 'done' | 'retrying' | 'failed';
+/**
+ * `lost`: another worker reclaimed the job's stale lock, so this worker's
+ * finishing write did not land (SM.3) and it reports nothing.
+ */
+export type ProcessedStatus = 'done' | 'retrying' | 'failed' | 'lost';
 
 export interface AutomationFlushResult {
   readonly claimed: number;
@@ -114,7 +118,7 @@ export class AutomationWorkerService implements OnModuleInit, OnModuleDestroy {
         const status = await this.process(job, at);
         if (status === 'done') done += 1;
         else if (status === 'retrying') retrying += 1;
-        else failed += 1;
+        else if (status === 'failed') failed += 1;
       } finally {
         this.inFlight -= 1;
       }
@@ -124,41 +128,61 @@ export class AutomationWorkerService implements OnModuleInit, OnModuleDestroy {
 
   /** Run one claimed job's action and record the outcome. */
   async process(job: ClaimedAutomationJob, now: Date): Promise<ProcessedStatus> {
-    const base = { job_id: job.job_id, run_id: job.run_id, automation_id: job.automation_id };
-    if (job.attempts > job.max_attempts) {
-      // A stale `running` job reclaimed after its last attempt.
-      await this.repo.failRun({ ...base, slug: 'attempts_exhausted', retryable: true });
+    // The claim rides on every finishing write, so a worker whose stale lock
+    // was reclaimed by another one writes nothing (SM.3).
+    const base = {
+      job_id: job.job_id,
+      run_id: job.run_id,
+      automation_id: job.automation_id,
+      ...(job.claim !== undefined ? { claim: job.claim } : {}),
+    };
+    // Only the write that still held the claim counts towards the streak.
+    const failed = async (applied: boolean): Promise<'failed' | 'lost'> => {
+      if (!applied) return 'lost';
       await this.autoDisable?.afterFailure(job.automation_id, now);
       return 'failed';
+    };
+    if (job.attempts > job.max_attempts) {
+      // A stale `running` job reclaimed after its last attempt.
+      return failed(
+        await this.repo.failRun({ ...base, slug: 'attempts_exhausted', retryable: true }),
+      );
     }
     const outcome = await this.runAction(job);
     if (outcome.kind === 'done') {
-      await this.repo.completeRun({ ...base, response_status: outcome.responseStatus ?? null });
-      return 'done';
+      const applied = await this.repo.completeRun({
+        ...base,
+        response_status: outcome.responseStatus ?? null,
+      });
+      return applied ? 'done' : 'lost';
     }
     if (outcome.kind === 'deferred') {
-      await this.repo.deferRun({ ...base, slug: outcome.slug, scheduled_for: outcome.until });
-      return 'retrying';
+      const applied = await this.repo.deferRun({
+        ...base,
+        slug: outcome.slug,
+        scheduled_for: outcome.until,
+      });
+      return applied ? 'retrying' : 'lost';
     }
     const response_status = outcome.responseStatus ?? null;
     if (outcome.kind === 'permanent') {
-      await this.repo.failRun({ ...base, slug: outcome.slug, retryable: false, response_status });
-      await this.autoDisable?.afterFailure(job.automation_id, now);
-      return 'failed';
+      return failed(
+        await this.repo.failRun({ ...base, slug: outcome.slug, retryable: false, response_status }),
+      );
     }
     if (job.attempts >= job.max_attempts) {
-      await this.repo.failRun({ ...base, slug: outcome.slug, retryable: true, response_status });
-      await this.autoDisable?.afterFailure(job.automation_id, now);
-      return 'failed';
+      return failed(
+        await this.repo.failRun({ ...base, slug: outcome.slug, retryable: true, response_status }),
+      );
     }
     const delay = Math.max(backoffMs(job.attempts), outcome.retryAfterMs ?? 0);
-    await this.repo.retryRun({
+    const applied = await this.repo.retryRun({
       ...base,
       slug: outcome.slug,
       response_status,
       scheduled_for: new Date(now.getTime() + delay),
     });
-    return 'retrying';
+    return applied ? 'retrying' : 'lost';
   }
 
   private async runAction(job: ClaimedAutomationJob): Promise<AutomationActionOutcome> {

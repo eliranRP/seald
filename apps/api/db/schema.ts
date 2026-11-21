@@ -845,5 +845,7 @@ export interface ScanSessionsTable {
   byte_length: ColumnType<number | null, number | null | undefined, number | null>;
   expires_at: ColumnType<Date, string, string>;
   received_at: ColumnType<Date | null, string | null | undefined, string | null>;
+  /** Migration 0054: when the current upload claimed the session (SM.3). */
+  claimed_at: ColumnType<Date | null, string | null | undefined, string | null>;
   created_at: ColumnType<Date, string | undefined, never>;
 }

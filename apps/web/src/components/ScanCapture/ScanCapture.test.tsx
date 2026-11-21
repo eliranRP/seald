@@ -98,6 +98,29 @@ describe('ScanCapture', () => {
     expect(screen.getByRole('button', { name: 'Use 1 page' })).toBeEnabled();
   });
 
+  it('a failed shutter press is not reported as unreadable photos on the review screen', async () => {
+    renderWithTheme(<ScanCapture onComplete={vi.fn()} />);
+    await shoot(1);
+    imaging.captureFrame.mockRejectedValueOnce(new Error('no frame'));
+    await userEvent.click(screen.getByRole('button', { name: 'Capture' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't take that photo.");
+    await userEvent.click(screen.getByRole('button', { name: 'Review 1 page' }));
+    expect(screen.getByRole('heading', { name: '1 page' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('a build error does not come back after adding a page from the camera', async () => {
+    build.buildScanPdf.mockRejectedValueOnce(new Error('nope'));
+    renderWithTheme(<ScanCapture onComplete={vi.fn()} />);
+    await shoot(1);
+    await userEvent.click(screen.getByRole('button', { name: 'Review 1 page' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Use 1 page' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong');
+    await userEvent.click(screen.getByRole('button', { name: 'Add page' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Review 1 page' }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('Retake clears the pages and returns to the camera', async () => {
     renderWithTheme(<ScanCapture onComplete={vi.fn()} />);
     await shoot(1);

@@ -9,6 +9,11 @@ export type { ConversionFailedDialogProps } from './ConversionFailedDialog';
 export { ConversionProgressDialog } from './ConversionProgressDialog';
 export type { ConversionProgressDialogProps } from './ConversionProgressDialog';
 export { useDriveImport } from './useDriveImport';
+export { useDriveImportOverlay, DRIVE_IMPORT_DONE_MS } from './useDriveImportOverlay';
+export type {
+  UseDriveImportOverlayArgs,
+  UseDriveImportOverlayReturn,
+} from './useDriveImportOverlay';
 export type { DriveImportState, UseDriveImportArgs, UseDriveImportReturn } from './useDriveImport';
 export {
   cancelConversion,

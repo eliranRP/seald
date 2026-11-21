@@ -309,6 +309,41 @@ describePg('bulk send (e2e, real Postgres)', () => {
     await repo.finishIfDone(batch.id, later);
   });
 
+  it('after a stale reclaim the first worker cannot mark or release the row (SM.3)', async () => {
+    const repo = app.get(BulkRepository);
+    const batch = await preview([HEAD, row(1, 'k')].join('\n'));
+    await confirm(batch.id);
+    // Hours ahead, so claims from the earlier tests are outside the window.
+    const t0 = new Date(Date.now() + 5 * 3_600_000);
+    const window = (at: Date) => ({
+      windowStart: new Date(at.getTime() - 60_000),
+      maxPerWindow: 10,
+    });
+    const first = await repo.claimNextRow(t0, new Date(t0.getTime() - 600_000), window(t0));
+    expect(first).toMatchObject({ batch_id: batch.id, attempts: 1 });
+    // The first worker hangs past the stale lock; a second one reclaims the row.
+    const t1 = new Date(t0.getTime() + 16 * 60_000);
+    const second = await repo.claimNextRow(t1, new Date(t1.getTime() - 600_000), window(t1));
+    expect(second).toMatchObject({ id: first!.id, attempts: 2 });
+    expect(second!.locked_at).not.toBe(first!.locked_at);
+
+    await repo.markRowFailed(first!.id, 'send_failed', first!.locked_at!);
+    await repo.releaseRow(first!.id, 'rate_limited', first!.locked_at!);
+    await repo.markRowSent(first!.id, t1, first!.locked_at!);
+    const held = await q(`select status, error_code, sent_at from bulk_batch_rows where id = $1`, [
+      first!.id,
+    ]);
+    expect(held.rows[0]).toEqual({ status: 'processing', error_code: null, sent_at: null });
+
+    // The current claim still finishes it.
+    await repo.markRowFailed(first!.id, 'send_failed', second!.locked_at!);
+    const done = await q(`select status, error_code from bulk_batch_rows where id = $1`, [
+      first!.id,
+    ]);
+    expect(done.rows[0]).toEqual({ status: 'failed', error_code: 'send_failed' });
+    await repo.finishIfDone(batch.id, t1);
+  });
+
   describe('restart idempotency', () => {
     afterEach(() => jest.restoreAllMocks());
 

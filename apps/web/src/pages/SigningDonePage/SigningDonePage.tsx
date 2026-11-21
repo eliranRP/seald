@@ -27,7 +27,7 @@ export function SigningDonePage() {
   // Poll the public verify endpoint for this envelope's seal status. The
   // query is gated by `enabled: shortCode.length > 0` inside the hook, so
   // it is safe to mount before the snapshot check below.
-  const verify = useSealedDownload(snap?.short_code ?? '');
+  const verify = useSealedDownload(snap?.short_code ?? '', { justSubmitted: true });
 
   if (!snap || snap.kind !== 'submitted') {
     return <Navigate to={`/sign/${envelopeId}`} replace />;

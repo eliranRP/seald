@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { ApprovalApproveBody, ApprovalDetail } from 'shared';
+import type { ApprovalApproveBody } from 'shared';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { Button } from '@/components/Button';
@@ -24,6 +24,8 @@ import { OwnerActionPanel } from '@/features/approvals/owner/OwnerActionPanel';
 import { useReauth } from '@/features/approvals/useReauth';
 import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 import { useAuth } from '@/providers/AuthProvider';
+import { NO_OUTCOME, approvedDetailFor, outcomeForRetry } from './approveOutcome';
+import type { ApproveOutcome } from './approveOutcome';
 
 /** Sentences for the WP-45 Approve refusals that record nothing (the owner can fix and retry). */
 const APPROVE_REFUSALS: Readonly<Record<string, string>> = {
@@ -81,10 +83,7 @@ export function ApproveDetailPage() {
   const detail = useApprovalDetail(id);
   const act = useApprovalAction();
   const reauth = useReauth(approvalPath(id));
-  const [needsFresh, setNeedsFresh] = useState(false);
-  const [failed, setFailed] = useState<string | null>(null);
-  // WP-45: the Approve response, which alone carries a minted secret.
-  const [approved, setApproved] = useState<ApprovalDetail | null>(null);
+  const [outcome, setOutcome] = useState<ApproveOutcome>(NO_OUTCOME);
   const reauthRequested = params.get('reauth') === '1';
   const { signOut } = useAuth();
   const onAccountDeleted = useCallback((): void => {
@@ -105,20 +104,24 @@ export function ApproveDetailPage() {
   const queuePath = isMobile ? '/m/settings/approvals' : '/settings/approvals';
 
   const decide = (action: 'approve' | 'deny', body?: ApprovalApproveBody): void => {
-    setNeedsFresh(false);
-    setFailed(null);
+    setOutcome(outcomeForRetry);
     act.mutate(
       { id, action, ...(body ? { body } : {}) },
       {
         onSuccess: (detail) => {
-          if (action === 'approve') setApproved(detail);
+          if (action === 'approve') setOutcome({ kind: 'approved', detail });
         },
         onError: (err) => {
-          if (err.code === 'fresh_login_required') setNeedsFresh(true);
-          else
-            setFailed(
-              APPROVE_REFUSALS[err.code ?? ''] ?? 'That did not go through. Please try again.',
-            );
+          setOutcome(
+            err.code === 'fresh_login_required'
+              ? { kind: 'needs-fresh' }
+              : {
+                  kind: 'failed',
+                  message:
+                    APPROVE_REFUSALS[err.code ?? ''] ??
+                    'That did not go through. Please try again.',
+                },
+          );
         },
       },
     );
@@ -126,6 +129,7 @@ export function ApproveDetailPage() {
 
   const data = detail.data;
   const busy = act.isPending ? act.variables.action : null;
+  const approved = outcome.kind === 'approved' ? outcome.detail : null;
 
   return (
     <ApprovalFrame title="Approval request">
@@ -153,7 +157,7 @@ export function ApproveDetailPage() {
           />
           {data.status === 'pending' ? (
             <>
-              {needsFresh ? (
+              {outcome.kind === 'needs-fresh' ? (
                 <Notice role="alert">
                   {freshSignInCopy(data.kind)}
                   <Button
@@ -167,7 +171,7 @@ export function ApproveDetailPage() {
                   </Button>
                 </Notice>
               ) : null}
-              {failed ? <Notice role="alert">{failed}</Notice> : null}
+              {outcome.kind === 'failed' ? <Notice role="alert">{outcome.message}</Notice> : null}
               {isOwnerActionKind(data.kind) ? (
                 <OwnerActionPanel
                   detail={data}
@@ -206,7 +210,7 @@ export function ApproveDetailPage() {
                 <OwnerActionDone
                   // Remount when the Approve response (with its one-time secret) lands.
                   key={approved?.reveal ? 'revealed' : 'plain'}
-                  detail={approved?.id === data.id ? approved : data}
+                  detail={approvedDetailFor(outcome, data.id) ?? data}
                   onAccountDeleted={onAccountDeleted}
                 />
               ) : null}

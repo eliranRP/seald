@@ -17,6 +17,7 @@ import {
   type OutboundEmailRow,
   type OutboundEmailsRepository,
 } from '../../email/outbound-emails.repository';
+import { EnvelopeTerminalError } from '../../envelopes/envelopes.repository';
 import type {
   Envelope,
   EnvelopeEvent,
@@ -1182,6 +1183,19 @@ describe('SigningService.submit', () => {
 });
 
 describe('SigningService.decline', () => {
+  it('410 envelope_terminal when the repository refuses a decline that raced a cancel', async () => {
+    const spy = emptySpy();
+    const svc = buildService(spy, {
+      async declineSigner() {
+        throw new EnvelopeTerminalError('canceled');
+      },
+    });
+    await expect(
+      svc.decline(envelopeAwaitingOthers(), freshSigner(), null, null, null),
+    ).rejects.toThrow(new GoneException('envelope_terminal'));
+    expect(spy.events).toEqual([]);
+  });
+
   function declinedEnvelope(otherSigners: EnvelopeSigner[] = []): Envelope {
     return envelopeAwaitingOthers({
       status: 'declined',
@@ -1434,6 +1448,19 @@ describe('SigningService.withdrawConsent', () => {
 });
 
 describe('SigningService.setSignature', () => {
+  it('410 envelope_terminal when the envelope stopped while the signature uploaded', async () => {
+    const svc = buildService(emptySpy(), {
+      async setSignerSignature() {
+        throw new EnvelopeTerminalError('expired');
+      },
+    });
+    await expect(
+      svc.setSignature(envelopeAwaitingOthers(), freshSigner(), await tinyPng(), {
+        format: 'drawn',
+      }),
+    ).rejects.toThrow(new GoneException('envelope_terminal'));
+  });
+
   it('400 image_unreadable when buffer is empty', async () => {
     const svc = buildService(emptySpy());
     await expect(

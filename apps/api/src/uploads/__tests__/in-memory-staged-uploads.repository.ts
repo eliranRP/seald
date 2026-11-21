@@ -77,6 +77,7 @@ export class InMemoryStagedUploadsRepository extends StagedUploadsRepository {
     if (used >= input.daily_cap) return 'daily_cap';
     const row = this.owned(input.owner_id, input.id);
     if (!row || row.completed_at !== null) return 'not_pending';
+    if (Date.parse(row.expires_at) <= this.nowMs) return 'expired';
     Object.assign(row, {
       completed_at: this.now(),
       mime: input.mime,
@@ -110,9 +111,9 @@ export class InMemoryStagedUploadsRepository extends StagedUploadsRepository {
     return { ...row };
   }
 
-  async releaseClaim(owner_id: string, id: string): Promise<void> {
+  async releaseClaim(owner_id: string, id: string, consumed_at: string): Promise<void> {
     const row = this.owned(owner_id, id);
-    if (row) row.consumed_at = null;
+    if (row && row.consumed_at === consumed_at) row.consumed_at = null;
   }
 
   async delete(owner_id: string, id: string): Promise<void> {

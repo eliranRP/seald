@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { sql, type Kysely, type Selectable } from 'kysely';
-import { ENVELOPE_MACHINE, type BulkRecipient, type BulkRowError } from 'shared';
+import { sql, type Kysely, type RawBuilder, type Selectable } from 'kysely';
+import { BULK_ROW_MACHINE, ENVELOPE_MACHINE, type BulkRecipient, type BulkRowError } from 'shared';
 import type { BulkBatchesTable, BulkBatchRowsTable, Database } from '../../db/schema';
 import { DB_TOKEN } from '../db/db.provider';
 import {
@@ -12,6 +12,11 @@ import {
   type NewBulkBatch,
   type NewBulkRow,
 } from './bulk.repository';
+
+/** The row is still held by the claim a worker was handed (its `locked_at`). */
+function sameClaim(claim: string | undefined): RawBuilder<boolean> {
+  return sql<boolean>`locked_at = ${claim ?? null}::timestamptz`;
+}
 
 function iso(v: Date | string | null): string | null {
   if (v === null) return null;
@@ -243,34 +248,50 @@ export class BulkPgRepository extends BulkRepository {
       .execute();
   }
 
-  async markRowSent(row_id: string, now: Date): Promise<void> {
-    await this.db
+  async markRowSent(row_id: string, now: Date, claim?: string): Promise<boolean> {
+    const res = await this.db
       .updateTable('bulk_batch_rows')
       .set({
-        status: 'sent',
+        status: BULK_ROW_MACHINE.transitions.sent.to,
         sent_at: now.toISOString(),
         error_code: null,
         updated_at: now.toISOString(),
       })
       .where('id', '=', row_id)
-      .execute();
+      .where('status', 'in', BULK_ROW_MACHINE.sources('sent'))
+      .$if(claim !== undefined, (qb) => qb.where(sameClaim(claim)))
+      .executeTakeFirst();
+    return (res?.numUpdatedRows ?? 0n) > 0n;
   }
 
-  async markRowFailed(row_id: string, error_code: string): Promise<void> {
-    await this.db
+  async markRowFailed(row_id: string, error_code: string, claim?: string): Promise<boolean> {
+    const res = await this.db
       .updateTable('bulk_batch_rows')
-      .set({ status: 'failed', error_code, updated_at: new Date().toISOString() })
+      .set({
+        status: BULK_ROW_MACHINE.transitions.fail.to,
+        error_code,
+        updated_at: new Date().toISOString(),
+      })
       .where('id', '=', row_id)
-      .execute();
+      .where('status', 'in', BULK_ROW_MACHINE.sources('fail'))
+      .$if(claim !== undefined, (qb) => qb.where(sameClaim(claim)))
+      .executeTakeFirst();
+    return (res?.numUpdatedRows ?? 0n) > 0n;
   }
 
-  async releaseRow(row_id: string, error_code: string): Promise<void> {
-    await this.db
+  async releaseRow(row_id: string, error_code: string, claim?: string): Promise<boolean> {
+    const res = await this.db
       .updateTable('bulk_batch_rows')
-      .set({ status: 'pending', error_code, updated_at: new Date().toISOString() })
+      .set({
+        status: BULK_ROW_MACHINE.transitions.release.to,
+        error_code,
+        updated_at: new Date().toISOString(),
+      })
       .where('id', '=', row_id)
-      .where('status', '=', 'processing')
-      .execute();
+      .where('status', 'in', BULK_ROW_MACHINE.sources('release'))
+      .$if(claim !== undefined, (qb) => qb.where(sameClaim(claim)))
+      .executeTakeFirst();
+    return (res?.numUpdatedRows ?? 0n) > 0n;
   }
 
   async cancelStaleRows(staleBefore: Date, now: Date): Promise<ReadonlyArray<string>> {

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { BULK_ROW_MACHINE } from 'shared';
 import {
   BulkRepository,
   type BulkBatchRecord,
@@ -165,27 +166,41 @@ export class InMemoryBulkRepository extends BulkRepository {
     if (r) r.envelope_id = envelope_id;
   }
 
-  async markRowSent(row_id: string, now: Date): Promise<void> {
+  /** The claimed row, while `event` may fire from its status and `claim` (when given) still holds it. */
+  private heldRow(
+    row_id: string,
+    event: 'sent' | 'fail' | 'release',
+    claim: string | undefined,
+  ): MutableRow | null {
     const r = this.rows.get(row_id);
-    if (!r) return;
+    if (!r || !BULK_ROW_MACHINE.can(r.status, event)) return null;
+    if (claim !== undefined && r.locked_at !== claim) return null;
+    return r;
+  }
+
+  async markRowSent(row_id: string, now: Date, claim?: string): Promise<boolean> {
+    const r = this.heldRow(row_id, 'sent', claim);
+    if (!r) return false;
     r.status = 'sent';
     r.sent_at = now.toISOString();
     r.error_code = null;
+    return true;
   }
 
-  async markRowFailed(row_id: string, error_code: string): Promise<void> {
-    const r = this.rows.get(row_id);
-    if (!r) return;
+  async markRowFailed(row_id: string, error_code: string, claim?: string): Promise<boolean> {
+    const r = this.heldRow(row_id, 'fail', claim);
+    if (!r) return false;
     r.status = 'failed';
     r.error_code = error_code;
+    return true;
   }
 
-  async releaseRow(row_id: string, error_code: string): Promise<void> {
-    const r = this.rows.get(row_id);
-    if (r && r.status === 'processing') {
-      r.status = 'pending';
-      r.error_code = error_code;
-    }
+  async releaseRow(row_id: string, error_code: string, claim?: string): Promise<boolean> {
+    const r = this.heldRow(row_id, 'release', claim);
+    if (!r) return false;
+    r.status = 'pending';
+    r.error_code = error_code;
+    return true;
   }
 
   async cancelStaleRows(staleBefore: Date, _now: Date): Promise<ReadonlyArray<string>> {

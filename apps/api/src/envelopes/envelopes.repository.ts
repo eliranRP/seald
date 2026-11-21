@@ -506,6 +506,12 @@ export abstract class EnvelopesRepository {
     expires_at: string,
   ): Promise<{ readonly previous: string; readonly envelope: Envelope } | null>;
 
+  /*
+   * Signer step writes (view, terms, field, signature). Each one applies only
+   * while the envelope allows `sign`; a write that raced a cancel or expiry
+   * throws EnvelopeTerminalError (SigningService answers 410). `fillField`
+   * still resolves null for a field that is not the signer's.
+   */
   abstract recordSignerViewed(
     signer_id: string,
     ip: string | null,
@@ -629,7 +635,7 @@ export abstract class EnvelopesRepository {
   }
 
   /**
-   * Row-conditional transition envelope.status = 'sealing' → 'sealed'. Stamps
+   * Row-conditional transition envelope.status = 'sealing' → 'completed'. Stamps
    * sealed_file_path, sealed_sha256, audit_file_path, completed_at. Returns
    * the updated envelope, or null if the row was not in sealing (e.g. raced).
    */

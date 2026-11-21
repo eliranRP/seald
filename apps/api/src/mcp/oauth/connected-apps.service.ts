@@ -62,12 +62,25 @@ export class ConnectedAppsService {
   ): Promise<RevokeConnectedAppResponse> {
     const grant = await this.repo.findGrant(id);
     // Another owner's grant reads as none.
-    if (!grant || grant.ownerId !== ownerId || grant.revokedAt !== null) {
+    if (!grant || grant.ownerId !== ownerId) {
       throw new NotFoundException('connected_app_not_found');
     }
-    await this.repo.revokeGrant(grant.id, 'owner_revoked', now);
-    await this.lifecycle.expireForRevokedGrant(grant.id, now);
-    this.log.log(`connected app revoked grant=${grant.id} owner=${ownerId}`);
+    // Idempotent, like an API key revoke: a repeat revoke of the owner's
+    // grant succeeds and runs the approval expiry again.
+    if (grant.revokedAt === null && (await this.repo.revokeGrant(grant.id, 'owner_revoked', now))) {
+      this.log.log(`connected app revoked grant=${grant.id} owner=${ownerId}`);
+    }
+    // Expiring the grant's pending approvals (WP-21) runs on a repeat revoke
+    // too, so a failed first pass is retried. A failure here does not undo
+    // the revoke: an Approve still finds the grant revoked at decision time,
+    // records Failed and sends nothing.
+    try {
+      await this.lifecycle.expireForRevokedGrant(grant.id, now);
+    } catch (err) {
+      this.log.error(
+        `approvals not expired on revoke grant=${grant.id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
     return { revoked: true };
   }
 

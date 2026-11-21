@@ -1,6 +1,7 @@
 import { useId, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Bell, Check, MoreHorizontal, Pencil, Send, UserRoundCog } from 'lucide-react';
+import { ownerEnvelopeActions } from 'shared';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { Menu, MenuAnchor } from '@/components/Menu';
@@ -180,7 +181,9 @@ export function SignersCard(props: SignersCardProps) {
     onFixSubmit,
     onReplace,
   } = props;
-  const live = envelope.status === 'awaiting_others';
+  const allowed = ownerEnvelopeActions(envelope.status);
+  const canRemind = allowed.includes('remind');
+  const canCorrect = allowed.includes('correct_signer');
   // Mobile stacks name over track in a small card and keeps the email only
   // when it is the problem (bounced); Remind becomes an icon button.
   const isMobile = useIsMobileViewport();
@@ -197,7 +200,7 @@ export function SignersCard(props: SignersCardProps) {
           {envelope.signers.map((signer) => {
             const view = signerRowView(envelope, signer);
             const pending = isPending(signer);
-            const actionable = live && pending;
+            const actionable = (canRemind || canCorrect) && pending;
             const reminded = remindedIds.has(signer.id);
             const track = (
               <TrackSlot>
@@ -231,7 +234,7 @@ export function SignersCard(props: SignersCardProps) {
             );
             // A bounced address can't be reminded; the row's menu offers Fix email instead.
             let remindButton: ReactNode = reminded ? reminderSent : remind;
-            if (signer.status === 'bounced') remindButton = null;
+            if (signer.status === 'bounced' || !canRemind) remindButton = null;
             return (
               <SignerItem key={signer.id} $bad={view.bad}>
                 <SignerGrid>
@@ -254,7 +257,7 @@ export function SignersCard(props: SignersCardProps) {
                         {remindButton}
                         <SignerMenu
                           signer={signer}
-                          canRemind={!reminded}
+                          canRemind={canRemind && !reminded}
                           onRemind={() => onRemind(signer)}
                           onFix={() => onFixOpen(signer)}
                           onReplace={() => onReplace(signer)}

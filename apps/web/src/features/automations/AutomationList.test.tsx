@@ -83,4 +83,29 @@ describe('stateWord', () => {
     ).toBe('Retrying');
     expect(stateWord(fakeAutomation())).toBeNull();
   });
+
+  it.each([
+    ['done', 'Done', 'ok'],
+    ['failed', 'Failed', 'bad'],
+    ['retrying', 'Retrying', 'warn'],
+  ] as const)('derives the %s word and tone from the run status', (status, text, tone) => {
+    // status_word is display text; the tone must not depend on it.
+    expect(
+      stateWord(
+        fakeAutomation({
+          last_run: { status, status_word: null, created_at: '2026-10-02T10:00:00.000Z' },
+        }),
+      ),
+    ).toEqual({ text, tone });
+  });
+
+  it.each(['queued', 'running'] as const)('shows no word for a %s run', (status) => {
+    expect(
+      stateWord(
+        fakeAutomation({
+          last_run: { status, status_word: null, created_at: '2026-10-02T10:00:00.000Z' },
+        }),
+      ),
+    ).toBeNull();
+  });
 });

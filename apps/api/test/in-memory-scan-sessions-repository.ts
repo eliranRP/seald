@@ -1,4 +1,6 @@
+import { SCAN_SESSION_MACHINE } from 'shared';
 import {
+  SCAN_UPLOAD_CLAIM_STALE_MS,
   ScanSessionsRepository,
   type InsertScanSession,
   type ScanSessionRecord,
@@ -24,6 +26,12 @@ export class InMemoryScanSessionsRepository extends ScanSessionsRepository {
     if (row) row.expires_at = expires_at;
   }
 
+  /** Moves a session's claim stamp, so a spec can age an upload. */
+  setClaimedAt(id: string, claimed_at: string | null): void {
+    const row = this.rows.get(id);
+    if (row) row.claimed_at = claimed_at;
+  }
+
   async insert(input: InsertScanSession): Promise<ScanSessionRecord> {
     const row: Mutable<ScanSessionRecord> = {
       id: input.id,
@@ -35,6 +43,7 @@ export class InMemoryScanSessionsRepository extends ScanSessionsRepository {
       byte_length: null,
       expires_at: input.expires_at,
       received_at: null,
+      claimed_at: null,
       created_at: new Date().toISOString(),
     };
     this.rows.set(row.id, row);
@@ -55,35 +64,49 @@ export class InMemoryScanSessionsRepository extends ScanSessionsRepository {
     ).length;
   }
 
-  async claim(id: string, now: string): Promise<boolean> {
+  async claim(id: string, now: string): Promise<string | null> {
     const row = this.rows.get(id);
-    if (!row || row.status !== 'pending' || row.expires_at <= now) return false;
+    if (!row || row.expires_at <= now) return null;
+    const stale =
+      row.claimed_at === null ||
+      Date.parse(row.claimed_at) <= Date.parse(now) - SCAN_UPLOAD_CLAIM_STALE_MS;
+    const claimable =
+      SCAN_SESSION_MACHINE.can(row.status, 'claim') ||
+      (SCAN_SESSION_MACHINE.can(row.status, 'release') && stale);
+    if (!claimable) return null;
     row.status = 'uploading';
-    return true;
+    row.claimed_at = now;
+    return now;
   }
 
   async markReceived(
     id: string,
+    claim: string,
     input: { storage_key: string; page_count: number; byte_length: number },
     now: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const row = this.rows.get(id);
-    if (!row || row.status !== 'uploading') return;
+    if (!row || !SCAN_SESSION_MACHINE.can(row.status, 'received') || row.claimed_at !== claim) {
+      return false;
+    }
     row.status = 'received';
     row.storage_key = input.storage_key;
     row.page_count = input.page_count;
     row.byte_length = input.byte_length;
     row.received_at = now;
+    return true;
   }
 
-  async release(id: string): Promise<void> {
+  async release(id: string, claim: string): Promise<void> {
     const row = this.rows.get(id);
-    if (row && row.status === 'uploading') row.status = 'pending';
+    if (row && SCAN_SESSION_MACHINE.can(row.status, 'release') && row.claimed_at === claim) {
+      row.status = 'pending';
+    }
   }
 
   async consume(id: string): Promise<boolean> {
     const row = this.rows.get(id);
-    if (!row || row.status !== 'received') return false;
+    if (!row || !SCAN_SESSION_MACHINE.can(row.status, 'consume')) return false;
     row.status = 'consumed';
     return true;
   }

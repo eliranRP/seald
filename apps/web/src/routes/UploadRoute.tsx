@@ -13,8 +13,11 @@ import { useAuth } from '../providers/AuthProvider';
 import { apiClient } from '../lib/api/apiClient';
 import { readIsMobileViewport } from '../hooks/useIsMobileViewport';
 import { usePdfDocument } from '../lib/pdf';
-import { ConversionFailedDialog, ImportOverlay, useDriveImport } from '../features/gdriveImport';
-import type { ImportPhase } from '../features/gdriveImport';
+import {
+  ConversionFailedDialog,
+  ImportOverlay,
+  useDriveImportOverlay,
+} from '../features/gdriveImport';
 import {
   useConnectGDrive,
   useGDriveAccounts,
@@ -31,11 +34,7 @@ import {
 } from '../features/templates';
 import { listTemplates } from '../features/templates/templatesApi';
 import { buildDraftParts } from '../features/documentEditor/documents';
-import {
-  ConvertUploadError,
-  convertUploadToPdf,
-  isWordFile,
-} from '../features/documentEditor/upload/convertUpload';
+import { convertUploadToPdf, isWordFile } from '../features/documentEditor/upload/convertUpload';
 import { makeMeSigner } from '../features/documentEditor/upload/meSigner';
 import { TO_QUERY_PARAM, recipientFromQuery } from '../features/contacts/recipientFromQuery';
 
@@ -70,6 +69,18 @@ interface UploadRouteHandoffState {
   // exactOptionalPropertyTypes convention.
   readonly templateRename?: string;
 }
+
+/**
+ * The server-side Word -> PDF conversion. `failed` keeps the file so
+ * Retry can start it again; every rejection (Error or not) lands there,
+ * so the spinner can never stick.
+ */
+type Conversion =
+  | { readonly kind: 'idle' }
+  | { readonly kind: 'converting'; readonly file: File }
+  | { readonly kind: 'failed'; readonly file: File };
+
+const NO_CONVERSION: Conversion = { kind: 'idle' };
 
 /**
  * Route wrapper around `UploadPage`. Picking a file (PDF or Word, from the
@@ -110,8 +121,7 @@ export function UploadRoute() {
   const multiDoc = isFeatureEnabled('multiDocumentEnvelopes');
   const [pdfFile, setPdfFile] = useState<File | null>(initialHandoff?.pendingFile ?? null);
   const [extraFiles, setExtraFiles] = useState<ReadonlyArray<File>>([]);
-  const [converting, setConverting] = useState<File | null>(null);
-  const [conversionFailed, setConversionFailed] = useState(false);
+  const [conversion, setConversion] = useState<Conversion>(NO_CONVERSION);
   const convertAbort = useRef<AbortController | null>(null);
   const { numPages, error: pdfError } = usePdfDocument(pdfFile);
 
@@ -174,40 +184,17 @@ export function UploadRoute() {
     next.delete(GDRIVE_RETURN_PARAM);
     setSearchParams(next, { replace: true });
   }, [returnedFromDrive, gdriveOn, driveAccountId, searchParams, setSearchParams]);
-  const [driveImportPhase, setDriveImportPhase] = useState<ImportPhase | null>(null);
-  const [driveImportFileName, setDriveImportFileName] = useState('');
-  const doneTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const driveImport = useDriveImport({
+  // Drive import: overlay phase and the 800 ms "done" hand-off.
+  const driveImport = useDriveImportOverlay({
     accountId: driveAccountId ?? '',
-    onReady: (file) => {
-      // Show "done" phase for 800ms before closing and handing off.
-      setDriveImportPhase('done');
-      doneTimerRef.current = setTimeout(() => {
-        setDriveImportPhase(null);
-        setPdfFile(file);
-      }, 800);
-    },
+    onFile: setPdfFile,
   });
 
   useEffect(() => {
     return () => {
-      if (doneTimerRef.current) clearTimeout(doneTimerRef.current);
       convertAbort.current?.abort();
     };
   }, []);
-
-  useEffect(() => {
-    const { kind } = driveImport.state;
-    if (kind === 'starting') {
-      setDriveImportPhase('fetching');
-      setDriveImportFileName(driveImport.state.file.name);
-    } else if (kind === 'running') {
-      setDriveImportPhase('converting');
-    } else if (kind === 'failed') {
-      setDriveImportPhase(null);
-    }
-    // `idle` is handled by onReady above (with 800ms done animation).
-  }, [driveImport.state]);
 
   // Picking a template hands off to the canonical `/templates/:id/use`
   // flow (same destination as the Templates list "Use" CTA), which handles
@@ -227,47 +214,50 @@ export function UploadRoute() {
   }, [templateIdFromQuery]);
   const templateMissing = templateIdFromQuery !== null && template === null;
 
+  const { cancel: cancelDriveImport } = driveImport;
   const resetFiles = useCallback((): void => {
     convertAbort.current?.abort();
     convertAbort.current = null;
+    cancelDriveImport();
     setPdfFile(null);
     setExtraFiles([]);
-    setConverting(null);
-    setConversionFailed(false);
-  }, []);
+    setConversion(NO_CONVERSION);
+  }, [cancelDriveImport]);
 
   const startConversion = useCallback((word: File): void => {
     convertAbort.current?.abort();
     const ac = new AbortController();
     convertAbort.current = ac;
-    setConverting(word);
-    setConversionFailed(false);
+    setConversion({ kind: 'converting', file: word });
     convertUploadToPdf(word, ac.signal)
       .then((pdf) => {
         if (ac.signal.aborted) return;
-        setConverting(null);
+        setConversion(NO_CONVERSION);
         setPdfFile(pdf);
       })
-      .catch((err: unknown) => {
+      .catch(() => {
         if (ac.signal.aborted) return;
-        if (err instanceof ConvertUploadError || err instanceof Error) {
-          setConversionFailed(true);
-        }
+        setConversion({ kind: 'failed', file: word });
       });
   }, []);
 
   const handleFileSelected = useCallback(
     (file: File) => {
+      // A local pick wins over a Drive import still running or in its
+      // "done" window.
+      cancelDriveImport();
       setExtraFiles([]);
       if (isWordFile(file)) {
         setPdfFile(null);
         startConversion(file);
         return;
       }
-      setConverting(null);
+      convertAbort.current?.abort();
+      convertAbort.current = null;
+      setConversion(NO_CONVERSION);
       setPdfFile(file);
     },
-    [startConversion],
+    [cancelDriveImport, startConversion],
   );
 
   const handleFilesSelected = useCallback(
@@ -389,18 +379,18 @@ export function UploadRoute() {
   }, [resetFiles, searchParams, setSearchParams]);
 
   const handleRetryConversion = useCallback((): void => {
-    if (converting) startConversion(converting);
-    else resetFiles();
-  }, [converting, resetFiles, startConversion]);
+    if (conversion.kind === 'idle') resetFiles();
+    else startConversion(conversion.file);
+  }, [conversion, resetFiles, startConversion]);
 
   let bannerTitle: string | undefined;
   if (template) bannerTitle = template.name;
   else if (templateMissing) bannerTitle = 'Template not found — starting empty';
   const bannerTone: 'info' | 'warning' = templateMissing ? 'warning' : 'info';
 
-  const activeFile = converting ?? pdfFile;
+  const activeFile = conversion.kind === 'idle' ? pdfFile : conversion.file;
   let status: 'idle' | 'analyzing' | 'converting' = 'idle';
-  if (converting) status = 'converting';
+  if (conversion.kind !== 'idle') status = 'converting';
   else if (pdfFile) status = 'analyzing';
   const recent = templates.slice(0, RECENT_TEMPLATE_COUNT).map((t) => ({
     id: t.id,
@@ -426,7 +416,7 @@ export function UploadRoute() {
           ? { analyzingFileName: activeFile.name, analyzingFileSize: activeFile.size }
           : {})}
         {...(pdfFile && numPages > 0 ? { analyzedPages: numPages } : {})}
-        conversionFailed={conversionFailed || analysisFailed}
+        conversionFailed={conversion.kind === 'failed' || analysisFailed}
         onCancelAnalysis={resetFiles}
         onRetryConversion={handleRetryConversion}
         {...(bannerTitle ? { templateBannerTitle: bannerTitle } : {})}
@@ -466,9 +456,9 @@ export function UploadRoute() {
         />
       ) : null}
       <ImportOverlay
-        open={driveImportPhase !== null}
-        phase={driveImportPhase ?? 'fetching'}
-        fileName={driveImportFileName}
+        open={driveImport.phase !== null}
+        phase={driveImport.phase ?? 'fetching'}
+        fileName={driveImport.fileName}
       />
       <ConversionFailedDialog
         open={driveImport.state.kind === 'failed'}

@@ -355,6 +355,86 @@ describePg('workflow automations A1 (real Postgres)', () => {
     expect(failed.rows[0]).toEqual({ status: 'failed', retryable: false, consecutive_failures: 1 });
   });
 
+  it('after a stale reclaim the first worker cannot finish, retry, defer or fail the job (SM.3)', async () => {
+    const matcher = new NoAfterCommitMatcher(repo, ENV);
+    const envelopes = envelopesRepo(matcher);
+    const { envelopeId } = await seedEnvelope(envelopes);
+    const auto = await addRecipe('envelope_sealed', 'webhook');
+    const ev = await envelopes.appendEvent({
+      envelope_id: envelopeId,
+      actor_kind: 'system',
+      event_type: 'sealed',
+    });
+    await repo.matchTrigger(ev.id);
+    const { id: jobId } = (
+      await pool!.query<{ id: string }>('select id from automation_jobs where automation_id = $1', [
+        auto,
+      ])
+    ).rows[0]!;
+    await pool!.query(
+      `update automation_jobs set scheduled_for = now() + interval '1 day' where automation_id <> $1`,
+      [auto],
+    );
+    await pool!.query(
+      `update automation_jobs set scheduled_for = now() - interval '1 second' where id = $1`,
+      [jobId],
+    );
+    const staleBefore = () => new Date(Date.now() - 15 * 60_000);
+
+    const first = await repo.claimNextJob(new Date(), staleBefore());
+    expect(first).toMatchObject({ job_id: jobId, attempts: 1 });
+    expect(typeof first!.claim).toBe('string');
+    // The first worker hangs; its lock goes stale and a second worker reclaims the job.
+    await pool!.query(
+      `update automation_jobs set locked_at = now() - interval '16 minutes' where id = $1`,
+      [jobId],
+    );
+    const second = await repo.claimNextJob(new Date(), staleBefore());
+    expect(second).toMatchObject({ job_id: jobId, attempts: 2 });
+    expect(second!.claim).not.toBe(first!.claim);
+
+    const stale = {
+      job_id: jobId,
+      run_id: first!.run_id,
+      automation_id: auto,
+      claim: first!.claim!,
+    };
+    const later = new Date(Date.now() + 60_000);
+    expect(await repo.completeRun({ ...stale, response_status: 204 })).toBe(false);
+    expect(await repo.retryRun({ ...stale, slug: 'http_503', scheduled_for: later })).toBe(false);
+    expect(await repo.deferRun({ ...stale, slug: 'email_copy_cap', scheduled_for: later })).toBe(
+      false,
+    );
+    expect(await repo.failRun({ ...stale, slug: 'http_404', retryable: false })).toBe(false);
+    const untouched = await pool!.query(
+      `select j.status as job_status, j.attempts, r.status as run_status, r.last_error,
+              a.consecutive_failures
+         from automation_jobs j
+         join automation_runs r on r.id = j.run_id
+         join automations a on a.id = j.automation_id
+        where j.id = $1`,
+      [jobId],
+    );
+    expect(untouched.rows[0]).toEqual({
+      job_status: 'running',
+      attempts: 2,
+      run_status: 'running',
+      last_error: null,
+      consecutive_failures: 0,
+    });
+
+    // The current claim still finishes it, and the streak moves once.
+    expect(
+      await repo.failRun({ ...stale, claim: second!.claim!, slug: 'http_404', retryable: false }),
+    ).toBe(true);
+    expect(await count('select count(*) n from automation_jobs where id = $1', [jobId])).toBe(0);
+    const failed = await pool!.query(
+      'select r.status, a.consecutive_failures from automation_runs r join automations a on a.id = r.automation_id where r.id = $1',
+      [first!.run_id],
+    );
+    expect(failed.rows[0]).toEqual({ status: 'failed', consecutive_failures: 1 });
+  });
+
   it('account deletion removes recipes, secrets, jobs and runs', async () => {
     const matcher = new NoAfterCommitMatcher(repo, ENV);
     const envelopes = envelopesRepo(matcher);
